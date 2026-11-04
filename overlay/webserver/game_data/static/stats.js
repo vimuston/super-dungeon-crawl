@@ -31,11 +31,19 @@ define(["jquery", "./sdc_api"], function ($, api) {
     // player.js computes is used; the render-to-render difference is only a
     // fallback. A jump of more than MAX_ACTION_AUT is a multi-action update
     // (rest, travel, explore: the server holds back time while running),
-    // not one move, so it keeps the previous reading.
+    // not one move, so it keeps the previous reading -- except a multi-turn
+    // action (putting on / taking off armour, memorising, ...): the server
+    // does not redraw during the delay either, so it also arrives as one
+    // jump, but it ends with a "You finish ..." message. The player update
+    // and its messages arrive together, in either order on our side, so a
+    // long jump and a "You finish" line within PAIR_MS of each other count.
 
     var MAX_ACTION_AUT = 30;
+    var PAIR_MS = 600;
     var speed_prev_time = null;
     var speed_last = null;       // aut the last single action took
+    var long_jump = null;        // {aut, t}: a long jump awaiting its message
+    var finish_t = -Infinity;    // when the last "You finish ..." arrived
 
     function track_speed(player)
     {
@@ -43,17 +51,40 @@ define(["jquery", "./sdc_api"], function ($, api) {
         if (typeof t !== "number" || !isFinite(t))
             return;
         if (speed_prev_time == null || t < speed_prev_time)
+        {
             speed_last = null;   // first update, or a new game
+            long_jump = null;
+        }
         else if (t > speed_prev_time)
         {
             var d = player.time_delta;
             if (typeof d !== "number" || !(d > 0) || d > t - speed_prev_time)
                 d = t - speed_prev_time;
-            if (d <= MAX_ACTION_AUT)
+            long_jump = null;
+            if (d <= MAX_ACTION_AUT || Date.now() - finish_t < PAIR_MS)
                 speed_last = d;
+            else
+                long_jump = { aut: d, t: Date.now() };
         }
         speed_prev_time = t;
     }
+
+    // a "You finish ..." line after its (already rendered) long jump: take
+    // the jump and redraw just the chip; mobile.js mirrors it on
+    // "stats_counter"
+    api.on("message", function (text) {
+        if (!/^You finish /.test(text))
+            return;
+        finish_t = Date.now();
+        if (!long_jump || finish_t - long_jump.t >= PAIR_MS)
+            return;
+        speed_last = long_jump.aut;
+        long_jump = null;
+        if (api.get("turn_counter") !== "speed")
+            return;
+        $("#sdc_stats .st-speed").replaceWith(speed_chip());
+        api.emit("stats_counter");
+    });
 
     function speed_chip()
     {

@@ -253,6 +253,8 @@ function ($, comm, api, renderer, enums, options) {
             })
             .appendTo(normal);
 
+        build_menubar();
+
         // tap the pill / statuses: open or close the sheet
         normal.off("click.sdcm")
             .on("click.sdcm", "#sdc_vitals, #sdc_statuses", function (ev) {
@@ -262,6 +264,7 @@ function ($, comm, api, renderer, enums, options) {
             });
 
         watch_messages();
+        watch_menus();
     }
 
     function render_sheet()
@@ -841,6 +844,257 @@ function ($, comm, api, renderer, enums, options) {
         try { update_defenses(player); }
         catch (e) { console.error("sdc: mobile defenses", e); }
     });
+    // stats.js redrew just its counter chip (a multi-turn action's time)
+    api.on("stats_counter", function () {
+        var row = document.getElementById("sdc_m_def");
+        if (row) mirror_counter(row);
+    });
+
+    // Menus -------------------------------------------------------------------
+    // Crawl's popups (#ui-stack) are laid out for an 80-column terminal. On a
+    // phone, mobile.css turns them into a full-screen sheet; this reshapes
+    // their text so it reads and taps well there:
+    //   - list menus (inventory, spells, abilities, pickup, ...): a row's
+    //     first column stays on line one, the other columns (padded with
+    //     runs of spaces) move to a small second line, joined by dots.
+    //   - "[k] label" hints (menu footers, the skill menu's switches) become
+    //     chips that send k.
+    //   - skill menu rows ("a + Fighting") become chips that send the letter.
+    // Everything is redone whenever crawl rewrites the text, and is
+    // idempotent (no runs of spaces or bare hints are left behind).
+    var menu_observer = null;
+    var menu_raf = 0;
+
+    function watch_menus()
+    {
+        var stack = document.getElementById("ui-stack");
+        if (!stack) return;
+        if (!menu_observer)
+            menu_observer = new MutationObserver(schedule_menus);
+        menu_observer.disconnect();
+        menu_observer.observe(stack, { childList: true, subtree: true,
+                                       characterData: true });
+        schedule_menus();
+    }
+
+    function schedule_menus()
+    {
+        if (!menu_raf)
+            menu_raf = setTimeout(reshape_menus, 16);
+    }
+
+    function reshape_menus()
+    {
+        menu_raf = 0;
+        var stack = document.getElementById("ui-stack");
+        if (!stack || !active()) return;
+        menu_observer.disconnect();
+        try
+        {
+            each(stack, ".menu li, .menu .menu_title", split_columns);
+            each(stack, ".menu_skills > span", skill_rows);
+            each(stack, ".menu_title, .menu_more, .menu_txt > span",
+                 hint_chips);
+        }
+        catch (e) { console.error("sdc: mobile menus", e); }
+        menu_observer.observe(stack, { childList: true, subtree: true,
+                                       characterData: true });
+    }
+
+    function each(root, sel, fn)
+    {
+        Array.prototype.forEach.call(root.querySelectorAll(sel), fn);
+    }
+
+    function text_nodes(root)
+    {
+        var out = [];
+        var walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        while (walk.nextNode())
+            out.push(walk.currentNode);
+        return out;
+    }
+
+    // " a - Magic Dart      Conj      1%    1" ->
+    // "a - Magic Dart" / "Conj · 1% · 1"
+    function split_columns(li)
+    {
+        if (li.querySelector(".sdc-m-meta, input")) return;
+        var gaps = [];
+        text_nodes(li).forEach(function (t) {
+            var re = / {2,}/g, m, parts = [], last = 0;
+            while ((m = re.exec(t.data)))
+            {
+                parts.push(t.data.slice(last, m.index));
+                last = m.index + m[0].length;
+            }
+            if (!parts.length) return;
+            parts.push(t.data.slice(last));
+            var frag = document.createDocumentFragment();
+            parts.forEach(function (p, i) {
+                if (i)
+                {
+                    var g = document.createElement("i");
+                    g.className = "sdc-m-gap";
+                    frag.appendChild(g);
+                    gaps.push(g);
+                }
+                if (p) frag.appendChild(document.createTextNode(p));
+            });
+            t.parentNode.replaceChild(frag, t);
+        });
+        if (!gaps.length) return;
+
+        // drop gaps with nothing before them (indent), nothing after them
+        // (padding) or nothing since the previous gap (a run split across
+        // colour spans)
+        var range = document.createRange();
+        var prev = null;
+        gaps = gaps.filter(function (g) {
+            range.setStart(li, 0);
+            if (prev) range.setStartAfter(prev);
+            range.setEndBefore(g);
+            var before = range.toString().trim();
+            range.setStartAfter(g);
+            range.setEnd(li, li.childNodes.length);
+            var after = range.toString().trim();
+            if (!before || !after)
+            {
+                g.remove();
+                return false;
+            }
+            prev = g;
+            return true;
+        });
+        if (!gaps.length) return;
+
+        range.setStartAfter(gaps[0]);
+        range.setEnd(li, li.childNodes.length);
+        var meta = document.createElement("span");
+        meta.className = "sdc-m-meta";
+        meta.appendChild(range.extractContents());
+        gaps[0].remove();
+        li.appendChild(meta);
+        li.classList.add("sdc-m-cols");
+    }
+
+    function make_chip(key)
+    {
+        var chip = document.createElement("span");
+        chip.className = "sdc-m-hk";
+        chip.setAttribute("data-k", key);
+        return chip;
+    }
+
+    // "[<yellow>?</yellow>] help" -> a chip that sends "?"
+    function hint_chips(root)
+    {
+        each(root, "span", function (k) {
+            if (k.closest(".sdc-m-hk") || k.children.length) return;
+            var prev = k.previousSibling, next = k.nextSibling;
+            var key = k.textContent;
+            if (!key || key.length > 5 || !prev || !next
+                || prev.nodeType !== 3 || next.nodeType !== 3
+                || prev.data.slice(-1) !== "[" || next.data.charAt(0) !== "]")
+                return;
+            prev.data = prev.data.slice(0, -1);
+            next.data = next.data.slice(1);
+            var chip = make_chip(key);
+            k.parentNode.insertBefore(chip, k);
+            chip.appendChild(document.createTextNode("["));
+            chip.appendChild(k);
+            chip.appendChild(document.createTextNode("]"));
+            // the label: up to the next run of spaces, hint or line end
+            var n = chip.nextSibling;
+            while (n)
+            {
+                var following = n.nextSibling;
+                if (n.nodeType === 3)
+                {
+                    var stop = n.data.search(/ {2,}|\[/);
+                    if (stop === 0) break;
+                    if (stop > 0)
+                    {
+                        n.splitText(stop);
+                        chip.appendChild(n);
+                        break;
+                    }
+                    chip.appendChild(n);
+                }
+                else if (n.nodeType === 1 && n.tagName !== "BR"
+                         && n.textContent.indexOf("[") < 0
+                         && !n.classList.contains("sdc-m-hk"))
+                    chip.appendChild(n);
+                else
+                    break;
+                n = following;
+            }
+        });
+    }
+
+    // " a + Fighting        5.0 ..." -> a chip "a + Fighting" that sends "a"
+    var SKILL_RE = /([a-zA-Z]) ([-+* ]) ([A-Z][^ ]*(?: [^ ]+)*)/g;
+
+    function skill_rows(line)
+    {
+        text_nodes(line).forEach(function (t) {
+            if (t.parentNode.closest(".sdc-m-hk")) return;
+            var m, hits = [];
+            SKILL_RE.lastIndex = 0;
+            while ((m = SKILL_RE.exec(t.data)))
+            {
+                // the letter must start a column (line start or a space)
+                if (m.index && t.data.charAt(m.index - 1) !== " ") continue;
+                hits.push([m.index, m[0].length, m[1]]);
+            }
+            for (var i = hits.length - 1; i >= 0; i--)
+            {
+                var start = t.splitText(hits[i][0]);
+                start.splitText(hits[i][1]);
+                var chip = make_chip(hits[i][2]);
+                chip.classList.add("sdc-m-skill");
+                start.parentNode.replaceChild(chip, start);
+                chip.appendChild(start);
+            }
+        });
+    }
+
+    function send_hint(key)
+    {
+        if (key === "\t" || /^tab$/i.test(key)) send_keys("Tab");
+        else if (key.length === 1)
+            comm.send_message("input", { text: key });
+        else if (NAMED[key.toLowerCase()]) send_keys(key);
+        else
+            key.split("").forEach(function (c) {
+                comm.send_message("input", { text: c });
+            });
+    }
+
+    $(document).on("click.sdcm", ".sdc-m-hk", function (ev) {
+        if (!active()) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        buzz();
+        send_hint(this.getAttribute("data-k"));
+    });
+
+    function build_menubar()
+    {
+        $("#sdc_m_menubar").remove();
+        var bar = $("<div id='sdc_m_menubar'>");
+        key_button("✕ Close", "Esc").appendTo(bar);
+        $("<button type='button' class='sdc-m-btn'>")
+            .text("⌨ Keys")
+            .on("click", function (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                keyboard();
+            })
+            .appendTo(bar);
+        key_button("OK ↵", "Enter").appendTo(bar);
+        bar.appendTo(document.body);
+    }
 
     // Lifecycle ---------------------------------------------------------------
 

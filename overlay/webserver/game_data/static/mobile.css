@@ -422,3 +422,205 @@ body.sdc-mobile #sdc_panel .sdc-opt button { padding: 6px 9px; }
     grid-column: span 2; align-self: center; text-align: center;
     font-size: 11px; opacity: 0.8;
 }
+
+/* ---------------------------------------------------------- menus */
+/* Crawl's popups (#ui-stack: inventory, spells, skills, descriptions, ...)
+   are built for an 80-column screen. On a phone they become one full-screen
+   sheet above a bottom bar (Close / Keys / OK); mobile.js reshapes their
+   text (two-line rows, tappable [k] hints and skill rows). */
+body.sdc-mobile {
+    --sdc-m-bar: calc(52px + env(safe-area-inset-bottom));
+    --sdc-m-top: env(safe-area-inset-top);
+}
+body.sdc-mobile #ui-stack .ui-popup {
+    padding: var(--sdc-m-top) env(safe-area-inset-right)
+             var(--sdc-m-bar) env(safe-area-inset-left) !important;
+    align-items: stretch;
+}
+body.sdc-mobile #ui-stack .ui-popup.centred { align-items: center; }
+body.sdc-mobile #ui-stack .ui-popup-overlay { background: rgba(0, 0, 0, 0.85); }
+body.sdc-mobile #ui-stack .ui-popup-outer {
+    margin: 0;
+    width: 100%;
+    max-height: calc(100dvh - var(--sdc-m-top) - var(--sdc-m-bar));
+    padding: 8px 10px;
+    box-sizing: border-box;
+    outline: none;
+    border: 0;
+    border-bottom: 1px solid var(--sdc-accent-dim);
+    background: #040204;
+}
+body.sdc-mobile #ui-stack .ui-popup-inner {
+    width: 100%;
+    max-height: calc(100dvh - var(--sdc-m-top) - var(--sdc-m-bar) - 16px);
+}
+/* nested popups stack in place instead of stepping down */
+body.sdc-mobile #ui-stack .ui-popup:not(:last-child) { visibility: hidden; }
+body.sdc-mobile #ui-stack .ui-popup:last-child { visibility: visible; }
+
+/* our own overlays give way while a popup is up; the bar replaces them */
+body.sdc-mobile:has(#ui-stack > .ui-popup) #sdc_m_toolbtn,
+body.sdc-mobile:has(#ui-stack > .ui-popup) #sdc_m_tools,
+body.sdc-mobile:has(#ui-stack > .ui-popup) #sdc_m_bubble { display: none !important; }
+
+/* everything fits the width: drop the 40em / 80ch minimums */
+body.sdc-mobile #ui-stack .menu,
+body.sdc-mobile #ui-stack .menu_prompt,
+body.sdc-mobile #ui-stack #input_dialog,
+body.sdc-mobile #ui-stack .describe-generic,
+body.sdc-mobile #ui-stack .describe-feature,
+body.sdc-mobile #ui-stack .describe-item,
+body.sdc-mobile #ui-stack .describe-spell,
+body.sdc-mobile #ui-stack .describe-god,
+body.sdc-mobile #ui-stack .describe-god .body .pane,
+body.sdc-mobile #ui-stack .describe-monster,
+body.sdc-mobile #ui-stack .msgwin-get-line,
+body.sdc-mobile #ui-stack .game-over,
+body.sdc-mobile #ui-stack .progress-bar,
+body.sdc-mobile #ui-stack .seed-selection {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+body.sdc-mobile #ui-stack .menu { font-size: 14px !important; line-height: 1.3; }
+body.sdc-mobile #ui-stack [class^="describe-"] .body,
+body.sdc-mobile #ui-stack .formatted-scroller .body {
+    font-size: 14px;
+    overflow-wrap: anywhere;
+    touch-action: pan-y;
+}
+body.sdc-mobile #ui-stack #input_dialog { white-space: pre-wrap; flex-wrap: wrap; }
+body.sdc-mobile #ui-stack input { font-size: 16px; } /* no zoom-in */
+
+/* title / footer: wrap instead of running off the side */
+body.sdc-mobile #ui-stack .menu_title,
+body.sdc-mobile #ui-stack .menu_more {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+body.sdc-mobile #ui-stack .menu_title {
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(109, 255, 168, 0.15);
+    color: var(--sdc-accent);
+}
+body.sdc-mobile #ui-stack .menu_more { line-height: 2.1; }
+body.sdc-mobile #ui-stack .menu_contents { touch-action: pan-y; }
+
+/* rows: finger-sized, wrapping, a hairline between them */
+body.sdc-mobile #ui-stack .menu_contents li {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    min-height: 34px;
+    padding: 6px 4px;
+    box-sizing: border-box;
+    border: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+body.sdc-mobile #ui-stack .menu_contents li > canvas { margin-right: 6px; }
+/* wrapped names line up past the tile (hanging indent) */
+body.sdc-mobile #ui-stack .menu_contents li:has(> canvas) {
+    padding-left: 42px !important;
+    text-indent: -38px;
+}
+body.sdc-mobile #ui-stack li:has(> canvas) .sdc-m-meta { text-indent: 0; }
+/* headings (inventory classes, column legends) */
+body.sdc-mobile #ui-stack .menu_contents li:not(.level2) {
+    min-height: 0;
+    padding-top: 10px;
+    border-bottom-color: transparent;
+    color: var(--sdc-accent);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+}
+body.sdc-mobile #ui-stack .menu_contents li.selectable:active,
+body.sdc-mobile #ui-stack .menu_contents li.hovered {
+    background: rgba(109, 255, 168, 0.12);
+    border: 0;
+    border-bottom: 1px solid rgba(109, 255, 168, 0.25);
+}
+/* mobile.js: the columns after the first move to a second, smaller line */
+.sdc-m-meta {
+    display: block;
+    margin-top: 1px;
+    font-size: 11px;
+    opacity: 0.75;
+    padding-left: 1.8em;
+}
+body.sdc-mobile #ui-stack li.sdc-m-cols:has(> canvas) .sdc-m-meta { padding-left: 38px; }
+.sdc-m-gap::before { content: "\00b7"; margin: 0 0.5em; opacity: 0.5; }
+.sdc-m-gap { font-style: normal; }
+
+/* tappable [k] hints and skill rows */
+.sdc-m-hk {
+    display: inline-block;
+    padding: 2px 6px;
+    margin: 1px 0;
+    border: 1px solid var(--sdc-accent-dim);
+    border-radius: 3px;
+    background: rgba(109, 255, 168, 0.06);
+    line-height: 1.4;
+    white-space: pre;
+    cursor: pointer;
+}
+.sdc-m-hk:active { background: rgba(109, 255, 168, 0.25); }
+.sdc-m-hk.sdc-m-skill {
+    padding: 0 1px;
+    margin: 0;
+    border-color: transparent;
+    background: none;
+    border-bottom: 1px dotted var(--sdc-accent-dim);
+    border-radius: 0;
+    line-height: inherit;
+}
+
+/* CRT menus (the skill menu): the 80-column grid shrinks to fit the width;
+   in portrait it wraps at column 41, so the two skill columns stack */
+body.sdc-mobile #ui-stack .menu_txt {
+    width: 80ch;
+    max-width: 100%;
+    font-size: min(15px, calc((100vw - 24px) / 48.5));
+    line-height: 1.55;
+    overflow-x: auto;
+    overflow-y: auto;
+    touch-action: pan-x pan-y;
+}
+@media (orientation: portrait) {
+    body.sdc-mobile #ui-stack .menu_txt {
+        width: 41ch;
+        font-size: min(15px, calc((100vw - 24px) / 25));
+    }
+    body.sdc-mobile #ui-stack .menu_txt > span { white-space: pre-wrap !important; }
+}
+
+/* describe popups: action keys as buttons */
+body.sdc-mobile #ui-stack .actions { line-height: 2.2; }
+body.sdc-mobile #ui-stack .actions span[data-hotkey] {
+    padding: 6px 2px;
+    color: var(--sdc-accent);
+    border-bottom: 1px solid var(--sdc-accent);
+}
+
+/* the bottom bar while a popup is up */
+#sdc_m_menubar { display: none; }
+body.sdc-mobile:has(#ui-stack > .ui-popup) #sdc_m_menubar {
+    display: flex;
+    gap: 6px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 3200;
+    padding: 6px calc(8px + env(safe-area-inset-right))
+             calc(6px + env(safe-area-inset-bottom))
+             calc(8px + env(safe-area-inset-left));
+    background: rgba(2, 10, 5, 0.96);
+}
+#sdc_m_menubar .sdc-m-btn { flex: 1; min-height: 40px; font-size: 13px; }
+/* the message sheet (a prompt or the log) sits above the bar */
+body.sdc-mobile:has(#ui-stack > .ui-popup) #message_pane:has(input),
+body.sdc-mobile.sdc-m-log:has(#ui-stack > .ui-popup) #message_pane {
+    bottom: var(--sdc-m-bar);
+}
+/* inside the fixed-width grid the chips must not add width */
+body.sdc-mobile #ui-stack .menu_txt .sdc-m-hk { padding: 1px 0; margin: 0; }
