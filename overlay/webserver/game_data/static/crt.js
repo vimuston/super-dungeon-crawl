@@ -814,12 +814,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "    uv.x += sin(uv.y * 24.0 + u_time * 2.6) * 0.004 * u_g1.w;",
         "    uv.y += sin(uv.x * 19.0 + u_time * 2.1) * 0.003 * u_g1.w;",
         "  }",
-        // living tiles: sub-cell displacement of the sample position
         "  a_add = vec3(0.0); a_mul = vec3(1.0);",
-        "  if (u_alive_amt > 0.0) {",
-        "    vec2 ad = alive(uv);",
-        "    uv += vec2(ad.x, -ad.y) / u_alive_cells;",
-        "  }",
         // depth: 2.5D. Walls are raised by H (their top covers the bottom
         // strip of the cell behind, a dark front face fills the foot);
         // creatures and upright features are stretched up from their feet
@@ -906,6 +901,13 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "    uv = vec2(gs.x / u_depth_cells.x, 1.0 - gs.y / u_depth_cells.y);",
         "    vec2 gu = G / u_depth_cells;",
         "    d_mul = (gu.x < 0.0 || gu.x > 1.0 || gu.y < 0.0 || gu.y > 1.0) ? 0.0 : shade;",
+        "  }",
+        // living tiles: sub-cell displacement of the sample position. Runs on
+        // the map-space uv (after the 2.5D transform) so its per-cell tints
+        // and licks stay on their tiles when the view is rotated / zoomed.
+        "  if (u_alive_amt > 0.0) {",
+        "    vec2 ad = alive(uv);",
+        "    uv += vec2(ad.x, -ad.y) / u_alive_cells;",
         "  }",
         // chromatic aberration grows towards the edges
         "  vec2 d = (uv - 0.5) * u_texel * (2.2 + 1.5 * u_fx.x + 10.0 * u_gtint.w);",
