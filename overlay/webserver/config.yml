@@ -1,0 +1,15 @@
+# Local single-player overrides for the webtiles server (merged over config.py).
+#
+# LOCAL USE ONLY. `autologin` signs everyone who reaches the port in as
+# "player", with no password. Never expose this config to a network you do not
+# fully trust; for public hosting use config.public.yml instead.
+#
+# All interfaces *inside WSL*: in WSL's default NAT networking that VM address
+# is only reachable from this PC, and it's what WSL's localhost relay forwards
+# reliably (a 127.0.0.1 bind sometimes isn't forwarded after restarts).
+bind_address: ""
+bind_port: 8080
+# Personal local install: skip the account/login screen entirely.
+autologin: "player"
+development_mode: false
+game_data_no_cache: true

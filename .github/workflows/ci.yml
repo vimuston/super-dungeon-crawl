@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: JS syntax
+        run: |
+          for f in overlay/webserver/game_data/static/*.js; do
+            node --check "$f"
+          done
+      - name: Python syntax
+        run: python3 -m py_compile scripts/*.py overlay/webserver/crypt.py android/native/render_client.py
+      - name: Shell scripts
+        run: shellcheck -S warning scripts/*.sh
+
+  upstream:
+    # Catches upstream DCSS drift: patches must apply and the client hook
+    # script must still find its anchors in the stock webtiles files.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clone crawl
+        run: git clone --depth 1 https://github.com/crawl/crawl.git "$RUNNER_TEMP/crawl"
+      - name: Patches apply
+        run: |
+          for p in patches/*.patch; do
+            git -C "$RUNNER_TEMP/crawl" apply --check "$p"
+          done
+      - name: Client hooks apply
+        run: |
+          src="$RUNNER_TEMP/crawl/crawl-ref/source"
+          cp -r overlay/. "$src/"
+          python3 scripts/patch_client.py "$src/webserver/game_data"
+          for f in "$src"/webserver/game_data/static/*.js; do node --check "$f"; done
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Compile Java
+        # Syntax/type check against the Android SDK jar, without bundling crawl.
+        run: |
+          sdk_jar="$ANDROID_HOME/platforms/$(ls "$ANDROID_HOME/platforms" | sort -V | tail -1)/android.jar"
+          mkdir -p "$RUNNER_TEMP/classes"
+          javac -Xlint:none -cp "$sdk_jar" -d "$RUNNER_TEMP/classes" \
+            android/app/src/main/java/com/superdungeoncrawl/app/*.java

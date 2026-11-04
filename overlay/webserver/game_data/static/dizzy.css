@@ -1,0 +1,105 @@
+/* dizzy.js: confusion "dizzy" effect. Layer between the CRT screen (1)
+   and the HUD (6). transform / opacity animations only. */
+#sdc_dizzy {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    overflow: hidden;
+    contain: strict;
+}
+#sdc_dizzy .dz-vig {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 50%, transparent 52%,
+        rgba(176, 128, 255, 0.16) 82%, rgba(255, 240, 150, 0.14) 100%);
+    mix-blend-mode: screen;
+    opacity: 0;
+    animation: dz-vig 2.3s ease-in-out infinite;
+}
+#sdc_dizzy .dz-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    will-change: transform;
+}
+#sdc_dizzy .dz-root.dz-hide { display: none; }
+#sdc_dizzy .dz-ring {
+    position: absolute;
+    left: calc(var(--dz-cw) * -0.5);
+    top: calc(var(--dz-ch) * -0.5);
+    width: var(--dz-cw);
+    height: var(--dz-ch);
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 244, 160, 0.75);
+    box-shadow: 0 0 6px rgba(255, 240, 140, 0.55),
+                inset 0 0 6px rgba(176, 128, 255, 0.5);
+    mix-blend-mode: screen;
+    animation: dz-ring 1.9s ease-in-out infinite;
+}
+#sdc_dizzy .dz-ring2 {
+    border-color: rgba(190, 150, 255, 0.7);
+    box-shadow: 0 0 6px rgba(176, 128, 255, 0.6);
+    animation: dz-ring2 2.6s ease-in-out infinite;
+}
+/* orbit: x and y oscillate a quarter period apart (varying speeds) */
+#sdc_dizzy .dz-x {
+    position: absolute;
+    left: 0;
+    top: calc(var(--dz-ch) * -0.62);
+    animation: dz-x var(--dz-t) ease-in-out infinite alternate;
+    animation-delay: var(--dz-d);
+}
+#sdc_dizzy .dz-s {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: var(--dz-sz);
+    height: var(--dz-sz);
+    margin: calc(var(--dz-sz) * -0.5) 0 0 calc(var(--dz-sz) * -0.5);
+    background: var(--dz-c);
+    clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%,
+                       38% 62%, 0 50%, 38% 38%);
+    animation: dz-y var(--dz-t) ease-in-out infinite alternate,
+               dz-spin 1.4s linear infinite;
+    animation-delay: calc(var(--dz-d) - var(--dz-t) * 0.5), 0s;
+}
+@keyframes dz-x {
+    from { transform: translateX(calc(var(--dz-r) * -1)); }
+    to   { transform: translateX(var(--dz-r)); }
+}
+@keyframes dz-y {
+    from { translate: 0 calc(var(--dz-ry) * -1); }
+    to   { translate: 0 var(--dz-ry); }
+}
+@keyframes dz-spin {
+    from { rotate: 0deg; }
+    to   { rotate: 360deg; }
+}
+@keyframes dz-ring {
+    0%, 100% { transform: rotate(-6deg) scale(1, 1); opacity: 0.35; }
+    50%      { transform: rotate(8deg) scale(1.28, 0.86); opacity: 0.8; }
+}
+@keyframes dz-ring2 {
+    0%, 100% { transform: rotate(10deg) scale(1.3, 0.9); opacity: 0.7; }
+    50%      { transform: rotate(-8deg) scale(0.98, 1.1); opacity: 0.3; }
+}
+@keyframes dz-vig {
+    0%, 100% { opacity: 0.15; }
+    50%      { opacity: 1; }
+}
+#sdc_dizzy { transition: opacity 0.4s; }
+#sdc_dizzy.dz-off { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+    #sdc_dizzy .dz-x,
+    #sdc_dizzy .dz-ring2,
+    #sdc_dizzy .dz-vig { display: none; }
+    #sdc_dizzy .dz-ring {
+        animation: none;
+        opacity: 0.6;
+        transform: scale(0.8);
+    }
+}

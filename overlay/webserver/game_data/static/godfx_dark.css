@@ -1,0 +1,3 @@
+/* godfx_dark.js: visuals are inline-styled elements in the fxkit
+   "godfx_dark" and "aura" layers; only blend hints live here. */
+.sdc-aura-godfx_trogs_hand { mix-blend-mode: screen; }

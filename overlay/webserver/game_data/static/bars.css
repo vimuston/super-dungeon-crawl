@@ -1,0 +1,270 @@
+/* HP/MP vitals: panel placement (#sdc_vitals, built by crt.js with the
+   .sdc-name line, then bars.build() markup) and bar styles. */
+
+/* The status badges, this panel and the stats card are one merged unit in
+ * #sdc_corner. bars.js sets body[data-sdc-hud-pos] to top-left,
+ * bottom-left, top-center, bottom-center or bottom-right (default) and
+ * publishes the unit's height as --sdc-corner-h. */
+
+body.sdc-hud #sdc_vitals {
+    display: block;
+    position: relative;
+    z-index: 6;
+    order: 1;
+    width: 260px;
+    flex: none;
+    box-sizing: border-box;
+    padding: 5px 8px 5px;
+    font-family: var(--stat-font);
+    font-size: 11px;
+    line-height: 1.25;
+    color: var(--color-7, #ccc);
+    pointer-events: none;
+}
+/* joined to the stats card: the card's own top border is the divider. The
+   corner's 6px flex gap is cancelled. */
+body.sdc-hud #sdc_vitals.sdc-merged {
+    margin-bottom: -6px;
+    border-bottom: none;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+body.sdc-hud #sdc_vitals.sdc-merged::before {
+    bottom: 0;
+    border-radius: 3px 3px 0 0;
+}
+body.sdc-hud #sdc_stats {
+    order: 2;
+    min-width: 200px;
+    box-sizing: border-box;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+body.sdc-hud #sdc_statuses { order: 0; }
+#sdc_vitals.sdc-merged .sdc-name { margin-bottom: 4px; }
+
+/* anchor + alignment of the whole unit (dungeon-relative); bottom-right is
+   the base case */
+body.sdc-hud #sdc_corner {
+    top: auto;
+    left: auto;
+    right: calc(100vw - var(--sdc-dungeon-right) + 10px);
+    bottom: calc(100vh - var(--sdc-dungeon-bottom) + 10px);
+    transform: none;
+    align-items: flex-end;
+}
+body.sdc-hud #sdc_statuses { justify-content: flex-end; }
+
+body.sdc-hud[data-sdc-hud-pos^="top-"] #sdc_corner {
+    top: 10px;
+    bottom: auto;
+}
+body.sdc-hud[data-sdc-hud-pos$="-left"] #sdc_corner {
+    left: 10px;
+    right: auto;
+    align-items: flex-start;
+}
+body.sdc-hud[data-sdc-hud-pos$="-center"] #sdc_corner {
+    left: calc(var(--sdc-dungeon-right) / 2);
+    right: auto;
+    transform: translateX(-50%);
+    align-items: center;
+}
+body.sdc-hud[data-sdc-hud-pos$="-left"] #sdc_statuses { justify-content: flex-start; }
+body.sdc-hud[data-sdc-hud-pos$="-center"] #sdc_statuses { justify-content: center; }
+
+/* at the top: HP bars + card stay together, the badges go below them */
+body.sdc-hud[data-sdc-hud-pos^="top-"] #sdc_vitals { order: 0; }
+body.sdc-hud[data-sdc-hud-pos^="top-"] #sdc_stats { order: 1; }
+body.sdc-hud[data-sdc-hud-pos^="top-"] #sdc_statuses { order: 2; }
+
+/* quick-use bar (quickbar.css) collisions; "html" raises specificity.
+   bottom-center: lifted above the merged unit (+ caption row when on). */
+html body.sdc-hud[data-sdc-hud-pos="bottom-center"][data-sdc-quickbar="bottom"] #action-panel,
+html body.sdc-hud[data-sdc-hud-pos="bottom-center"][data-sdc-quickbar="bottom"] #action-panel-placeholder {
+    bottom: calc(100vh - var(--sdc-dungeon-bottom) + var(--sdc-corner-h, 0px) + 22px);
+}
+html body.sdc-hud[data-sdc-hud-pos="bottom-center"][data-sdc-quickbar="bottom"][data-sdc-qbcap="h"] #action-panel {
+    bottom: calc(100vh - var(--sdc-dungeon-bottom) + var(--sdc-corner-h, 0px) + 36px);
+}
+/* top-left: the stock top-left quick-use bar moves below the unit */
+html body.sdc-hud[data-sdc-hud-pos="top-left"][data-sdc-quickbar="top"] #action-panel,
+html body.sdc-hud[data-sdc-hud-pos="top-left"][data-sdc-quickbar="top"] #action-panel-placeholder {
+    top: calc(10px + var(--sdc-corner-h, 0px) + 8px);
+}
+
+.sdc-name {
+    margin-bottom: 4px;
+}
+
+.sdc-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 3px;
+    opacity: 0.85;
+}
+.sdc-who { color: var(--sdc-accent); }
+
+/* HP/MP bars in #sdc_vitals (markup from bars.js): flat 5px bars with
+ * the numbers beside them and a touch of phosphor glow. Glow colours are the
+ * --sdc-hp/-mp/-poison theme variables at partial strength (the plain rgba
+ * line is the fallback for browsers without color-mix). */
+
+#sdc_vitals .sdc-bars { display: flex; flex-direction: column; gap: 0; }
+#sdc_vitals .sdc-nomp .sdc-mp { display: none; }
+
+#sdc_vitals .sdc-bar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 12px;
+}
+#sdc_vitals .sdc-lbl {
+    display: inline-block;
+    width: 18px;
+    opacity: 0.8;
+    letter-spacing: 0.5px;
+}
+
+/* numbers: current / max, unreduced max in brackets */
+#sdc_vitals .sdc-val {
+    min-width: 54px;
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.2px;
+}
+#sdc_vitals .sdc-real { opacity: 0.5; font-size: 9px; margin-left: 1px; }
+#sdc_vitals .sdc-hp.poisoned .sdc-cur { color: var(--sdc-poison); }
+body.sdc-hp-warn #sdc_vitals .sdc-hp .sdc-cur { color: #ffd84d; }
+body.sdc-hp-danger #sdc_vitals .sdc-hp .sdc-cur { color: var(--sdc-hp); }
+
+/* track: dark base with a faint inner glow of its own colour. Overflow stays
+   visible so the fill's glow can spill a little past the 5px bar. */
+#sdc_vitals .sdc-track {
+    position: relative;
+    flex: 1;
+    height: 5px;
+    border-radius: 1px;
+}
+#sdc_vitals .sdc-hp .sdc-track {
+    background: var(--sdc-hp-dim);
+    box-shadow: inset 0 0 5px rgba(255, 77, 77, 0.55);
+    box-shadow: inset 0 0 5px color-mix(in srgb, var(--sdc-hp) 55%, transparent);
+}
+#sdc_vitals .sdc-mp .sdc-track {
+    background: var(--sdc-mp-dim);
+    box-shadow: inset 0 0 5px rgba(77, 166, 255, 0.55);
+    box-shadow: inset 0 0 5px color-mix(in srgb, var(--sdc-mp) 55%, transparent);
+}
+
+#sdc_vitals .sdc-track > span {
+    position: absolute;
+    top: 0; bottom: 0; left: 0;
+}
+#sdc_vitals .sdc-snap { transition: none !important; }
+
+/* fill + the glow */
+#sdc_vitals .sdc-fill {
+    z-index: 2;
+    border-radius: 1px;
+    transition: width 0.25s ease-out;
+}
+/* two-layer neon glow: a tight bright halo plus a wider soft bloom, and a
+   1px highlight along the top edge as the bright core line */
+#sdc_vitals .sdc-hp .sdc-fill {
+    background: var(--sdc-hp);
+    box-shadow: 0 0 3px rgba(255, 77, 77, 0.9), 0 0 10px rgba(255, 77, 77, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    box-shadow: 0 0 3px color-mix(in srgb, var(--sdc-hp) 90%, transparent),
+                0 0 10px color-mix(in srgb, var(--sdc-hp) 50%, transparent),
+                inset 0 1px 0 color-mix(in srgb, #fff 45%, transparent);
+    animation: sdc-breathe 3.5s ease-in-out infinite;
+}
+#sdc_vitals .sdc-mp .sdc-fill {
+    background: var(--sdc-mp);
+    box-shadow: 0 0 3px rgba(77, 166, 255, 0.9), 0 0 10px rgba(77, 166, 255, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    box-shadow: 0 0 3px color-mix(in srgb, var(--sdc-mp) 90%, transparent),
+                0 0 10px color-mix(in srgb, var(--sdc-mp) 50%, transparent),
+                inset 0 1px 0 color-mix(in srgb, #fff 45%, transparent);
+    animation: sdc-breathe 3.5s ease-in-out infinite;
+}
+/* low HP: the fill's glow flares wider (the panel heartbeat stays as is) */
+body.sdc-hp-danger #sdc_vitals .sdc-hp .sdc-fill {
+    box-shadow: 0 0 4px rgba(255, 60, 60, 1), 0 0 14px rgba(255, 60, 60, 0.6),
+                inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 4px color-mix(in srgb, var(--sdc-hp) 100%, transparent),
+                0 0 14px color-mix(in srgb, var(--sdc-hp) 60%, transparent),
+                inset 0 1px 0 color-mix(in srgb, #fff 50%, transparent);
+}
+
+/* value text picks up a faint glow in the bar colour */
+#sdc_vitals .sdc-hp .sdc-cur {
+    text-shadow: 0 0 4px rgba(255, 77, 77, 0.6);
+    text-shadow: 0 0 4px color-mix(in srgb, var(--sdc-hp) 60%, transparent);
+}
+#sdc_vitals .sdc-mp .sdc-cur {
+    text-shadow: 0 0 4px rgba(77, 166, 255, 0.6);
+    text-shadow: 0 0 4px color-mix(in srgb, var(--sdc-mp) 60%, transparent);
+}
+
+/* poison: the HP the poison will still take, a green tail on the HP bar */
+#sdc_vitals .sdc-poison {
+    z-index: 3;
+    border-radius: 1px;
+    background: var(--sdc-poison);
+    box-shadow: 0 0 3px rgba(155, 224, 58, 0.9), 0 0 10px rgba(155, 224, 58, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    box-shadow: 0 0 3px color-mix(in srgb, var(--sdc-poison) 90%, transparent),
+                0 0 10px color-mix(in srgb, var(--sdc-poison) 50%, transparent),
+                inset 0 1px 0 color-mix(in srgb, #fff 40%, transparent);
+    animation: sdc-breathe 3.5s ease-in-out infinite;
+    transition: width 0.25s ease-out, left 0.25s ease-out;
+}
+#sdc_vitals .sdc-mp .sdc-poison { display: none; }
+
+/* max reduced below the real max (drain, rot...): hatched dead end cap */
+#sdc_vitals .sdc-cap {
+    z-index: 4;
+    background: repeating-linear-gradient(135deg,
+        rgba(0, 0, 0, 0.85) 0 2px, rgba(255, 255, 255, 0.16) 2px 3px);
+}
+
+/* ------------------------------------------------- panel danger glow */
+
+body.sdc-hp-danger #sdc_vitals { border-color: var(--sdc-hp); }
+#sdc_vitals::before {
+    content: "";
+    position: absolute;
+    top: -1px; bottom: -1px; left: -1px; right: -1px;
+    border-radius: 3px;
+    box-shadow: 0 0 16px rgba(255, 60, 60, 0.9), inset 0 0 6px rgba(255, 60, 60, 0.4);
+    opacity: 0;
+    pointer-events: none;
+}
+body.sdc-hp-danger #sdc_vitals::before { animation: sdc-heartbeat 1.1s ease-out infinite; }
+
+/* slow, subtle breathing of the bar glow (brightness only, cheap to animate) */
+@keyframes sdc-breathe {
+    0%, 100% { filter: brightness(1); }
+    50%      { filter: brightness(1.12); }
+}
+
+@keyframes sdc-heartbeat {
+    0%   { opacity: 0; }
+    8%   { opacity: 1; }
+    20%  { opacity: 0.15; }
+    30%  { opacity: 0.8; }
+    55%  { opacity: 0; }
+    100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    /* steady glow instead of a heartbeat */
+    body.sdc-hp-danger #sdc_vitals::before { animation: none !important; opacity: 0.6; }
+    #sdc_vitals .sdc-fill,
+    #sdc_vitals .sdc-poison { transition-duration: 0.01s; animation: none; }
+}

@@ -1,0 +1,149 @@
+/* poison.js: poison effect. Layer between the CRT screen (1) and the HUD
+   (6). Bar styling hangs off body.sdc-pois[-mild|-heavy|-lethal]. */
+#sdc_poison {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    overflow: hidden;
+    contain: strict;
+    transition: opacity 0.4s;
+}
+#sdc_poison.pz-off { opacity: 0; }
+#sdc_poison .pz-vig {
+    position: absolute;
+    inset: 0;
+    --pz-c: 120, 230, 40;
+    --pz-a: 0.2;
+    background: radial-gradient(ellipse at 50% 50%, transparent 50%,
+        rgba(var(--pz-c), calc(var(--pz-a) * 0.5)) 78%,
+        rgba(var(--pz-c), var(--pz-a)) 100%);
+    mix-blend-mode: screen;
+    opacity: 0.25;
+    animation: pz-vig 1.4s ease-in-out infinite;
+}
+#sdc_poison.pz-heavy .pz-vig { --pz-a: 0.3; }
+#sdc_poison.pz-lethal .pz-vig {
+    --pz-c: 200, 220, 20;
+    --pz-a: 0.4;
+    animation: pz-vig 0.7s ease-in-out infinite;
+}
+body.sdc-pois-tick #sdc_poison .pz-vig {
+    animation: pz-tick 0.45s ease-out;
+}
+#sdc_poison.pz-clean::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 50%, transparent 40%,
+        rgba(190, 255, 220, 0.22) 100%);
+    mix-blend-mode: screen;
+    animation: pz-clean 1.2s ease-out forwards;
+}
+@keyframes pz-vig { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+@keyframes pz-tick { 0% { opacity: 1; } 100% { opacity: 0.3; } }
+@keyframes pz-clean {
+    0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0; }
+}
+
+#sdc_poison .pz-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    will-change: transform;
+}
+#sdc_poison .pz-root.pz-hide { display: none; }
+#sdc_poison .pz-b {
+    position: absolute;
+    left: calc(var(--pz-x) - var(--pz-sz) / 2);
+    top: calc(var(--pz-ch) * 0.2);
+    width: var(--pz-sz);
+    height: var(--pz-sz);
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 1px solid rgba(160, 255, 70, 0.85);
+    background: rgba(120, 230, 40, 0.25);
+    box-shadow: 0 0 5px rgba(120, 230, 40, 0.6);
+    opacity: 0;
+    animation: pz-rise var(--pz-t) ease-out infinite;
+    animation-delay: var(--pz-d);
+}
+#sdc_poison.pz-heavy .pz-b { animation-duration: calc(var(--pz-t) * 0.75); }
+#sdc_poison.pz-lethal .pz-b {
+    animation-duration: calc(var(--pz-t) * 0.5);
+    border-color: rgba(230, 240, 40, 0.9);
+    background: rgba(200, 220, 20, 0.3);
+}
+#sdc_poison.pz-mild .pz-b:nth-child(n+4) { display: none; }
+#sdc_poison .pz-drip {
+    position: absolute;
+    left: calc(var(--pz-cw) * 0.05 - 1px);
+    top: calc(var(--pz-ch) * 0.1);
+    width: 2px;
+    height: calc(var(--pz-ch) * 0.18);
+    border-radius: 1px;
+    background: rgba(140, 240, 50, 0.9);
+    box-shadow: 0 0 4px rgba(140, 240, 50, 0.8);
+    opacity: 0;
+    animation: pz-drip 1.8s ease-in infinite;
+}
+#sdc_poison.pz-lethal .pz-drip { animation-duration: 0.9s; background: #dfe83a; }
+@keyframes pz-rise {
+    0% { transform: translateY(0) scale(0.6); opacity: 0; }
+    15% { opacity: 0.9; }
+    100% { transform: translateY(calc(var(--pz-ch) * -1.1)) scale(1.1);
+           opacity: 0; }
+}
+@keyframes pz-drip {
+    0% { transform: translateY(0); opacity: 0; }
+    20% { opacity: 0.9; }
+    100% { transform: translateY(calc(var(--pz-ch) * 0.55)); opacity: 0; }
+}
+
+/* HP bar: the poison section throbs with animated stripes, number tinted */
+body.sdc-pois #sdc_vitals .sdc-hp .sdc-poison {
+    background-image: repeating-linear-gradient(135deg,
+        rgba(0, 0, 0, 0.28) 0 3px, transparent 3px 6px);
+    background-size: 12px 12px;
+    animation: pz-bar 1.4s ease-in-out infinite, pz-stripes 1s linear infinite;
+}
+body.sdc-pois #sdc_vitals .sdc-hp .sdc-cur {
+    color: var(--sdc-poison);
+    text-shadow: 0 0 6px var(--sdc-poison);
+}
+body.sdc-pois-lethal #sdc_vitals .sdc-hp .sdc-poison {
+    animation: pz-bar-lethal 0.5s steps(2, end) infinite,
+               pz-stripes 0.5s linear infinite;
+}
+body.sdc-pois-lethal #sdc_vitals .sdc-hp .sdc-cur {
+    color: #e6f03a;
+    animation: pz-num 0.5s steps(2, end) infinite;
+}
+body.sdc-pois-tick #sdc_vitals .sdc-hp {
+    animation: pz-barflash 0.45s ease-out;
+}
+@keyframes pz-bar {
+    0%, 100% { filter: brightness(0.9); }
+    50% { filter: brightness(1.5); }
+}
+@keyframes pz-bar-lethal {
+    0% { filter: brightness(0.8); } 100% { filter: brightness(2); }
+}
+@keyframes pz-stripes { to { background-position: 12px 0; } }
+@keyframes pz-num { 0% { opacity: 1; } 100% { opacity: 0.45; } }
+@keyframes pz-barflash {
+    0% { filter: drop-shadow(0 0 5px #b6ff3a) brightness(1.8); }
+    100% { filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #sdc_poison .pz-vig,
+    body.sdc-pois-tick #sdc_poison .pz-vig { animation: none; opacity: 0.6; }
+    #sdc_poison .pz-b, #sdc_poison .pz-drip, #sdc_poison.pz-clean::after,
+    body.sdc-pois #sdc_vitals .sdc-hp .sdc-poison,
+    body.sdc-pois #sdc_vitals .sdc-hp .sdc-cur,
+    body.sdc-pois-tick #sdc_vitals .sdc-hp { animation: none !important; }
+    #sdc_poison .pz-b, #sdc_poison .pz-drip { display: none; }
+}

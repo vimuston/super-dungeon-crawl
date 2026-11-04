@@ -1,0 +1,15 @@
+# Example webtiles overrides for hosting for other people. Not applied by
+# default: copy it over config.yml in the crawl checkout's webserver/ dir
+# (the overlay's config.yml is the local, passwordless one).
+#
+# - No autologin: players register and log in with their own accounts.
+# - Listens on loopback only: put a TLS reverse proxy (Caddy, nginx) in front
+#   and let it forward /socket and the page to this port.
+# - Keep the server patched and behind HTTPS; webtiles sends passwords over
+#   the websocket.
+bind_address: "127.0.0.1"
+bind_port: 8080
+autologin: null
+allow_account_registration: true
+development_mode: false
+game_data_no_cache: false

@@ -1,0 +1,172 @@
+name: Release builds
+
+# Builds the Android APK, the Windows exe and the Linux server packages
+# (x86-64 and arm64) from one pinned crawl commit, so saves move between them.
+#
+# - Push a tag v* (e.g. v2.0.0): builds everything and publishes a GitHub
+#   Release with the binaries.
+# - Run it by hand (Actions > Release builds > Run workflow): builds
+#   everything and keeps the binaries as workflow artifacts (no release).
+#
+# Optional repository secrets for a stable Android signing key (otherwise each
+# build is signed with a throwaway debug key, and an installed APK can't be
+# updated by the next one without uninstalling it first):
+#   ANDROID_KEYSTORE_BASE64   base64 of a .jks keystore
+#   ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      crawl_ref:
+        description: crawl commit, branch or tag to build (default master's head)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      crawl_ref: ${{ steps.ref.outputs.sha }}
+      version: ${{ steps.ref.outputs.version }}
+    steps:
+      - name: Resolve the crawl commit and the version
+        id: ref
+        env:
+          WANT: ${{ inputs.crawl_ref }}
+        run: |
+          want="${WANT:-master}"
+          if [[ "$want" =~ ^[0-9a-f]{40}$ ]]; then
+            sha="$want"
+          else
+            # prefer the peeled commit of an annotated tag
+            refs="$(git ls-remote https://github.com/crawl/crawl.git "$want" "$want^{}")"
+            sha="$(grep '\^{}$' <<<"$refs" | head -1 | cut -f1 || true)"
+            [ -n "$sha" ] || sha="$(head -1 <<<"$refs" | cut -f1)"
+          fi
+          [ -n "$sha" ] || { echo "::error::crawl ref '$want' not found"; exit 1; }
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            version="$GITHUB_REF_NAME"
+          else
+            version="dev-${GITHUB_SHA::7}"
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Super Dungeon Crawl $version, crawl \`$sha\`" >> "$GITHUB_STEP_SUMMARY"
+
+  server:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 22.04 (glibc 2.35): runs on Debian 12+ / Ubuntu 22.04+
+          - runner: ubuntu-22.04
+            arch: x86_64
+          - runner: ubuntu-22.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      SDC_CRAWL_REF: ${{ needs.prepare.outputs.crawl_ref }}
+      SDC_VERSION: ${{ needs.prepare.outputs.version }}
+      # bundle Lua, SQLite and zlib: only glibc, libstdc++ and ncurses at runtime
+      SDC_MAKE_FLAGS: BUILD_LUA=y BUILD_SQLITE=y BUILD_ZLIB=y
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build crawl
+        run: bash scripts/setup.sh
+      - name: Package
+        run: bash scripts/package-server.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-linux-${{ matrix.arch }}
+          path: dist/super-dungeon-crawl-server-linux-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+
+  android:
+    needs: prepare
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    env:
+      SDC_CRAWL_REF: ${{ needs.prepare.outputs.crawl_ref }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Crawl sources
+        run: SDC_SKIP_BUILD=1 bash scripts/setup.sh
+      - name: Android toolchain
+        run: bash scripts/build-android.sh init
+      - name: Cross-build crawl for Android
+        run: bash scripts/crossbuild-android.sh build
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            base64 -d <<<"$KEYSTORE_B64" > "$RUNNER_TEMP/release.jks"
+            echo "SDC_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::no ANDROID_KEYSTORE_BASE64 secret: signing with a debug key"
+          fi
+      - name: Build the APK
+        env:
+          SDC_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          SDC_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          SDC_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: bash scripts/build-android.sh build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/super-dungeon-crawl.apk
+          if-no-files-found: error
+
+  windows:
+    needs: prepare
+    runs-on: windows-latest
+    timeout-minutes: 240
+    env:
+      SDC_CRAWL_REF: ${{ needs.prepare.outputs.crawl_ref }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (Cygwin, crawl, launcher, package)
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1 all
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/super-dungeon-crawl.exe
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [prepare, server, android, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          CRAWL_SHA: ${{ needs.prepare.outputs.crawl_ref }}
+        run: |
+          ls -l out
+          gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" \
+            --title "Super Dungeon Crawl $TAG" --generate-notes \
+            --notes "Built against crawl [\`${CRAWL_SHA::10}\`](https://github.com/crawl/crawl/commit/$CRAWL_SHA). All files share that commit, so saves move between them."

@@ -1,0 +1,24 @@
+/* summonfx.css: rune circle, build-in curtain, wisps and dust. All elements are
+   created by summonfx.js inside #sdc_summonfx (fxkit layer); animation is done
+   with the Web Animations API on transform/opacity only. */
+.sdc-sm-ring {
+    border-style: dashed;
+    border-width: 2px;
+    border-radius: 50%;
+    box-sizing: border-box;
+}
+.sdc-sm-ring-in { border-style: dotted; border-width: 1px; }
+.sdc-sm-glyph {
+    font: bold 12px/1 monospace;
+    text-align: center;
+    white-space: nowrap;
+    text-shadow: 0 0 4px currentColor;
+}
+/* scanline curtain that is wiped away to reveal the creature */
+.sdc-sm-curtain {
+    background: repeating-linear-gradient(0deg,
+        currentColor 0, currentColor 1px, transparent 1px, transparent 3px);
+}
+.sdc-sm-edge { height: 2px; background: currentColor;
+               box-shadow: 0 0 6px 1px currentColor; }
+.sdc-sm-dot { border-radius: 50%; }

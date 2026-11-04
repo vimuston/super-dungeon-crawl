@@ -1,0 +1,99 @@
+/* spellfx.js: number looks per spell element. Applied on top of
+   .cb-word (combat.css), so size/font/stroke geometry stays shared and
+   only colour, outline and glow change. Motion lives in the JS. */
+#sdc_combat .cb-sp .cb-ch {
+    display: inline-block;
+    transform-origin: 50% 60%;
+}
+#sdc_combat .cb-sp { letter-spacing: 0.06em; }
+
+#sdc_combat .cb-word.cb-sp-fire {
+    color: #ffb326;
+    -webkit-text-stroke: 0.15em #6a1400;
+    text-shadow: 0 0 0.35em #ff5a10, 0 -0.12em 0.5em #ffd040, 0 0.06em 0 #6a1400;
+}
+#sdc_combat .cb-word.cb-sp-lava {
+    color: #ff7a2a;
+    -webkit-text-stroke: 0.16em #2a0800;
+    text-shadow: 0 0 0.4em #ff3a00, 0 0.08em 0 #2a0800;
+}
+#sdc_combat .cb-word.cb-sp-cold {
+    color: #c8f4ff;
+    -webkit-text-stroke: 0.15em #0b3a6b;
+    text-shadow: 0 0 0.4em #5fd0ff, 0 0 0.9em #2a9fe0, 0 0.06em 0 #0b3a6b;
+}
+#sdc_combat .cb-word.cb-sp-elec {
+    color: #fff8a0;
+    -webkit-text-stroke: 0.14em #1a2a8a;
+    text-shadow: 0 0 0.25em #fff, 0 0 0.6em #6ab0ff;
+    font-style: italic;
+}
+#sdc_combat .cb-word.cb-sp-poison {
+    color: #8dea4a;
+    -webkit-text-stroke: 0.15em #12380a;
+    text-shadow: 0 0 0.35em #4fb02a, 0 0.06em 0 #12380a;
+}
+#sdc_combat .cb-word.cb-sp-acid {
+    color: #d8ff3a;
+    -webkit-text-stroke: 0.15em #3a4a00;
+    text-shadow: 0 0 0.35em #b6ff00, 0 0.1em 0.1em #6a8a00;
+}
+#sdc_combat .cb-word.cb-sp-earth {
+    color: #dcc08c;
+    -webkit-text-stroke: 0.17em #3a2a18;
+    text-shadow: 0 0.1em 0 #20160c, 0 0.18em 0.2em rgba(0, 0, 0, 0.6);
+}
+#sdc_combat .cb-word.cb-sp-force {
+    color: #ff8ef2;
+    -webkit-text-stroke: 0.15em #4a0a5a;
+    text-shadow: 0 0 0.4em #e03cff, 0 0 0.9em #8a2cff, 0 0.06em 0 #4a0a5a;
+}
+#sdc_combat .cb-word.cb-sp-necro {
+    color: #d8b8ff;
+    -webkit-text-stroke: 0.14em #1a0030;
+    text-shadow: 0 0 0.5em #7a2cff, 0 0 1em #3a0a70;
+    font-weight: 700;
+}
+#sdc_combat .cb-word.cb-sp-chaos {
+    color: #ff4a4a;
+    -webkit-text-stroke: 0.14em #fff;
+    text-shadow: 0.06em 0 0 #0ff, -0.06em 0 0 #f0f;
+}
+#sdc_combat .cb-word.cb-sp-holy {
+    color: #fffbe0;
+    -webkit-text-stroke: 0.12em #8a6a10;
+    text-shadow: 0 0 0.5em #ffe680, 0 0 1.2em #ffd84a;
+}
+#sdc_combat .cb-word.cb-sp-air {
+    color: #eafcff;
+    -webkit-text-stroke: 0.1em #4a7a8a;
+    text-shadow: 0 0 0.3em #bff;
+    font-weight: 700;
+}
+#sdc_combat .cb-word.cb-sp-steam {
+    color: #fff;
+    -webkit-text-stroke: 0.12em #7a5a4a;
+    text-shadow: 0 0 0.4em rgba(255, 190, 140, 0.9);
+}
+#sdc_combat .cb-word.cb-sp-water {
+    color: #6ac8ff;
+    -webkit-text-stroke: 0.15em #08306a;
+    text-shadow: 0 0 0.3em #2a8ad8, 0 0.08em 0 #08306a;
+}
+#sdc_combat .cb-word.cb-sp-shadow {
+    color: #14061f;
+    -webkit-text-stroke: 0.14em #a06cff;
+    text-shadow: 0 0 0.4em #6a2cc0, 0 0.06em 0 #3a1068;
+}
+#sdc_combat .cb-word.cb-sp-blood {
+    color: #e01830;
+    -webkit-text-stroke: 0.15em #2a0006;
+    text-shadow: 0 0 0.4em #ff1830, 0 0.08em 0 #2a0006;
+}
+#sdc_combat .cb-word.cb-sp-anti {
+    color: #e4eaff;
+    -webkit-text-stroke: 0.12em #3a3f5a;
+    text-shadow: 0 0 0.3em #9aa8ff;
+    font-family: "Courier New", monospace;
+    font-weight: 700;
+}

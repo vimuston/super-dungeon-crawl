@@ -1,0 +1,32 @@
+Super Dungeon Crawl
+========
+
+This project is a derivative work of Dungeon Crawl Stone Soup (DCSS),
+https://github.com/crawl/crawl, and is distributed under the GNU General
+Public License, version 2 or (at your option) any later version. See LICENSE.
+
+What this repository contains
+-----------------------------
+- overlay/, patches/, android/, windows/, scripts/: original work for this
+  project, GPL-2.0-or-later.
+- Built artifacts (the Android APK, the Windows exe, cross-built crawl
+  binaries) contain unmodified or patched DCSS code. The corresponding source is the upstream
+  crawl commit named by scripts/setup.sh and scripts/crossbuild-*.sh plus the
+  files in patches/. Anyone receiving a binary may obtain that source from
+  this repository and from upstream.
+
+Third-party components
+----------------------
+- Dungeon Crawl Stone Soup: Copyright 1997-2025 Linley Henzell, the dev team
+  and the contributors (see CREDITS.txt upstream). GPL-2.0-or-later, with some
+  files under other GPL-compatible licenses (BSD, MIT, zlib, Apache-2.0,
+  Boost, CC0); see the upstream LICENSE file.
+- DCSS tiles and artwork: mostly CC0; some pieces carry other terms. See
+  https://github.com/crawl/tiles.
+- ncurses and the Android NDK, used to build the Android binary, are fetched
+  by scripts/crossbuild-android.sh and keep their own licenses.
+- The Windows build bundles Cygwin's runtime (cygwin1.dll, LGPL-3.0) and
+  libraries installed by scripts/build-windows.ps1, under their own licenses.
+
+"Dungeon Crawl Stone Soup" and its contributors are not affiliated with this
+project.

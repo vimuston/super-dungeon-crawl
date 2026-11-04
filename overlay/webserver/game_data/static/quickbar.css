@@ -1,0 +1,423 @@
+/* Quick-use action bar (quickbar.js): the stock #action-panel canvas
+   moved to the bottom centre of the dungeon view with an action-bar frame. */
+
+body.sdc-hud[data-sdc-quickbar="bottom"] #action-panel {
+    position: fixed;
+    top: auto;
+    /* shifted right by half the god ability group (quickbar.js) so the
+       whole bar stays centred; 0 without one */
+    left: calc(var(--sdc-dungeon-right) / 2 + var(--sdc-qb-ab-shift, 0px));
+    bottom: calc(100vh - var(--sdc-dungeon-bottom) + 12px);
+    transform: translateX(-50%);
+    z-index: 6;
+    border: 2px solid rgba(109, 255, 168, 0.55);
+    border-radius: 5px;
+    background:
+        linear-gradient(to bottom, rgba(20, 40, 28, 0.92), rgba(4, 12, 7, 0.95));
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.9),
+        0 0 14px rgba(109, 255, 168, 0.22),
+        0 4px 10px rgba(0, 0, 0, 0.7);
+}
+/* leave room for the caption row under a horizontal bar */
+body.sdc-hud[data-sdc-quickbar="bottom"][data-sdc-qbcap="h"] #action-panel {
+    bottom: calc(100vh - var(--sdc-dungeon-bottom) + 26px);
+}
+body.sdc-hud.sdc-qb-raised[data-sdc-quickbar="bottom"][data-sdc-qbcap="h"] #action-panel {
+    bottom: calc(100vh - var(--sdc-dungeon-bottom) + 90px);
+}
+body.sdc-hud.sdc-qb-raised[data-sdc-quickbar="bottom"] #action-panel,
+body.sdc-hud.sdc-qb-raised[data-sdc-quickbar="bottom"] #action-panel-placeholder {
+    /* sit above the HUD toggle bar when that is also at the bottom */
+    bottom: calc(100vh - var(--sdc-dungeon-bottom) + 76px);
+}
+
+/* minimised panel: the stock "+" tab, at the same spot */
+body.sdc-hud[data-sdc-quickbar="bottom"] #action-panel-placeholder {
+    position: fixed;
+    top: auto;
+    left: calc(var(--sdc-dungeon-right) / 2);
+    bottom: calc(100vh - var(--sdc-dungeon-bottom) + 12px);
+    transform: translateX(-50%);
+    z-index: 6;
+    border-color: rgba(109, 255, 168, 0.55);
+    border-radius: 4px;
+    background: rgba(4, 12, 7, 0.92);
+    box-shadow: 0 0 10px rgba(109, 255, 168, 0.2);
+}
+body.sdc-hud[data-sdc-quickbar="bottom"] #action-panel-placeholder a {
+    color: var(--sdc-accent);
+}
+
+/* stock position: just inside the top-left corner */
+body.sdc-hud[data-sdc-quickbar="top"] #action-panel,
+body.sdc-hud[data-sdc-quickbar="top"] #action-panel-placeholder {
+    top: 10px;
+    left: 10px;
+}
+
+/* slot frame drawn over the canvas: dividers between slots, a bevel and a
+   faint glass sheen, so the tiles read as action-bar buttons */
+#sdc_qb_frame {
+    display: none;
+    position: fixed;
+    z-index: 7;
+    pointer-events: none;
+    box-sizing: border-box;
+    border: 2px solid transparent;    /* matches the canvas border */
+    border-radius: 5px;
+    --sdc-qb-pitch: 32px;
+}
+#sdc_qb_frame[data-dir="h"] {
+    background:
+        linear-gradient(to bottom,
+            rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0) 38%,
+            rgba(0, 0, 0, 0) 70%, rgba(0, 0, 0, 0.28)),
+        repeating-linear-gradient(to right,
+            rgba(0, 0, 0, 0) 0,
+            rgba(0, 0, 0, 0) calc(var(--sdc-qb-pitch) - 2px),
+            rgba(0, 0, 0, 0.85) calc(var(--sdc-qb-pitch) - 2px),
+            rgba(109, 255, 168, 0.35) calc(var(--sdc-qb-pitch) - 1px),
+            rgba(0, 0, 0, 0) var(--sdc-qb-pitch));
+    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.8);
+}
+#sdc_qb_frame[data-dir="v"] {
+    background:
+        linear-gradient(to right,
+            rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 40%),
+        repeating-linear-gradient(to bottom,
+            rgba(0, 0, 0, 0) 0,
+            rgba(0, 0, 0, 0) calc(var(--sdc-qb-pitch) - 2px),
+            rgba(0, 0, 0, 0.85) calc(var(--sdc-qb-pitch) - 2px),
+            rgba(109, 255, 168, 0.35) calc(var(--sdc-qb-pitch) - 1px),
+            rgba(0, 0, 0, 0) var(--sdc-qb-pitch));
+    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.8);
+}
+
+/* name captions: a strip joined to the bar's frame */
+#sdc_qb_caps {
+    display: none;
+    position: fixed;
+    z-index: 7;
+    pointer-events: none;
+    box-sizing: border-box;
+    overflow: hidden;
+    font: 9px/12px var(--stat-font);
+    color: var(--sdc-accent, #6dffa8);
+    text-shadow: 0 0 4px rgba(109, 255, 168, 0.55);
+    background: linear-gradient(to bottom, rgba(4, 12, 7, 0.95),
+                                rgba(2, 8, 5, 0.97));
+    border: 2px solid rgba(109, 255, 168, 0.55);
+    box-shadow: 0 0 14px rgba(109, 255, 168, 0.18),
+                0 4px 10px rgba(0, 0, 0, 0.7);
+}
+#sdc_qb_caps[data-dir="h"] {
+    border-top: 0;
+    border-radius: 0 0 5px 5px;
+}
+#sdc_qb_caps[data-dir="v"] {
+    border-left: 0;
+    border-radius: 0 5px 5px 0;
+}
+#sdc_qb_caps.small { font-size: 7px; letter-spacing: -0.2px; }
+#sdc_qb_caps span {
+    position: absolute;
+    box-sizing: border-box;
+    padding: 0 2px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-align: center;
+}
+#sdc_qb_caps[data-dir="h"] span { top: 0; }
+#sdc_qb_caps[data-dir="v"] span { text-align: left; padding-left: 5px; }
+#sdc_qb_caps span.res { opacity: 0.6; }
+
+/* dock magnification overlay (see the dock section of quickbar.js): a
+   per-slot copy of the stock canvas; the stock canvas stays in place and
+   keeps the mouse, only hidden while the overlay is up */
+#sdc_qb_dock {
+    display: none;
+    position: fixed;
+    z-index: 8;
+    pointer-events: none;
+}
+body.sdc-qb-dock #sdc_qb_dock { display: block; }
+body.sdc-qb-dock #action-panel,
+body.sdc-qb-dock #sdc_qb_caps { opacity: 0; }
+#sdc_qb_dock .bg {
+    position: absolute;
+    box-sizing: border-box;
+    border: 2px solid rgba(109, 255, 168, 0.55);
+    border-radius: 5px;
+    background:
+        linear-gradient(to bottom, rgba(20, 40, 28, 0.92), rgba(4, 12, 7, 0.95));
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.9),
+        0 0 14px rgba(109, 255, 168, 0.22),
+        0 4px 10px rgba(0, 0, 0, 0.7);
+}
+#sdc_qb_dock .slot {
+    position: absolute;
+    top: 0;
+    box-sizing: border-box;
+    transform-origin: 50% 100%;
+    will-change: transform;
+    border-radius: 3px;
+}
+#sdc_qb_dock .slot canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+#sdc_qb_dock .slot::after {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px rgba(109, 255, 168, 0.22);
+}
+#sdc_qb_dock .slot.hot { background: rgba(6, 18, 11, 0.9); }
+#sdc_qb_dock .slot.hot::after {
+    box-shadow: inset 0 0 0 1px rgba(109, 255, 168, 0.75),
+                0 0 8px rgba(109, 255, 168, 0.45);
+}
+#sdc_qb_dock .lab {
+    display: none;
+    position: absolute;
+    transform: translateX(-50%);
+    padding: 0 6px;
+    white-space: nowrap;
+    font: 10px/14px var(--stat-font);
+    color: var(--sdc-accent, #6dffa8);
+    text-shadow: 0 0 4px rgba(109, 255, 168, 0.55);
+    background: rgba(4, 12, 7, 0.96);
+    border: 1px solid rgba(109, 255, 168, 0.55);
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 0 10px rgba(109, 255, 168, 0.2);
+}
+
+/* very slow idle breathing of the frame glow (opacity only) */
+#sdc_qb_frame::after {
+    content: "";
+    position: absolute;
+    left: -2px; top: -2px; right: -2px; bottom: -2px;
+    border-radius: 6px;
+    box-shadow: 0 0 12px rgba(109, 255, 168, 0.28);
+    opacity: 0.25;
+    animation: sdc-qb-breathe 7s ease-in-out infinite;
+}
+@keyframes sdc-qb-breathe {
+    0%, 100% { opacity: 0.15; }
+    50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    #sdc_qb_frame::after { animation: none; }
+}
+
+/* god abilities (quickbar.js "god abilities"): a highlighted group of
+   slots joined to the front of the bar, in the god's colour (amber default) */
+#sdc_qb_ab {
+    display: none;
+    position: fixed;
+    z-index: 7;
+    box-sizing: border-box;
+    --sdc-qb-god: #ffbf47;
+    border: 2px solid color-mix(in srgb, var(--sdc-qb-god) 80%, transparent);
+    background:
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.10),
+                        rgba(255, 255, 255, 0) 40%),
+        linear-gradient(to bottom,
+            color-mix(in srgb, var(--sdc-qb-god) 22%, rgb(20, 16, 6)),
+            color-mix(in srgb, var(--sdc-qb-god) 8%, rgb(6, 4, 1)));
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.9),
+        0 0 16px color-mix(in srgb, var(--sdc-qb-god) 45%, transparent),
+        inset 0 1px 0 color-mix(in srgb, var(--sdc-qb-god) 40%, transparent),
+        0 4px 10px rgba(0, 0, 0, 0.7);
+}
+#sdc_qb_ab[data-dir="h"] { border-right: 0; border-radius: 5px 0 0 5px; }
+#sdc_qb_ab[data-dir="v"] { border-bottom: 0; border-radius: 5px 5px 0 0; }
+#sdc_qb_ab > .dv {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    font-size: 10px;
+    color: var(--sdc-qb-god);
+    text-shadow: 0 0 5px var(--sdc-qb-god);
+}
+#sdc_qb_ab[data-dir="h"] > .dv {
+    top: 0; bottom: 0; right: 0; width: 12px;
+    border-left: 1px solid color-mix(in srgb, var(--sdc-qb-god) 45%, transparent);
+}
+#sdc_qb_ab[data-dir="v"] > .dv {
+    left: 0; right: 0; bottom: 0; height: 12px;
+    border-top: 1px solid color-mix(in srgb, var(--sdc-qb-god) 45%, transparent);
+}
+#sdc_qb_ab > button {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 3px;
+    background: radial-gradient(circle at 50% 40%,
+        color-mix(in srgb, var(--sdc-qb-god) 18%, transparent), transparent 70%);
+    cursor: pointer;
+    pointer-events: auto;
+    outline: none;
+}
+#sdc_qb_ab > button:hover,
+#sdc_qb_ab > button:focus-visible {
+    background: radial-gradient(circle at 50% 40%,
+        color-mix(in srgb, var(--sdc-qb-god) 38%, transparent), transparent 75%);
+    box-shadow: inset 0 0 0 1px var(--sdc-qb-god),
+                0 0 8px color-mix(in srgb, var(--sdc-qb-god) 60%, transparent);
+}
+#sdc_qb_ab > button.nope { animation: sdc-qb-nope 0.3s ease-out; }
+@keyframes sdc-qb-nope {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-2px); }
+    75% { transform: translateX(2px); }
+}
+
+/* slot content, shared by the bar buttons and their dock copies */
+.sdc-ab { overflow: hidden; }
+.sdc-ab .sdc-ab-ic {
+    position: absolute;
+    left: 0; top: 0;
+    width: 100%;
+    height: 100%;
+}
+.sdc-ab .sdc-ab-gl {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    text-align: center;
+    font-family: var(--stat-font);
+    font-weight: bold;
+    color: var(--sdc-qb-god, #ffbf47);
+    text-shadow: 0 0 6px var(--sdc-qb-god, #ffbf47), 0 1px 0 #000;
+}
+.sdc-ab .sdc-ab-k {
+    position: absolute;
+    left: 2px; top: 0;
+    font: bold 9px/11px var(--stat-font);
+    color: var(--sdc-qb-god, #ffbf47);
+    text-shadow: 0 0 2px #000, 1px 1px 0 #000;
+}
+.sdc-ab .sdc-ab-f {
+    position: absolute;
+    right: 1px; bottom: 0;
+    font: 8px/9px var(--stat-font);
+    color: #ff9c5c;
+    text-shadow: 0 0 2px #000, 1px 1px 0 #000;
+}
+/* unusable: dimmed, hatched, a small padlock */
+.sdc-ab.off .sdc-ab-ic,
+.sdc-ab.off .sdc-ab-gl {
+    filter: grayscale(0.85) brightness(0.5);
+}
+.sdc-ab.off::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(45deg,
+        rgba(0, 0, 0, 0.45) 0, rgba(0, 0, 0, 0.45) 2px,
+        rgba(0, 0, 0, 0) 2px, rgba(0, 0, 0, 0) 5px);
+    pointer-events: none;
+}
+.sdc-ab .sdc-ab-lk {
+    position: absolute;
+    right: 3px; top: 5px;
+    width: 7px; height: 5px;
+    border-radius: 1px;
+    background: #b8b0a0;
+    box-shadow: 0 0 0 1px #000;
+}
+.sdc-ab .sdc-ab-lk::before {
+    content: "";
+    position: absolute;
+    left: 1px; top: -4px;
+    width: 3px; height: 4px;
+    border: 1px solid #b8b0a0;
+    border-bottom: 0;
+    border-radius: 3px 3px 0 0;
+}
+.sdc-ab.off .sdc-ab-k { opacity: 0.6; }
+
+/* ability names in the caption strip */
+#sdc_qb_caps span.ab {
+    color: #ffd27a;
+    text-shadow: 0 0 4px rgba(255, 191, 71, 0.6);
+}
+
+#sdc_qb_abtip {
+    display: none;
+    position: fixed;
+    z-index: 9;
+    pointer-events: none;
+    padding: 1px 7px;
+    white-space: nowrap;
+    font: 10px/14px var(--stat-font);
+    --sdc-qb-god: #ffbf47;
+    color: var(--sdc-qb-god);
+    background: rgba(12, 9, 3, 0.96);
+    border: 1px solid color-mix(in srgb, var(--sdc-qb-god) 70%, transparent);
+    border-radius: 4px;
+    box-shadow: 0 0 10px color-mix(in srgb, var(--sdc-qb-god) 30%, transparent);
+}
+#sdc_qb_abtip[data-dir="h"] { transform: translate(-50%, -100%); }
+#sdc_qb_abtip[data-dir="v"] { transform: translate(-100%, -50%); }
+#sdc_qb_abtip.off { color: #a8a090; }
+
+/* the dock overlay draws the group while it runs */
+body.sdc-qb-dock #sdc_qb_ab { opacity: 0; }
+#sdc_qb_dock .abg {
+    display: none;
+    position: absolute;
+    box-sizing: border-box;
+    border: 2px solid color-mix(in srgb, var(--sdc-qb-god, #ffbf47) 80%, transparent);
+    border-right: 0;
+    border-radius: 5px 0 0 5px;
+    background:
+        linear-gradient(to bottom,
+            color-mix(in srgb, var(--sdc-qb-god, #ffbf47) 22%, rgb(20, 16, 6)),
+            color-mix(in srgb, var(--sdc-qb-god, #ffbf47) 8%, rgb(6, 4, 1)));
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.9),
+        0 0 16px color-mix(in srgb, var(--sdc-qb-god, #ffbf47) 45%, transparent),
+        0 4px 10px rgba(0, 0, 0, 0.7);
+}
+#sdc_qb_dock .mk {
+    display: none;
+    position: absolute;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: var(--sdc-qb-god, #ffbf47);
+    text-shadow: 0 0 5px var(--sdc-qb-god, #ffbf47);
+    z-index: 1;
+}
+#sdc_qb_dock .slot.sdc-ab::after {
+    box-shadow: inset 0 0 0 1px
+        color-mix(in srgb, var(--sdc-qb-god, #ffbf47) 35%, transparent);
+}
+#sdc_qb_dock .slot.sdc-ab.hot {
+    background: color-mix(in srgb, var(--sdc-qb-god, #ffbf47) 18%, rgb(12, 9, 3));
+}
+#sdc_qb_dock .slot.sdc-ab.hot::after {
+    box-shadow: inset 0 0 0 1px var(--sdc-qb-god, #ffbf47),
+                0 0 8px color-mix(in srgb, var(--sdc-qb-god, #ffbf47) 55%, transparent);
+}
+
+/* out of the way in the X-map view */
+body.sdc-hud.sdc-mapview #sdc_qb_ab,
+body.sdc-hud.sdc-mapview #sdc_qb_abtip,
+body.sdc-hud.sdc-mapview #sdc_qb_dock,
+body.sdc-hud.sdc-mapview[data-sdc-quickbar="bottom"] #action-panel,
+body.sdc-hud.sdc-mapview #sdc_qb_frame,
+body.sdc-hud.sdc-mapview #sdc_qb_caps {
+    display: none !important;
+}

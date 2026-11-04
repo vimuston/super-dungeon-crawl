@@ -1,0 +1,145 @@
+/* berserk.js styles. Layer sits over the dungeon rect, under the HUD. */
+#sdc_berserk {
+    position: fixed;
+    z-index: 4;
+    pointer-events: none;
+    overflow: hidden;
+}
+body.sdc-mapview #sdc_berserk { display: none; }
+
+/* CSS vignette: only used without the GL pass (shader does it otherwise) */
+#sdc_berserk .bz-vig {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    background: radial-gradient(ellipse at center,
+        rgba(120, 0, 0, 0) 45%, rgba(110, 0, 0, 0.45) 75%,
+        rgba(30, 0, 0, 0.85) 100%);
+}
+body.sdc-gl #sdc_berserk .bz-vig { display: none; }
+
+#sdc_berserk .bz-ember {
+    position: absolute;
+    bottom: -8px;
+    width: var(--bz-s, 4px);
+    height: var(--bz-s, 4px);
+    border-radius: 50%;
+    background: #ff7a2a;
+    box-shadow: 0 0 6px 2px rgba(255, 70, 10, 0.8);
+    opacity: 0;
+    animation: bz-rise var(--bz-t, 3s) linear var(--bz-d, 0s) infinite;
+}
+#sdc_berserk.bz-off .bz-ember { animation-play-state: paused; opacity: 0; }
+@keyframes bz-rise {
+    0%   { transform: translate(0, 0); opacity: 0; }
+    15%  { opacity: 0.9; }
+    100% { transform: translate(var(--bz-dx, 20px), calc(var(--bz-h, 600px) * -0.85));
+           opacity: 0; }
+}
+
+#sdc_berserk .bz-flash {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    background: radial-gradient(circle, #fff 0%, #ffd0c0 40%, #ff2a10 100%);
+}
+#sdc_berserk .bz-flash.bz-go { animation: bz-flash 0.4s ease-out; }
+@keyframes bz-flash {
+    0%   { opacity: 0.9; }
+    100% { opacity: 0; }
+}
+
+#sdc_berserk .bz-title {
+    position: absolute;
+    left: 50%;
+    top: 17%;
+    width: 100%;
+    text-align: center;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    font-family: Impact, "Arial Black", "Haettenschweiler", sans-serif;
+    font-weight: 900;
+    text-transform: uppercase;
+    white-space: nowrap;
+    line-height: 1;
+}
+#sdc_berserk .bz-title.bz-go { animation: bz-slam 1.15s linear; }
+#sdc_berserk .bz-t1 {
+    position: relative;
+    display: inline-block;
+    font-size: calc(var(--bz-w, 800px) * 0.15);
+    letter-spacing: 0.04em;
+    transform: rotate(-4deg) skewX(-6deg);
+    color: transparent;
+    background: linear-gradient(180deg, #fff 0%, #ffe9c0 28%, #ff3a14 62%, #8a0000 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-stroke: 0.045em #1a0000;
+    paint-order: stroke fill;
+    filter: drop-shadow(0 0 0.15em rgba(255, 40, 0, 0.9));
+}
+#sdc_berserk .bz-t1::before,
+#sdc_berserk .bz-t1::after {
+    content: attr(data-text);
+    position: absolute;
+    left: 0;
+    top: 0;
+    -webkit-text-stroke: 0;
+    mix-blend-mode: screen;
+    opacity: 0.85;
+}
+#sdc_berserk .bz-t1::before { color: #00e5ff; }
+#sdc_berserk .bz-t1::after  { color: #ff1a40; }
+#sdc_berserk .bz-go .bz-t1::before { animation: bz-splitl 1.15s steps(1) both; }
+#sdc_berserk .bz-go .bz-t1::after  { animation: bz-splitr 1.15s steps(1) both; }
+@keyframes bz-splitl {
+    0%   { transform: translate(-0.02em, 0); }
+    30%  { transform: translate(-0.03em, 0.01em); clip-path: inset(10% 0 55% 0); }
+    38%  { transform: translate(0.02em, 0); clip-path: none; }
+    55%  { transform: translate(-0.03em, 0); clip-path: inset(50% 0 10% 0); }
+    62%  { clip-path: none; transform: translate(-0.015em, 0); }
+    75%  { transform: translate(-0.12em, 0); }
+    100% { transform: translate(-0.3em, 0); }
+}
+@keyframes bz-splitr {
+    0%   { transform: translate(0.02em, 0); }
+    30%  { transform: translate(0.03em, -0.01em); clip-path: inset(55% 0 5% 0); }
+    38%  { transform: translate(-0.02em, 0); clip-path: none; }
+    55%  { transform: translate(0.03em, 0); clip-path: inset(5% 0 55% 0); }
+    62%  { clip-path: none; transform: translate(0.015em, 0); }
+    75%  { transform: translate(0.12em, 0); }
+    100% { transform: translate(0.3em, 0); }
+}
+#sdc_berserk .bz-t2 {
+    display: block;
+    margin-top: 0.1em;
+    font-size: calc(var(--bz-w, 800px) * 0.045);
+    letter-spacing: 0.35em;
+    color: #ff3a14;
+    text-shadow: 2px 0 #00e5ff, -2px 0 #ff1a40, 0 0 12px rgba(255, 30, 0, 0.9);
+    transform: rotate(-4deg);
+}
+/* slam in with scale overshoot, shake, then split apart and fade */
+@keyframes bz-slam {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(3.2) rotate(-2deg); }
+    10%  { opacity: 1; transform: translate(-50%, -50%) scale(0.9); }
+    16%  { transform: translate(-50%, -50%) scale(1.06); }
+    22%  { transform: translate(-48.5%, -51%) scale(1); }
+    30%  { transform: translate(-51.5%, -49%) scale(1.02); }
+    38%  { transform: translate(-49%, -50.5%) scale(1); }
+    46%  { transform: translate(-51%, -49.5%) scale(1.01); }
+    56%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    75%  { opacity: 0.8; transform: translate(-50%, -50%) scale(1.06); }
+    100% { opacity: 0; transform: translate(-50%, -52%) scale(1.25); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #sdc_berserk .bz-ember { display: none; }
+    #sdc_berserk .bz-title.bz-go { animation: bz-fade 1.15s linear; }
+    #sdc_berserk .bz-go .bz-t1::before,
+    #sdc_berserk .bz-go .bz-t1::after { animation: none; }
+    @keyframes bz-fade {
+        0%, 70% { opacity: 1; transform: translate(-50%, -50%); }
+        100%    { opacity: 0; transform: translate(-50%, -50%); }
+    }
+}

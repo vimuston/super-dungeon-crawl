@@ -1,0 +1,10 @@
+/* wandfx.js: all marks are positioned inline inside #sdc_wandfx */
+#sdc_wandfx {
+    contain: layout paint;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #sdc_wandfx > div {
+        filter: none !important;
+    }
+}

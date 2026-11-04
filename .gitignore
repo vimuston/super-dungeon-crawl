@@ -1,0 +1,13 @@
+rcs/
+*.log
+
+__pycache__/
+
+dist/
+android/**/build/
+android/.gradle/
+android/local.properties
+windows/bin/
+windows/obj/
+CLAUDE.md
+tools/video/

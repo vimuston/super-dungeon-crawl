@@ -1,0 +1,321 @@
+/* Mobile UI (mobile.js). Everything is scoped to body.sdc-mobile. */
+
+/* ------------------------------------------------------------ page */
+
+/* no page scroll, rubber-banding, double-tap zoom or text selection */
+html.sdc-mobile,
+body.sdc-mobile {
+    overflow: hidden;
+    overscroll-behavior: none;
+    height: 100%;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+body.sdc-mobile #sdc_screen,
+body.sdc-mobile #dungeon { touch-action: none; }
+body.sdc-mobile input { -webkit-user-select: text; user-select: text; }
+
+/* stock bits that don't fit: message pane (shown on demand below), the
+   minimap (Tools > Minimap), hover tooltips and the keyboard-helper bar,
+   which stays focusable but invisible (Tools > Keyboard) */
+body.sdc-mobile #message_pane { display: none; }
+body.sdc-mobile #tooltip,
+body.sdc-mobile #chat { display: none !important; }
+body.sdc-mobile:not(.sdc-m-map) #right_column { display: none; }
+body.sdc-mobile #right_column { top: 52px; }
+body.sdc-mobile #mobile_input {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+}
+
+/* ------------------------------------------------------- messages */
+
+/* recent log (bubble tap / Tools > Log) and text prompts (an <input> in the
+   messages, e.g. Find's "Search for what?"): the pane as a bottom sheet */
+body.sdc-mobile.sdc-m-log #message_pane,
+body.sdc-mobile #message_pane:has(input) {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 3150;
+    padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
+    background: rgba(0, 6, 3, 0.92);
+    border-top: 1px solid var(--sdc-accent-dim);
+    box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.6);
+}
+body.sdc-mobile.sdc-m-log #messages_container {
+    max-height: 45vh !important;
+    overflow-y: auto !important;
+    touch-action: pan-y;
+}
+body.sdc-mobile #message_pane:has(input) #messages_container {
+    max-height: 30vh !important;
+    overflow-y: auto !important;
+}
+body.sdc-mobile #message_pane input { font-size: 16px; } /* no zoom-in */
+
+#sdc_m_logclose { display: none; }
+body.sdc-mobile.sdc-m-log #sdc_m_logclose {
+    display: block;
+    position: fixed;
+    right: 8px;
+    bottom: calc(45vh + 26px);
+    z-index: 3160;
+    width: 36px;
+    height: 36px;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--sdc-accent);
+    background: rgba(2, 10, 5, 0.95);
+    border: 1px solid var(--sdc-accent-dim);
+    border-radius: 50%;
+}
+
+/* floating bubble next to the player */
+#sdc_m_bubble { display: none; }
+body.sdc-mobile #sdc_m_bubble.sdc-m-show {
+    display: block;
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 8;
+    max-width: min(70vw, 420px);
+    padding: 4px 8px;
+    font: 12px/1.3 var(--stat-font);
+    color: var(--color-7, #ccc);
+    background: rgba(2, 10, 5, 0.55);
+    border: 1px solid rgba(109, 255, 168, 0.2);
+    border-radius: 4px;
+    -webkit-backdrop-filter: blur(1px);
+    backdrop-filter: blur(1px);
+    opacity: 0.92;
+    transition: opacity 0.7s ease-out;
+    animation: sdc-in 0.2s ease-out;
+}
+body.sdc-mobile #sdc_m_bubble.sdc-m-fade { opacity: 0; }
+body.sdc-mobile #sdc_m_bubble.sdc-m-prompt {
+    border-color: var(--sdc-accent-dim);
+    background: rgba(2, 10, 5, 0.8);
+    opacity: 1;
+}
+.sdc-m-line { white-space: normal; overflow-wrap: anywhere; }
+/* older lines dimmer, newest brightest */
+.sdc-m-line:not(:last-of-type) { opacity: 0.7; }
+.sdc-m-more {
+    margin-top: 2px;
+    color: var(--sdc-accent);
+    animation: sdc-m-pulse 1.2s ease-in-out infinite alternate;
+}
+@keyframes sdc-m-pulse {
+    from { opacity: 0.55; }
+    to   { opacity: 1; }
+}
+body.sdc-hud.sdc-mapview #sdc_m_bubble,
+body.sdc-mobile.sdc-m-log #sdc_m_bubble,
+body.sdc-mobile:has(#message_pane input) #sdc_m_bubble { display: none !important; }
+
+/* ------------------------------------------------ vitals pill + sheet */
+
+/* the merged stats unit pinned top-left, reduced to the HP/MP bars */
+html body.sdc-mobile #sdc_corner {
+    top: calc(6px + env(safe-area-inset-top));
+    left: calc(6px + env(safe-area-inset-left));
+    right: auto;
+    bottom: auto;
+    transform: none;
+    align-items: flex-start;
+    max-width: calc(100vw - 70px);
+}
+/* open: above crawl's menus (#ui-stack, 3000) like the tools menu */
+html body.sdc-mobile.sdc-m-open #sdc_corner { z-index: 3120; }
+html body.sdc-mobile #sdc_vitals {
+    order: 0;
+    width: 150px !important;
+    padding: 3px 6px;
+    pointer-events: auto;
+    cursor: pointer;
+}
+html body.sdc-mobile #sdc_vitals .sdc-name { display: none; }
+html body.sdc-mobile #sdc_vitals .sdc-bar { height: 10px; gap: 4px; }
+html body.sdc-mobile #sdc_vitals .sdc-lbl { display: none; }
+html body.sdc-mobile #sdc_vitals .sdc-val { min-width: 44px; font-size: 10px; }
+html body.sdc-mobile #sdc_vitals .sdc-real { display: none; }
+html body.sdc-mobile #sdc_statuses {
+    order: 1;
+    justify-content: flex-start;
+    font-size: 10px;
+    pointer-events: auto;
+}
+html body.sdc-mobile #sdc_stats { display: none; order: 2; }
+#sdc_m_sheet { display: none; }
+
+/* open: name line, full stats card and the buttons */
+html body.sdc-mobile.sdc-m-open #sdc_vitals { width: auto !important; min-width: 220px; }
+html body.sdc-mobile.sdc-m-open #sdc_vitals .sdc-name { display: block; }
+html body.sdc-mobile.sdc-m-open #sdc_vitals .sdc-lbl { display: inline-block; }
+html body.sdc-mobile.sdc-m-open #sdc_stats { display: block; }
+html body.sdc-mobile.sdc-m-open #sdc_m_sheet {
+    display: block;
+    order: 3;
+    padding: 6px;
+    max-width: 340px;
+}
+
+/* --------------------------------------------------------- buttons */
+
+.sdc-m-btn {
+    min-width: 44px;
+    min-height: 36px;
+    padding: 4px 10px;
+    font: 12px/1.1 var(--stat-font);
+    color: var(--sdc-accent);
+    background: rgba(0, 0, 0, 0.65);
+    border: 1px solid var(--sdc-accent-dim);
+    border-radius: 3px;
+    box-shadow: 0 0 6px rgba(109, 255, 168, 0.12);
+    touch-action: manipulation;
+}
+.sdc-m-btn:active {
+    background: rgba(109, 255, 168, 0.18);
+    box-shadow: 0 0 10px var(--sdc-accent-dim);
+}
+.sdc-m-ghost { opacity: 0.7; }
+.sdc-m-del { border-color: var(--sdc-hp); color: var(--sdc-hp); }
+.sdc-m-del::after { content: " \00d7"; }
+.sdc-m-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.sdc-m-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 6px;
+}
+.sdc-m-form input {
+    flex: 1 1 100px;
+    min-width: 0;
+    font: 16px/1.2 var(--stat-font);
+    color: var(--color-7, #ccc);
+    background: #000;
+    border: 1px solid var(--sdc-accent-dim);
+    padding: 4px 6px;
+}
+.sdc-m-hint { flex-basis: 100%; font-size: 10px; opacity: 0.6; }
+
+/* tools button + menu, top-right */
+#sdc_m_toolbtn, #sdc_m_tools, #sdc_m_pin { display: none; }
+body.sdc-mobile #sdc_m_toolbtn {
+    display: block;
+    position: fixed;
+    top: calc(6px + env(safe-area-inset-top));
+    right: calc(6px + env(safe-area-inset-right));
+    z-index: 3200;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+    line-height: 1;
+    color: var(--sdc-accent);
+    background: rgba(2, 10, 5, 0.6);
+    border: 1px solid var(--sdc-accent-dim);
+    border-radius: 4px;
+    opacity: 0.75;
+}
+body.sdc-mobile.sdc-m-tools #sdc_m_toolbtn { opacity: 1; }
+body.sdc-mobile.sdc-m-tools #sdc_m_tools {
+    display: block;
+    position: fixed;
+    top: calc(52px + env(safe-area-inset-top));
+    right: calc(6px + env(safe-area-inset-right));
+    z-index: 3200;
+    width: min(360px, calc(100vw - 12px));
+    max-height: calc(100vh - 64px);
+    overflow-y: auto;
+    padding: 6px;
+    box-sizing: border-box;
+    background: rgba(2, 10, 5, 0.94);
+    touch-action: pan-y;
+}
+.sdc-m-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5px;
+}
+.sdc-m-grid .sdc-m-btn { padding: 4px 2px; font-size: 11px; }
+
+/* big thumb buttons: Fight bottom-left, Explore bottom-right */
+.sdc-m-big { display: none; }
+body.sdc-mobile .sdc-m-big {
+    display: block;
+    position: fixed;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    z-index: 7;
+    width: 76px;
+    height: 76px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    background: rgba(2, 10, 5, 0.55);
+    border-width: 2px;
+    box-shadow: 0 0 12px rgba(109, 255, 168, 0.25),
+                inset 0 0 10px rgba(109, 255, 168, 0.12);
+    opacity: 0.85;
+}
+body.sdc-mobile #sdc_m_fight {
+    left: calc(12px + env(safe-area-inset-left));
+    color: var(--sdc-hp);
+    border-color: rgba(255, 77, 77, 0.6);
+    box-shadow: 0 0 12px rgba(255, 77, 77, 0.3),
+                inset 0 0 10px rgba(255, 77, 77, 0.15);
+}
+body.sdc-mobile #sdc_m_explore {
+    right: calc(12px + env(safe-area-inset-right));
+}
+body.sdc-mobile .sdc-m-big:active { opacity: 1; transform: scale(0.95); }
+body.sdc-hud.sdc-mapview .sdc-m-big { display: none; }
+
+/* pinned quick buttons, bottom-right above Explore */
+body.sdc-mobile.sdc-m-pinned #sdc_m_pin {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 6px;
+    position: fixed;
+    right: calc(12px + env(safe-area-inset-right));
+    bottom: calc(100px + env(safe-area-inset-bottom));
+    z-index: 7;
+}
+body.sdc-mobile.sdc-m-pinned #sdc_m_pin .sdc-m-btn {
+    min-width: 56px;
+    min-height: 44px;
+    opacity: 0.8;
+}
+
+/* settings panel fits the phone */
+body.sdc-mobile #sdc_panel {
+    min-width: 0;
+    width: min(420px, calc(100vw - 16px));
+    max-height: calc(100vh - 16px);
+    overflow-y: auto;
+    box-sizing: border-box;
+    touch-action: pan-y;
+}
+body.sdc-mobile #sdc_panel .sdc-opt button { padding: 6px 9px; }
+
+@media (prefers-reduced-motion: reduce) {
+    body.sdc-mobile #sdc_m_bubble.sdc-m-show,
+    .sdc-m-more { animation: none; }
+}
+
+/* zoom readout in the tools grid */
+.sdc-m-grid .sdc-m-zoomnow {
+    grid-column: span 2; align-self: center; text-align: center;
+    font-size: 11px; opacity: 0.8;
+}

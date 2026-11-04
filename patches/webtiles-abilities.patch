@@ -1,0 +1,113 @@
+diff --git a/crawl-ref/source/tileweb.cc b/crawl-ref/source/tileweb.cc
+index d8c4e74..e399b78 100644
+--- a/crawl-ref/source/tileweb.cc
++++ b/crawl-ref/source/tileweb.cc
+@@ -16,6 +16,8 @@
+ #include <unistd.h>
+ #endif
+ 
++#include "ability.h"
++#include "spl-cast.h"
+ #include "artefact.h"
+ #include "branch.h"
+ #include "command.h"
+@@ -1104,6 +1106,54 @@ static bool _update_statuses(player_info& c)
+     return changed;
+ }
+ 
++// Super Dungeon Crawl local patch: the player's god abilities (invocations), in the
++// ability menu's order, for the client's quick-use bar.
++struct sdc_ability_info
++{
++    string key;
++    string name;
++    int fail;
++    bool usable;
++    int tile;
++    int tex;
++    bool god;
++};
++
++static vector<sdc_ability_info> _sdc_()
++{
++    vector<sdc_ability_info> out;
++    if (you_worship(GOD_NO_GOD))
++        return out;
++    for (const talent &t : your_talents(true))
++    {
++        if (!t.is_invocation)
++            continue;
++        sdc_ability_info a;
++        a.key = t.hotkey > 0 ? string(1, (char) t.hotkey) : string();
++        a.name = ability_name(t.which);
++        a.fail = failure_rate_to_int(t.fail);
++        a.usable = check_ability_possible(t.which, true);
++        const tileidx_t tile = tileidx_ability(t.which);
++        a.tile = (int) tile;
++        a.tex = (int) get_tile_texture(tile);
++        a.god = is_religious_ability(t.which);
++        out.push_back(a);
++    }
++    return out;
++}
++
++static string _sdc_(const vector<sdc_ability_info> &abils)
++{
++    string sig = "[";
++    for (const sdc_ability_info &a : abils)
++    {
++        sig += a.key + "|" + a.name + "|" + to_string(a.fail) + "|"
++               + (a.usable ? "1" : "0") + "|" + to_string(a.tile) + "|"
++               + (a.god ? "1" : "0") + ";";
++    }
++    return sig;
++}
++
+ player_info::player_info()
+ {
+     _state_ever_synced = false;
+@@ -1331,6 +1381,29 @@ void TilesFramework::_send_player(bool force_full)
+                                 && you.quiver_action.get()->is_enabled(),
+                 "quiver_available");
+ 
++    {
++        const vector<sdc_ability_info> abils = _sdc_();
++        const string sig = _sdc_(abils);
++        if (force_full || c.abilities_sig != sig)
++        {
++            json_open_array("abilities");
++            for (const sdc_ability_info &a : abils)
++            {
++                json_open_object();
++                json_write_string("key", a.key);
++                json_write_string("name", a.name);
++                json_write_int("fail", a.fail);
++                json_write_bool("usable", a.usable);
++                json_write_int("tile", a.tile);
++                json_write_int("tex", a.tex);
++                json_write_bool("god", a.god);
++                json_close_object();
++            }
++            json_close_array();
++            c.abilities_sig = sig;
++        }
++    }
++
+     json_close_object(true);
+ 
+     finish_message();
+diff --git a/crawl-ref/source/tileweb.h b/crawl-ref/source/tileweb.h
+index 9e0b818..8bba2c3 100644
+--- a/crawl-ref/source/tileweb.h
++++ b/crawl-ref/source/tileweb.h
+@@ -102,6 +102,10 @@ struct player_info
+ 
+     int8_t weapon_index;
+     int8_t offhand_index;
++
++    // God abilities (invocations) for the quick-use bar; serialized
++    // signature of the last sent list (Super Dungeon Crawl local patch).
++    string abilities_sig;
+ };
+ 
+ class TilesFramework

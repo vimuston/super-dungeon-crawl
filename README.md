@@ -1,0 +1,354 @@
+# Super Dungeon Crawl
+
+[Dungeon Crawl Stone Soup](https://github.com/crawl/crawl) (DCSS, current
+`master`) played through its webtiles client, with a CRT-monitor look, a
+minimal game-focused HUD and a lot of small visual effects. Everything runs on
+your own machine: a Windows exe, an Android app, or a local webtiles server.
+
+- [What it changes](#what-it-changes)
+- [Install and play](#install-and-play)
+- [Controls](#controls)
+- [Building](#building)
+- [Crawl patches](#crawl-patches)
+- [Security notes](#security-notes)
+- [Development](#development)
+- [License](#license)
+
+## What it changes
+
+Mostly the webtiles **browser client**; the crawl binary gets three small
+patches (see [Crawl patches](#crawl-patches)).
+
+- **CRT filter**: a WebGL pass over the dungeon view adds barrel curvature,
+  chroma bleed, chromatic aberration, bloom, an aperture-grille mask,
+  scanlines, a vignette and flicker. A glass layer adds a rolling refresh
+  band, and text gets a phosphor glow. When HP is low, red bleeds in from the
+  tube edges.
+- **HUD**: the dungeon takes the full width. Status badges, slim HP/MP bars
+  and a compact stats strip form one panel (five positions to choose from).
+  The quick-use bar becomes an action bar at the bottom; a small minimap and
+  monster list sit top-right.
+- **Lighting**: fire, lava, torches, lightning, cold, poison, magic, portals,
+  altars, glowing monsters and spell bolts light their surroundings; your
+  line of sight is lantern-lit and the remembered map outside it turns cold
+  and foggy.
+- **Living tiles**: every tile in sight gets a little motion from what it is
+  and what is happening (creatures breathe by state, water ripples, lava
+  heaves, trees sway, gold glints, hits send ripples). See the header of
+  `alive.js` for the full list.
+- **2.5D view**: an optional slanted camera with raised walls and upright
+  creatures.
+- **Effects**: damage numbers, spell and god-ability effects, status auras,
+  ranged-weapon recoil, terminal-style splash text for statuses, big hits,
+  level-ups and new areas.
+- **Mobile layout**: touch controls and a compact UI on phones (and in the
+  Android app).
+
+Mouse clicks and hovers go through the same curvature, so they hit the tile
+you see. Settings persist in the browser (localStorage).
+
+## Install and play
+
+Prebuilt packages are on the project's GitHub Releases page: the Windows exe,
+the Android APK and Linux server packages for x86-64 and arm64. Or build them
+yourself (see [Building](#building)). Saves move between builds made from the
+same crawl commit and patches, which every file of one release shares.
+
+### Windows (standalone)
+
+`super-dungeon-crawl.exe` is self-contained: download it and run it. No WSL,
+Python, .NET or server needed. On first start the game files unpack to
+`%LOCALAPPDATA%\SuperDungeonCrawl\game` (`--dir PATH` unpacks elsewhere).
+Saves, morgue files and `rcs/player.rc` live in its `crawl\` folder and
+survive updates. The game shows in its own window (WebView2, part of Windows
+10/11; F11 = fullscreen). Closing the window saves the game and exits.
+
+### Android
+
+Install `super-dungeon-crawl.apk` (allow installing unknown apps for your file
+manager, or `adb install -r super-dungeon-crawl.apk`). The app is fully
+offline: it bundles crawl for arm64, the game data and the client, and runs
+everything on the phone. It never connects to a server.
+
+- Fullscreen, the screen stays on, back = Esc (or closes the mobile
+  overlays).
+- After a minute in the background the game is saved, and it resumes when
+  you come back.
+- Tools > Saves exports the save or imports one (`saves/player.cs` from
+  another install).
+
+### Linux server package
+
+`super-dungeon-crawl-server-linux-<arch>.tar.gz` (x86_64 or aarch64) is a
+ready-to-run webtiles server for Debian 12+ / Ubuntu 22.04+ or similar:
+
+```bash
+sudo apt install python3-tornado python3-yaml libncursesw6
+tar -xzf super-dungeon-crawl-server-linux-x86_64.tar.gz
+super-dungeon-crawl-server/start.sh
+```
+
+Then open `http://<that machine>:8080`. Its `README.txt` covers the
+configuration; read [Security notes](#security-notes) before putting it on a
+network you don't trust. To update, unpack a newer package over the old one
+(saves and options stay).
+
+### Linux, or Windows with WSL (from source)
+
+On Debian or Ubuntu (or in WSL):
+
+```bash
+bash scripts/setup.sh   # one time: build deps, clone crawl to ~/sdc-build, build it
+bash scripts/run.sh     # apply the client, start the server
+```
+
+Then open <http://localhost:8080>. You are logged in automatically as
+`player`. Re-run `setup.sh` to update to the newest crawl.
+
+On Windows with WSL, `setup.cmd` and `run.cmd` do the same (they use your
+default WSL distribution; set `SDC_WSL_DISTRO` to pick another). If
+`localhost:8080` stops answering after several server restarts, WSL's port
+relay has gone stale: `wsl --shutdown`, then `run.cmd` again.
+
+## Controls
+
+| Key    | Toggle                                      |
+|--------|---------------------------------------------|
+| Alt+M  | minimap                                     |
+| Alt+L  | monster list (under the minimap)            |
+| Alt+S  | stats card                                  |
+| Alt+C  | CRT filter: curved → flat → off             |
+| Alt+H  | CRT HUD ↔ classic webtiles layout           |
+| Alt+P  | 2.5D view on/off                            |
+| Alt+O  | settings panel (all options)                |
+
+The same toggles are the icon buttons above the minimap. The settings panel
+covers the HUD layout, splash text, CRT filter strength, living tiles, the
+2.5D view and the individual effects.
+
+**Touch** (phones and the Android app): tap a tile to travel or attack, swipe
+for one step (a long swipe runs), long-press to describe; any tap continues
+past `--more--`. The HP/MP pill (top-left) opens the character sheet and
+quick buttons; Tools (top-right) has the menus, the on-screen keyboard and
+zoom (or pinch the dungeon). Messages appear in a fading bubble; tap it for
+the log.
+
+## Building
+
+Everything builds from this checkout; build output and toolchains go to
+per-user work directories (never into the checkout), and every location can be
+changed with an environment variable.
+
+| Target | Build machine | Script |
+|--------|---------------|--------|
+| Local webtiles server | Debian/Ubuntu or WSL | `scripts/setup.sh` |
+| Linux server package | Debian/Ubuntu or WSL (x86-64 or arm64) | `scripts/setup.sh`, `scripts/package-server.sh` |
+| Android APK | x86-64 Debian/Ubuntu or WSL | `scripts/build-android.sh`, `scripts/crossbuild-android.sh` |
+| Windows exe | Windows 10/11 + .NET 6+ SDK | `scripts/build-windows.ps1` |
+| arm64 Linux server binary | x86-64 Debian/Ubuntu or WSL | `scripts/crossbuild-arm64.sh` |
+
+Environment variables:
+
+| Variable | Default | Used by |
+|----------|---------|---------|
+| `SDC_BUILD` | `~/sdc-build` | crawl checkout and Linux-side build trees |
+| `SDC_CRAWL_REF` | master's head | crawl commit, branch or tag to fetch (`setup.sh`, Windows build) |
+| `SDC_MAKE_FLAGS` | (none) | extra `make` flags for `setup.sh`, e.g. `BUILD_LUA=y BUILD_SQLITE=y BUILD_ZLIB=y` |
+| `SDC_SKIP_BUILD` | `0` | `1`: `setup.sh` only fetches and patches the sources |
+| `SDC_JOBS` | all cores | parallel build jobs |
+| `DCSS_ANDROID_TOOLS` | `~/android-build` | Android SDK, NDK, Gradle |
+| `SDC_PLAYER_RC` | (none) | options file bundled as the APK's starting `player.rc` |
+| `SDC_KEYSTORE_FILE`, `SDC_KEYSTORE_PASSWORD`, `SDC_KEY_ALIAS`, `SDC_KEY_PASSWORD` | (none: debug key) | APK release signing |
+| `SDC_DIST`, `SDC_VERSION` | `dist/`, `git describe` | output dir and version label of `package-server.sh` |
+| `SDC_WIN_ROOT` | `%LOCALAPPDATA%\sdc-build` | Cygwin, sources and staging for the Windows build (a few GB, no spaces in the path) |
+| `SDC_DIST` | `dist\` in the checkout | where the Windows exe goes (Windows build) |
+| `SDC_WSL_DISTRO` | default distribution | `setup.cmd`, `run.cmd` |
+| `SDC_ARM64_SUITE`, `SDC_ARM64_STDCXX` | `trixie`, `libstdc++-14-dev` | Debian release of the arm64 target |
+| `SDC_DEPLOY`, `SDC_DEPLOY_DIR` | (none), `sdc-build/crawl/crawl-ref/source` | `crossbuild-arm64.sh ship` target |
+| `SDC_SSH`, `SDC_SCP` | `ssh`, `scp` | `crossbuild-arm64.sh ship` (e.g. `ssh.exe`/`scp.exe` from WSL) |
+
+All Linux-side builds start from the crawl checkout that `scripts/setup.sh`
+makes, so run it first.
+
+### Local webtiles server
+
+`scripts/setup.sh` installs the build dependencies (apt), shallow-clones
+crawl into `$SDC_BUILD/crawl`, applies `patches/` and builds with
+`WEBTILES=y`. `scripts/run.sh` copies `overlay/` into the checkout
+(`scripts/apply.sh`), creates the autologin user and starts the server.
+
+### Linux server package
+
+```bash
+SDC_MAKE_FLAGS="BUILD_LUA=y BUILD_SQLITE=y BUILD_ZLIB=y" bash scripts/setup.sh
+bash scripts/package-server.sh   # -> dist/super-dungeon-crawl-server-linux-<arch>.tar.gz
+```
+
+The make flags build Lua, SQLite and zlib into the binary, so the package
+needs only glibc, libstdc++ and ncurses on the target. It runs on systems with
+the build machine's glibc or newer: build on the oldest release you want to
+support. Build on an arm64 machine for an arm64 package.
+
+### Android APK
+
+```bash
+bash scripts/build-android.sh init        # one time: JDK 17, QEMU, Android SDK, Gradle
+bash scripts/crossbuild-android.sh build  # NDK, ncurses, crawl, bundled game data (~10 min)
+bash scripts/build-android.sh build       # -> dist/super-dungeon-crawl.apk
+```
+
+After client-only changes (JS/CSS), `crossbuild-android.sh stage` re-stages
+the client and game data before `build-android.sh build`. Crawl's level and
+database caches are precompiled under QEMU so the first start on the phone is
+quick. Without the `SDC_KEYSTORE_*` variables the APK is signed with the
+Android debug key; use your own keystore for anything you distribute (an
+installed APK only accepts updates signed with the same key).
+
+How it works: `LocalServer.java` stands in for the webtiles server, serving
+the client on `127.0.0.1` and running crawl through
+`android/native/crawlhost.c`, which gives crawl a pty and relays its webtiles
+socket.
+
+### Windows exe
+
+In PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1 all       # everything
+```
+
+or step by step:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1 init      # one time: Cygwin + deps
+powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1 build     # crawl, crawlhost, stage (~15 min)
+powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1 launcher  # launcher exe
+powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1 package   # -> dist\super-dungeon-crawl.exe
+```
+
+After client-only changes, run `stage` then `package`. Crawl has no native
+Windows webtiles port, so `crawl.exe` and `crawlhost.exe` (the same
+`crawlhost.c`) are Cygwin builds; the exe carries the Cygwin DLLs and the
+terminfo entry crawl needs. `windows/` is the C# launcher, which serves the
+client on `127.0.0.1:47268`, like the Android app. Without the WebView2 runtime
+it falls back to an Edge/Chrome `--app` window.
+
+### arm64 Linux server
+
+To host the webtiles server on an arm64 machine (for example a single-board
+computer), either run `scripts/setup.sh` on it (slow: up to an hour on a small
+board), or cross-build the binary on an x86-64 machine in a few minutes:
+
+```bash
+bash scripts/crossbuild-arm64.sh init     # one time: cross toolchain, QEMU, arm64 sysroot
+bash scripts/crossbuild-arm64.sh build    # -> $SDC_BUILD/crawl-arm64/crawl-ref/source/crawl
+SDC_DEPLOY=user@host bash scripts/crossbuild-arm64.sh ship   # copy as crawl.new
+```
+
+The server needs a checkout made by `setup.sh` (for the game data and
+webserver). `ship` copies the binary next to its `crawl` as `crawl.new`; swap
+it in when no game is running. Set `SDC_ARM64_SUITE` (and `SDC_ARM64_STDCXX`)
+if the server runs a Debian release other than trixie. Client-only updates
+need no new binary: `scripts/apply.sh` on the server.
+
+### GitHub Actions
+
+`.github/workflows/ci.yml` checks every push (JS/Python syntax, shellcheck,
+the patches and client hooks against upstream crawl, the Android Java).
+
+`.github/workflows/release.yml` builds everything from one pinned crawl commit:
+the server packages (x86-64 on `ubuntu-22.04`, arm64 on `ubuntu-22.04-arm`),
+the APK and the Windows exe.
+
+- Push a tag `v*` (for example `git tag v2.0.0 && git push origin v2.0.0`) to
+  build and publish a GitHub Release with all four files.
+- Run it by hand from the Actions tab to get the files as workflow artifacts
+  only; the `crawl_ref` input picks a crawl commit, branch or tag.
+- For a stable Android signing key, add the repository secrets
+  `ANDROID_KEYSTORE_BASE64` (base64 of a `.jks` file),
+  `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`.
+  Without them each release is signed with a throwaway debug key, and players
+  must uninstall the app before installing a newer release (export the save
+  first).
+
+Make a keystore once with
+`keytool -genkeypair -keystore release.jks -alias sdc -keyalg RSA -keysize 4096 -validity 10000`
+and keep it safe: losing it means future releases can't update existing
+installs.
+
+## Crawl patches
+
+`setup.sh` and the cross-builds apply every `patches/*.patch` (idempotently):
+
+- `damage-numbers.patch` (`attack.cc`): melee and missile attack messages
+  carry the damage dealt ("You hit the goblin for 7!"); the client shows it as
+  damage numbers.
+- `spell-damage-numbers.patch` (`beam.cc`): the same for spell and beam hits
+  ("The bolt of fire hits the goblin for 12!"). `spellfx.js` gives every
+  element its own number style and motion. Without the patch the spell still
+  animates, with an element word instead of the number.
+- `webtiles-abilities.patch` (`tileweb.cc/.h`): the webtiles `player` message
+  gets an `abilities` field (the god invocations of the `a` menu), which the
+  quick-use bar shows as a group in front of the item slots.
+
+To revert them, `git checkout` those files in `$SDC_BUILD/crawl` and rebuild.
+
+## Security notes
+
+- The bundled `overlay/webserver/config.yml` logs everyone in as `player`
+  with no password. It is for a single-user local install only. To host for
+  other people, use `overlay/webserver/config.public.yml` (real accounts,
+  loopback bind) behind an HTTPS reverse proxy.
+- The Android app and the Windows exe serve the game on loopback
+  (`127.0.0.1`) only. The Android app allows plain http only to loopback and
+  navigates nowhere else. WebView remote debugging (`chrome://inspect`) is off
+  unless the APK is built debuggable (`-PsdcDebug` on the Gradle command line).
+
+## Development
+
+```
+overlay/                      copied over crawl-ref/source/
+  webserver/config.yml        local server overrides (autologin, port)
+  webserver/game_data/static/
+    crt.js                    core: HUD, WebGL CRT shader, hotkeys, settings panel
+    sdc_api.js                shared settings / option registry / event bus
+    fxkit.js                  shared helpers for the effect modules
+    crt.css                   phosphor theme, HUD panels (@imports the rest)
+    light.js, alive.js, depth.js   lighting, living tiles, 2.5D data for the shader
+    mobile.js/.css            mobile/touch layout
+    (+ bars, stats, toolbar, quickbar, crt_splash and the *fx effect modules)
+patches/                      crawl source patches
+scripts/
+  setup.sh, run.sh, apply.sh  local server: build, start, apply the client
+  fetch_crawl.sh              shallow crawl checkout at SDC_CRAWL_REF
+  package-server.sh           Linux server tarball
+  patch_client.py             hooks crt.js into game.js / game.html
+  ensure_user.py              creates the autologin user
+  deploy-static.sh            copy changed static files into the checkout
+  build-android.sh            Android toolchain + APK
+  crossbuild-android.sh       crawl for Android (NDK) + bundled game data
+  build-windows.ps1           Windows standalone: Cygwin, launcher, one-exe package
+  cygbuild-windows.sh         the Cygwin side of the Windows build
+  crossbuild-arm64.sh         crawl for arm64 Linux servers
+android/                      fullscreen WebView app (Java, no dependencies)
+  native/crawlhost.c          runs crawl in a pty and relays its webtiles socket
+  native/render_client.py     renders client.html for the bundled client
+windows/                      launcher exe for the Windows standalone (C#)
+```
+
+Feature modules talk to each other only through `sdc_api.js` (options, events,
+commands). For live testing against a running local server, copy changed
+static files into the checkout with `scripts/deploy-static.sh <file>...` and
+reload the page; no server restart is needed. Most effect modules have a
+browser console helper of the form `sdc_<module>_test("name")`, for example
+`sdc_wandfx_test("polymorph")` or `sdc_rangedfx_test("cannon")`.
+
+`patch_client.py` makes a few asserted string edits to `game.js` (so the
+dungeon can use the full width) and `game.html` (the stylesheet link). If an
+upstream update moves that code, it stops with a clear error instead of
+producing a half-broken client.
+
+## License
+
+GPL-2.0-or-later, like DCSS itself. See [LICENSE](LICENSE) and
+[NOTICE](NOTICE) for third-party components.

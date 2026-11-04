@@ -1,0 +1,79 @@
+/* combat.js: blood on player hits, damage numbers / "kachunk" words on
+   attack targets, hollow MISS markers. Layer sits between the CRT screen (1)
+   and the HUD (6). WAAPI only.
+   out = gold on target, in = crimson on you, miss = hollow pale. */
+#sdc_combat {
+    position: fixed;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    overflow: hidden;
+    contain: strict;
+}
+#sdc_combat .cb-el {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    will-change: transform, opacity;
+}
+/* damage you deal: gold */
+#sdc_combat .cb-word {
+    font-family: Impact, "Arial Black", "Haettenschweiler", var(--stat-font, sans-serif);
+    font-weight: 900;
+    font-stretch: condensed;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    line-height: 1;
+    color: #ffd94a;
+    -webkit-text-stroke: 0.14em #3a1c06;
+    paint-order: stroke fill;
+    text-shadow: 0 0 0.35em rgba(255, 190, 40, 0.9), 0 0.06em 0 #3a1c06;
+    transform-origin: 50% 60%;
+}
+#sdc_combat .cb-word.cb-heavy {
+    color: #fff6c8;
+    text-shadow: 0 0 0.45em rgba(255, 214, 90, 1), 0 0.06em 0 #3a1c06;
+}
+#sdc_combat .cb-word.cb-kill {
+    color: #fff;
+    text-shadow: 0 0 0.5em rgba(255, 150, 40, 1), 0 0.06em 0 #7a3a06;
+}
+/* damage you take: crimson */
+#sdc_combat .cb-word.cb-in {
+    color: #ff2d2d;
+    -webkit-text-stroke: 0.14em #5a0000;
+    text-shadow: 0 0 0.4em rgba(255, 30, 30, 0.95), 0 0.06em 0 #5a0000;
+}
+#sdc_combat .cb-word.cb-in.cb-heavy {
+    color: #ff4a3a;
+    text-shadow: 0 0 0.55em rgba(255, 30, 30, 1), 0 0.08em 0 #5a0000;
+}
+/* misses: hollow, thin, italic, pale; no solid fill, no glow */
+#sdc_combat .cb-word.cb-miss {
+    font-weight: 400;
+    font-style: italic;
+    font-stretch: normal;
+    letter-spacing: 0.14em;
+    color: transparent;
+    -webkit-text-stroke: 1.3px #bfeaff;
+    paint-order: normal;
+    text-shadow: none;
+}
+#sdc_combat .cb-word.cb-miss.cb-miss-in {
+    -webkit-text-stroke-color: #a9c4b2;
+}
+/* branded weapon hit: element colours come from spellfx.css (cb-sp-<fam>);
+   a gold underline marks it as a weapon hit, not a spell */
+#sdc_combat .cb-word.cb-brand::after {
+    content: "";
+    position: absolute;
+    left: 8%;
+    right: 8%;
+    bottom: -0.14em;
+    height: 0.09em;
+    border-radius: 0.05em;
+    background: linear-gradient(90deg, transparent, #ffd94a 25%, #fff6c8 50%,
+                                #ffd94a 75%, transparent);
+    box-shadow: 0 0 0.2em rgba(255, 190, 40, 0.9);
+}

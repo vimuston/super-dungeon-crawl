@@ -1,0 +1,18 @@
+/* itemfx.js: scroll / potion / rune effects. The overlay elements are
+   inline-styled; this only holds the stats-card glitch for mutation potions
+   (body.sdc-ifx-glitch, ~0.9 s). */
+body.sdc-ifx-glitch #sdc_stats {
+    animation: ifx-glitch 0.9s steps(2, end);
+}
+@keyframes ifx-glitch {
+    0%   { transform: translate(0, 0); filter: none; }
+    15%  { transform: translate(-3px, 1px); filter: hue-rotate(90deg) saturate(2); }
+    30%  { transform: translate(3px, -1px); filter: invert(0.8); }
+    45%  { transform: translate(-2px, 0); filter: hue-rotate(-60deg); }
+    60%  { transform: translate(2px, 1px); filter: saturate(3); }
+    80%  { transform: translate(-1px, 0); filter: hue-rotate(30deg); }
+    100% { transform: translate(0, 0); filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    body.sdc-ifx-glitch #sdc_stats { animation: none; }
+}

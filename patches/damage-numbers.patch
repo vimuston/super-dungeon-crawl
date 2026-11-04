@@ -1,0 +1,25 @@
+diff --git a/crawl-ref/source/attack.cc b/crawl-ref/source/attack.cc
+index e128b5e..76bd23f 100644
+--- a/crawl-ref/source/attack.cc
++++ b/crawl-ref/source/attack.cc
+@@ -720,16 +720,14 @@ int attack::inflict_damage(int dam, beam_type flavour)
+     return final;
+ }
+ 
+-/* If debug, return formatted damage done
+- *
++/* Return formatted damage done (" for N"). Super Dungeon Crawl local patch: always on,
++ * not only under DEBUG_DIAGNOSTICS, so the client can show damage numbers.
+  */
+ string attack::debug_damage_number()
+ {
+-#ifdef DEBUG_DIAGNOSTICS
++    if (damage_done <= 0)
++        return "";
+     return make_stringf(" for %d", damage_done);
+-#else
+-    return "";
+-#endif
+ }
+ 
+ /* Returns standard attack punctuation

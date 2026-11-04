@@ -1,0 +1,79 @@
+/* godfx_odd.js: Xom, Lugonu, Cheibriados, Dithmenos, Ru, Hepliaklqana.
+   Elements are positioned by JS (translate to the tile centre). */
+.sdc-odd-ring { border-radius: 50%; box-sizing: border-box; }
+
+/* Xom */
+.sdc-odd-confetti { box-shadow: 0 0 3px rgba(255,255,255,0.5); }
+
+/* Lugonu: crack rays, black hole, motes, corruption warp */
+.sdc-odd-crack {
+    background: linear-gradient(90deg, rgba(255,230,255,0.95),
+                rgba(176,96,255,0.8) 40%, rgba(20,0,40,0));
+    box-shadow: 0 0 6px rgba(176,96,255,0.9);
+}
+.sdc-odd-hole {
+    border-radius: 50%;
+    background: radial-gradient(circle, #000 0 38%, rgba(30,0,60,0.95) 52%,
+                rgba(176,96,255,0.55) 62%, rgba(176,96,255,0) 72%);
+    box-shadow: 0 0 18px rgba(120,40,200,0.7);
+}
+.sdc-odd-mote {
+    border-radius: 50%;
+    background: rgba(220,170,255,0.95);
+    box-shadow: 0 0 5px rgba(176,96,255,0.9);
+}
+.sdc-odd-warp {
+    border-radius: 30%;
+    background: radial-gradient(circle, rgba(176,96,255,0.55),
+                rgba(90,20,160,0.35) 55%, rgba(90,20,160,0) 72%);
+    mix-blend-mode: screen;
+}
+
+/* Dithmenos: shadow trail, marionette thread, nightfall aura */
+.sdc-odd-shade {
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,0,0,0.9) 30%, rgba(0,0,0,0) 70%);
+    filter: blur(3px);
+}
+.sdc-odd-thread {
+    background: linear-gradient(90deg, rgba(10,0,20,0.9), rgba(60,30,90,0.7));
+    box-shadow: 0 0 6px rgba(0,0,0,0.9);
+}
+.sdc-odd-night {
+    position: absolute; left: 0; top: 0;
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(10,0,20,0.85), 0 0 14px 6px rgba(0,0,0,0.75),
+                inset 0 0 10px 3px rgba(40,10,60,0.6);
+    will-change: transform;
+}
+/* Ru: tension circle, crater, debris */
+.sdc-odd-ru-circle {
+    border-radius: 50%;
+    border: 2px dashed rgba(255,200,90,0.7);
+    box-sizing: border-box;
+    box-shadow: 0 0 12px rgba(255,160,60,0.4);
+}
+.sdc-odd-crater {
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(20,10,0,0.85) 0 30%,
+                rgba(70,40,10,0.6) 48%, rgba(255,190,90,0.35) 60%,
+                rgba(255,190,90,0) 70%);
+}
+.sdc-odd-debris { background: rgba(190,150,100,0.95); border-radius: 2px; }
+
+/* Hepliaklqana: spectral ancestor outline, transference line */
+.sdc-odd-ancestor {
+    border-radius: 35%;
+    box-shadow: 0 0 0 1px rgba(200,240,255,0.8), 0 0 10px 2px rgba(200,240,255,0.55),
+                inset 0 0 8px rgba(200,240,255,0.35);
+    will-change: transform, opacity;
+}
+.sdc-odd-swap {
+    background: linear-gradient(90deg, rgba(200,240,255,0.2), #fff 50%,
+                rgba(200,240,255,0.2));
+    box-shadow: 0 0 8px rgba(200,240,255,0.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sdc-odd-shade { filter: none; }
+}

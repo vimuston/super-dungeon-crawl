@@ -1,0 +1,57 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.superdungeoncrawl.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.superdungeoncrawl.app'
+        minSdk 26
+        targetSdk 34
+        versionCode 3
+        versionName '2.0'
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    packaging {
+        jniLibs {
+            // crawl + crawlhost are executables: install them as files
+            useLegacyPackaging true
+            keepDebugSymbols += ['**/libcrawl.so', '**/libcrawlhost.so']
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // Release signing from the environment (CI secrets or your own keystore):
+    // SDC_KEYSTORE_FILE, SDC_KEYSTORE_PASSWORD, SDC_KEY_ALIAS, SDC_KEY_PASSWORD.
+    // Without them the APK is signed with the debug key (fine for personal
+    // sideloading; installs signed with different keys can't update each other).
+    def ks = System.getenv('SDC_KEYSTORE_FILE')
+    signingConfigs {
+        if (ks) {
+            release {
+                storeFile file(ks)
+                storePassword System.getenv('SDC_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('SDC_KEY_ALIAS')
+                keyPassword System.getenv('SDC_KEY_PASSWORD') ?: System.getenv('SDC_KEYSTORE_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // WebView remote debugging follows this flag (MainActivity)
+            debuggable project.hasProperty('sdcDebug')
+            signingConfig ks ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+}

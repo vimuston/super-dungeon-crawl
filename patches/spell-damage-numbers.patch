@@ -1,0 +1,37 @@
+diff --git a/crawl-ref/source/beam.cc b/crawl-ref/source/beam.cc
+index 6aa6384..8d44e3e 100644
+--- a/crawl-ref/source/beam.cc
++++ b/crawl-ref/source/beam.cc
+@@ -4338,13 +4338,14 @@ void bolt::affect_player()
+     if (!is_enchantment()
+         && !(damage.num == 0 && is_big_cloud()))
+     {
+-        mprf("The %s %s %s%s%s%s", name.c_str(), hit_verb.c_str(),
++        mprf("The %s %s %s%s%s%s%s", name.c_str(), hit_verb.c_str(),
+              you.hp > 0 ? "you" : "your lifeless body",
+              real_flavour != BEAM_CHAOS ? ""
+                     : make_stringf(" with %s", _beam_type_name(flavour).c_str()).c_str(),
+              damage.num > 0 && final_dam == 0 ? plural ? " but do no damage"
+                                                        : " but does no damage"
+                                               : "",
++             final_dam > 0 ? make_stringf(" for %d", final_dam).c_str() : "",
+              attack_strength_punctuation(final_dam).c_str());
+     }
+ 
+@@ -5721,7 +5722,7 @@ void bolt::affect_monster(monster* mon)
+         // no need to also say "does no damage" here.
+         if (damage.num > 0 || !is_big_cloud())
+         {
+-            mprf("The %s %s %s%s%s%s",
++            mprf("The %s %s %s%s%s%s%s",
+                 name.c_str(),
+                 hit_verb.c_str(),
+                 mon->name(DESC_THE).c_str(),
+@@ -5730,6 +5731,7 @@ void bolt::affect_monster(monster* mon)
+                 damage.num > 0 && postac == 0 ? plural ? " but do no damage"
+                                                         : " but does no damage"
+                                                : "",
++                final > 0 ? make_stringf(" for %d", final).c_str() : "",
+                 attack_strength_punctuation(final).c_str());
+         }
+ 

@@ -1,0 +1,298 @@
+@import url("bars.css");
+@import url("stats.css");
+@import url("crt_splash.css");
+@import url("toolbar.css");
+@import url("quickbar.css");
+@import url("clouds.css");
+@import url("blink.css");
+@import url("dizzy.css");
+@import url("poison.css");
+@import url("shaft.css");
+@import url("combat.css");
+@import url("spellfx.css");
+@import url("berserk.css");
+@import url("statusauras.css");
+@import url("summonfx.css");
+@import url("terrainfx.css");
+@import url("wandfx.css");
+@import url("beamfx.css");
+@import url("rangedfx.css");
+@import url("barfx.css");
+@import url("itemfx.css");
+@import url("godfx_support.css");
+@import url("godfx_dark.css");
+@import url("godfx_martial.css");
+@import url("godfx_odd.css");
+@import url("mobile.css");
+
+/* Super Dungeon Crawl — phosphor look + floating HUD. Classes are set on <body> by crt.js */
+
+:root {
+    --sdc-accent: #6dffa8;
+    --sdc-accent-dim: rgba(109, 255, 168, 0.35);
+    --sdc-panel: rgba(4, 10, 6, 0.72);
+    --sdc-hp: #ff4d4d;
+    --sdc-hp-dim: #5a1414;
+    --sdc-mp: #4da6ff;
+    --sdc-mp-dim: #12305a;
+    --sdc-poison: #9be03a;
+    --sdc-dungeon-right: 100vw;
+    --sdc-dungeon-bottom: 100vh;
+}
+
+/* ---------------------------------------------------------------- filter */
+
+body.sdc-filter {
+    background: #000;
+}
+
+/* the WebGL screen replaces the dungeon canvas visually */
+#sdc_screen {
+    position: fixed;
+    z-index: 1;
+    display: none;
+    pointer-events: none;
+}
+body.sdc-gl #sdc_screen { display: block; }
+body.sdc-gl.sdc-curved #sdc_screen { pointer-events: auto; }
+body.sdc-gl #dungeon { opacity: 0; }
+
+/* Stock elements that must stay above the CRT screen and HUD. #ui-stack sets
+   z-index: 3000 but isn't positioned, so it needs position to take effect. */
+#ui-stack { position: relative; z-index: 3000; }
+#normal #tooltip { z-index: 20; }
+#action-panel, #action-panel-placeholder { z-index: 5; }
+#action-panel-settings { z-index: 7; }
+#normal #mobile_input { z-index: 5; }
+
+/* phosphor glow on all game text. Inherited by the message log, stats, monster
+   list, popups/descriptions and .fgN colours; currentColor keeps each colour
+   glowing in its own hue. Canvases and HUD panels set their own glow. */
+body.sdc-filter #normal,
+body.sdc-filter #crt,
+body.sdc-filter #ui-stack {
+    text-shadow: 0 0 1px rgba(120, 255, 180, 0.6), 0 0 4px rgba(120, 255, 180, 0.3);
+    text-shadow: 0 0 1px currentColor,
+                 0 0 4px color-mix(in srgb, currentColor 55%, transparent),
+                 0 0 9px color-mix(in srgb, currentColor 25%, transparent);
+}
+body.sdc-filter #crt,
+body.sdc-filter #ui-stack canvas {
+    filter: contrast(1.08) saturate(1.15);
+}
+
+/* glass: faint scanlines, vignette and flicker over everything (not clickable) */
+#sdc_glass { display: none; }
+body.sdc-filter #sdc_glass {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 4000;
+    pointer-events: none;
+    background:
+        radial-gradient(ellipse at center,
+            rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.55) 100%),
+        repeating-linear-gradient(to bottom,
+            rgba(0, 0, 0, 0) 0px, rgba(0, 0, 0, 0) 2px,
+            rgba(0, 0, 0, 0.14) 3px);
+    box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.8);
+    border-radius: 18px;
+    animation: sdc-flicker 0.12s infinite alternate;
+}
+body.sdc-filter #sdc_glass::after {
+    /* slow rolling refresh band */
+    content: "";
+    position: absolute;
+    left: 0; right: 0;
+    height: 18vh;
+    background: linear-gradient(to bottom,
+        rgba(255, 255, 255, 0), rgba(160, 255, 200, 0.035), rgba(255, 255, 255, 0));
+    animation: sdc-roll 7s linear infinite;
+}
+body.sdc-filter.sdc-hp-danger #sdc_glass {
+    box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.8),
+                inset 0 0 140px rgba(255, 0, 0, 0.35);
+}
+@keyframes sdc-flicker {
+    from { opacity: 0.94; }
+    to   { opacity: 1; }
+}
+body.sdc-nosweep #sdc_glass::after { display: none; }
+@keyframes sdc-roll {
+    from { top: -20vh; }
+    to   { top: 105vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+    body.sdc-filter #sdc_glass,
+    body.sdc-filter #sdc_glass::after { animation: none; }
+}
+
+/* ------------------------------------------------------------------- HUD */
+
+#sdc_vitals, #sdc_corner { display: none; }
+
+body.sdc-hud #right_column {
+    z-index: 6;
+    top: 10px;
+    right: calc(100vw - var(--sdc-dungeon-right) + 10px);
+}
+body.sdc-hud #stats { display: none; }
+body.sdc-hud.sdc-nomap #minimap_block { display: none; }
+body.sdc-hud #monster_list { display: none; }
+/* no monsters in view: no (empty, thin) box under the map */
+body.sdc-hud.sdc-monsters #monster_list:empty { display: none; }
+body.sdc-hud.sdc-monsters #monster_list {
+    display: block;
+    margin-top: 6px;
+    padding: 4px;
+    background: var(--sdc-panel);
+    border: 1px solid var(--sdc-accent-dim);
+    box-sizing: border-box;
+}
+body.sdc-hud #minimap_block {
+    position: relative;
+    outline: 1px solid var(--sdc-accent-dim);
+    box-shadow: 0 0 12px rgba(109, 255, 168, 0.18);
+    background: rgba(0, 0, 0, 0.6);
+    opacity: 0.9;
+}
+body.sdc-hud #minimap_block:hover { opacity: 1; }
+
+body.sdc-hud #message_pane {
+    position: relative;
+    z-index: 2;
+    background: rgba(0, 6, 3, 0.9);
+    border-top: 1px solid var(--sdc-accent-dim);
+}
+
+
+/* hide the floating HUD in X-map view so the whole level is visible */
+body.sdc-hud.sdc-mapview #sdc_vitals,
+body.sdc-hud.sdc-mapview #sdc_corner { display: none !important; }
+
+.sdc-panel {
+    background: var(--sdc-panel);
+    border: 1px solid var(--sdc-accent-dim);
+    box-shadow: 0 0 10px rgba(109, 255, 168, 0.15), inset 0 0 8px rgba(0, 0, 0, 0.6);
+    border-radius: 3px;
+}
+
+/* highlighted statuses (anchored by bars.css per hud_pos) + compact stats card */
+body.sdc-hud #sdc_corner {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    position: fixed;
+    z-index: 6;
+    max-width: 340px;
+    font-family: var(--stat-font);
+    font-size: 11px;
+}
+#sdc_statuses {
+    display: flex;
+    flex-wrap: wrap-reverse;
+    justify-content: flex-end;
+    gap: 4px;
+}
+#sdc_statuses:empty { display: none; }
+.sdc-status {
+    padding: 1px 6px;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, 0.75);
+    box-shadow: 0 0 6px currentColor, inset 0 0 4px currentColor;
+    font-weight: bold;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    cursor: help;
+}
+.sdc-status-new { animation: sdc-in 0.35s ease-out; }
+@keyframes sdc-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: none; }
+}
+#sdc_tip {
+    position: fixed;
+    z-index: 3500;
+    max-width: 420px;
+    padding: 6px 9px;
+    background: rgba(2, 8, 4, 0.95);
+    border: 1px solid var(--sdc-accent-dim);
+    font-family: var(--stat-font);
+    font-size: 12px;
+    color: var(--color-7, #ccc);
+    pointer-events: none;
+}
+
+
+/* settings panel (Alt+O / gear button) */
+#sdc_panel {
+    position: fixed;
+    z-index: 3100;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 320px;
+    padding: 10px 14px 12px;
+    font: 12px/1.4 var(--stat-font);
+    color: var(--color-7, #ccc);
+    background: rgba(2, 10, 5, 0.95);
+}
+.sdc-panel-title {
+    color: var(--sdc-accent);
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+}
+.sdc-panel-close {
+    float: right;
+    margin: -4px -6px 0 8px;
+    padding: 0 8px;
+    font: 18px/1.2 var(--stat-font);
+    color: var(--sdc-accent);
+    background: transparent;
+    border: 1px solid currentColor;
+    cursor: pointer;
+}
+.sdc-opt {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 5px 0;
+}
+.sdc-opt .sdc-k {
+    flex: 0 0 96px;
+    color: var(--sdc-accent);
+    opacity: 0.8;
+}
+.sdc-opt button {
+    font: 11px/1 var(--stat-font);
+    padding: 3px 7px;
+    color: var(--sdc-accent);
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--sdc-accent-dim);
+    border-radius: 2px;
+    opacity: 0.55;
+    cursor: pointer;
+}
+.sdc-opt button.on { opacity: 1; box-shadow: 0 0 6px var(--sdc-accent-dim); }
+.sdc-opt button:hover { opacity: 1; }
+
+/* settings panel sections */
+#sdc_panel { max-height: 86vh; overflow-y: auto; min-width: 360px; }
+.sdc-sec-head {
+    margin: 10px 0 2px;
+    padding: 2px 0;
+    color: var(--sdc-accent);
+    border-bottom: 1px solid var(--sdc-accent-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 11px;
+    cursor: pointer;
+    user-select: none;
+}
+.sdc-sec-head::before { content: "\25BE  "; }
+.sdc-sec-head.shut::before { content: "\25B8  "; }
+.sdc-opt.sdc-sub { padding-left: 14px; }
+.sdc-opt.off { opacity: 0.35; }

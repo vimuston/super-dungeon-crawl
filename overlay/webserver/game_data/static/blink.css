@@ -1,0 +1,10 @@
+/* blink.js: blink / teleport effect layer. Effect parts are styled
+   inline by the script (positions, colours); only the layer lives here. */
+#sdc_blink {
+    position: fixed;
+    inset: 0;
+    z-index: 4;             /* above the dungeon, below the HUD (6) */
+    pointer-events: none;
+    overflow: hidden;
+    contain: strict;
+}

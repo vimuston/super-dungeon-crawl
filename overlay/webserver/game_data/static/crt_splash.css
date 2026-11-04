@@ -1,0 +1,183 @@
+/* Splash text (crt_splash.js): terminal style only ([data-style="terminal"]). */
+@import url("https://fonts.googleapis.com/css2?family=VT323&display=swap");
+
+#sdc_splash {
+    position: fixed;
+    inset: 0;
+    z-index: 50;            /* above HUD (6), below #ui-stack (3000) */
+    pointer-events: none;
+    overflow: hidden;
+    contain: strict;
+}
+
+.sdc-splash {
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0;
+    white-space: nowrap;
+    text-align: center;
+    will-change: transform, opacity;
+    line-height: 1;
+}
+
+/* =========================================================================
+   TERMINAL: phosphor monospace, typed, block cursor, scanlines, jitter
+   ========================================================================= */
+.sdc-splash[data-style="terminal"] {
+    --tm: #46ff7e;
+    --tm-glow: rgba(70, 255, 126, 0.55);
+    --tm-bg: rgba(0, 14, 5, 0.84);
+    --tm-edge: rgba(70, 255, 126, 0.45);
+    font-family: "VT323", "Share Tech Mono", "Consolas", "Lucida Console",
+                 monospace;
+    font-size: calc(var(--q, 1.3) * clamp(14px, 2.1vmin, 24px));
+    color: var(--tm);
+    text-align: left;
+    background: var(--tm-bg);
+    border: 1px solid var(--tm-edge);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.7), 0 0 8px var(--tm-glow),
+                inset 0 0 12px rgba(0, 0, 0, 0.8);
+    padding: 0.14em 0.5em 0.2em;
+    animation: sdc-tm-flicker 2.7s steps(1) infinite;
+}
+/* scanlines */
+.sdc-splash[data-style="terminal"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(180deg,
+        rgba(0, 0, 0, 0.3) 0 1px, transparent 1px 3px);
+}
+.sdc-splash[data-style="terminal"] .tm-line {
+    position: relative;
+    text-shadow: -1px 0 rgba(255, 40, 90, 0.5), 1px 0 rgba(40, 200, 255, 0.5),
+                 0 0 0.3em var(--tm-glow);
+    animation: sdc-tm-jitter 2.3s steps(1) infinite;
+}
+.sdc-splash[data-style="terminal"] .tm-sub {
+    font-size: 0.62em;
+    opacity: 0.75;
+    margin-top: 0.1em;
+    padding-left: 1.2em;
+    animation-delay: -1.1s;
+}
+.sdc-splash[data-style="terminal"] .tm-prompt { opacity: 0.65; }
+.sdc-splash[data-style="terminal"] .tm-ghost { visibility: hidden; }
+.sdc-splash[data-style="terminal"] .tm-cursor {
+    display: inline-block;
+    width: 0.5em;
+    height: 0.85em;
+    margin-left: 0.06em;
+    vertical-align: -0.06em;
+    background: var(--tm);
+    box-shadow: 0 0 6px var(--tm-glow);
+    animation: sdc-tm-blink 0.9s steps(1) infinite;
+}
+@keyframes sdc-tm-blink {
+    0%   { opacity: 1; }
+    50%  { opacity: 0; }
+}
+@keyframes sdc-tm-flicker {
+    0%   { filter: none; }
+    31%  { filter: brightness(1.35); }
+    32%  { filter: none; }
+    77%  { filter: brightness(0.8); }
+    78%  { filter: none; }
+}
+@keyframes sdc-tm-jitter {
+    0%   { transform: none; }
+    46%  { transform: translateX(2px) skewX(-6deg); }
+    47%  { transform: translateX(-1px); }
+    48%  { transform: none; }
+    86%  { transform: translateX(-2px); clip-path: inset(0 0 45% 0); }
+    87%  { transform: none; clip-path: none; }
+}
+
+/* banners */
+.sdc-splash[data-style="terminal"][data-banner] {
+    text-align: center;
+    border-width: 1px 0;
+    padding: 0.2em 1.2em 0.28em;
+}
+.sdc-splash[data-style="terminal"][data-banner] .tm-sub { padding-left: 0; }
+.sdc-splash[data-style="terminal"][data-banner="zone"] {
+    font-size: clamp(20px, 3.8vmin, 46px);
+    --tm-bg: rgba(0, 14, 5, 0.7);
+}
+.sdc-splash[data-style="terminal"][data-banner="zone"].sdc-minor {
+    font-size: clamp(15px, 2.6vmin, 32px);
+}
+.sdc-splash[data-style="terminal"][data-banner="death"] {
+    font-size: clamp(30px, 6.5vmin, 80px);
+}
+.sdc-splash[data-style="terminal"][data-banner="glory"] {
+    font-size: clamp(22px, 4.4vmin, 54px);
+    /* width is set by JS (~40% of the dungeon view); wrap long text */
+    box-sizing: border-box;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    padding-left: 0.6em;
+    padding-right: 0.6em;
+}
+.sdc-splash[data-style="terminal"][data-banner="death"] .tm-line {
+    animation-duration: 0.9s;
+}
+
+/* terminal palettes */
+.sdc-splash[data-style="terminal"].sdc-splash-heal {
+    --tm: #9dff5a; --tm-glow: rgba(150, 255, 90, 0.55);
+}
+.sdc-splash[data-style="terminal"].sdc-splash-magic {
+    --tm: #4ff3ff; --tm-glow: rgba(80, 240, 255, 0.55);
+    --tm-edge: rgba(80, 240, 255, 0.45);
+}
+.sdc-splash[data-style="terminal"].sdc-splash-epic {
+    --tm: #eaffd8; --tm-glow: rgba(200, 255, 170, 0.7);
+    --tm-edge: rgba(200, 255, 170, 0.8);
+}
+/* epic: inverse video */
+.sdc-splash[data-style="terminal"].sdc-splash-epic .tm-main {
+    background: var(--tm);
+    color: #021a08;
+    text-shadow: none;
+    padding: 0 0.2em;
+    box-shadow: 0 0 10px var(--tm-glow);
+}
+.sdc-splash[data-style="terminal"].sdc-splash-epic .tm-main .tm-cursor {
+    background: #021a08;
+    box-shadow: none;
+}
+.sdc-splash[data-style="terminal"].sdc-splash-rage {
+    --tm: #ffb000; --tm-glow: rgba(255, 176, 0, 0.55);
+    --tm-edge: rgba(255, 176, 0, 0.45);
+}
+.sdc-splash[data-style="terminal"].sdc-splash-travel {
+    --tm: #7dffb0; --tm-glow: rgba(110, 255, 170, 0.45);
+}
+.sdc-splash[data-style="terminal"].sdc-splash-nasty {
+    --tm: #ffb000; --tm-glow: rgba(255, 170, 0, 0.55);
+    --tm-edge: rgba(255, 170, 0, 0.5); --tm-bg: rgba(18, 9, 0, 0.86);
+}
+.sdc-splash[data-style="terminal"].sdc-splash-damage {
+    --tm: #ff4a36; --tm-glow: rgba(255, 60, 40, 0.6);
+    --tm-edge: rgba(255, 60, 40, 0.55); --tm-bg: rgba(20, 2, 0, 0.86);
+}
+.sdc-splash[data-style="terminal"].sdc-splash-poison {
+    --tm: #d4ff3a; --tm-glow: rgba(210, 255, 60, 0.55);
+    --tm-edge: rgba(210, 255, 60, 0.45); --tm-bg: rgba(10, 14, 0, 0.86);
+}
+.sdc-splash[data-style="terminal"].sdc-splash-mind {
+    --tm: #ff6cf0; --tm-glow: rgba(255, 100, 240, 0.55);
+    --tm-edge: rgba(255, 100, 240, 0.45); --tm-bg: rgba(16, 0, 16, 0.86);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sdc-splash { will-change: opacity; }
+    .sdc-splash[data-style="terminal"],
+    .sdc-splash[data-style="terminal"] .tm-line,
+    .sdc-splash[data-style="terminal"] .tm-cursor {
+        animation: none;
+    }
+}

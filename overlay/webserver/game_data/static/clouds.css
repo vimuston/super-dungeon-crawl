@@ -1,0 +1,9 @@
+/* Animated cloud overlay (clouds.js). The canvas is placed over the
+   dungeon rect by the script, right after #sdc_screen so it sits above the
+   CRT screen (z 1) and below the message pane / HUD (z >= 2). */
+#sdc_clouds {
+    position: fixed;
+    z-index: 1;
+    display: none;
+    pointer-events: none;
+}

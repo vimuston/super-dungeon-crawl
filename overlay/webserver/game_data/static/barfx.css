@@ -1,0 +1,9 @@
+/* barfx.js: transient pulse spans inside the HP/MP tracks. Everything is
+   inline-styled by the script; this only fixes the stacking basics. */
+#sdc_vitals .sdc-track > .bfx-part {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    pointer-events: none;
+    will-change: transform, opacity;
+}

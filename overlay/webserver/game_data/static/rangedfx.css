@@ -1,0 +1,4 @@
+/* rangedfx.js: all marks are positioned inline inside #sdc_rangedfx */
+#sdc_rangedfx {
+    contain: layout paint;
+}

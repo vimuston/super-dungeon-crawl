@@ -1,0 +1,156 @@
+/* Action bar (toolbar.js): HUD toggle slots in a row above the minimap,
+   top right (#right_column). Slot size and column count are set by JS
+   (--sdc-ab-slot, --sdc-ab-cols) so the row fits the minimap width.
+   Icons only (names are in the tooltips). */
+
+#sdc_toolbar {
+    --sdc-ab-slot: 40px;
+    --sdc-ab-cols: 6;
+    position: static;
+    z-index: 6;
+    display: grid;
+    grid-template-columns: repeat(var(--sdc-ab-cols), var(--sdc-ab-slot));
+    justify-content: end;
+    gap: 3px;
+    width: max-content;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 4px auto;
+    padding: 4px;
+    border: 1px solid var(--sdc-accent-dim);
+    border-radius: 4px;
+    background:
+        repeating-linear-gradient(0deg, rgba(109, 255, 168, 0.025) 0 1px,
+                                  transparent 1px 3px),
+        linear-gradient(180deg, rgba(22, 40, 28, 0.94), rgba(3, 8, 5, 0.94));
+    box-shadow:
+        inset 0 1px 0 rgba(170, 255, 205, 0.18),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.6),
+        0 0 0 1px rgba(0, 0, 0, 0.75),
+        0 3px 10px rgba(0, 0, 0, 0.6),
+        0 0 12px rgba(109, 255, 168, 0.08);
+    font-family: var(--stat-font);
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* ------------------------------------------------------------------ slots */
+
+#sdc_toolbar .sdc-ab-slot {
+    position: relative;
+    width: var(--sdc-ab-slot);
+    height: var(--sdc-ab-slot);
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-family: var(--stat-font);
+    color: var(--sdc-accent);
+    background: radial-gradient(circle at 50% 40%, rgba(20, 44, 28, 0.95),
+                                rgba(2, 6, 3, 0.98) 75%);
+    border: 1px solid rgba(109, 255, 168, 0.28);
+    border-radius: 3px;
+    box-shadow:
+        inset 0 1px 0 rgba(170, 255, 205, 0.12),
+        inset 0 -3px 5px rgba(0, 0, 0, 0.7),
+        0 1px 0 rgba(0, 0, 0, 0.8);
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
+}
+#sdc_toolbar .sdc-ab-icon {
+    flex: none;
+    width: calc(var(--sdc-ab-slot) * 0.66);
+    height: calc(var(--sdc-ab-slot) * 0.66);
+    opacity: 0.42;
+    transition: opacity 0.12s;
+    pointer-events: none;
+}
+#sdc_toolbar .sdc-ab-key {
+    position: absolute;
+    top: 2px;
+    right: 3px;
+    font-size: 6px;
+    line-height: 1;
+    color: rgba(109, 255, 168, 0.55);
+    pointer-events: none;
+}
+
+/* lit (on) slots */
+#sdc_toolbar .sdc-ab-slot.on {
+    border-color: var(--sdc-accent);
+    background: radial-gradient(circle at 50% 45%, rgba(60, 150, 95, 0.55),
+                                rgba(6, 22, 12, 0.98) 72%);
+    box-shadow:
+        inset 0 0 8px rgba(109, 255, 168, 0.35),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.6),
+        0 0 6px rgba(109, 255, 168, 0.45);
+}
+#sdc_toolbar .sdc-ab-slot.on .sdc-ab-icon {
+    opacity: 1;
+    filter: drop-shadow(0 0 2px var(--sdc-accent));
+}
+#sdc_toolbar .sdc-ab-slot.on .sdc-ab-label { color: var(--sdc-accent); }
+
+#sdc_toolbar .sdc-ab-slot:hover { border-color: var(--sdc-accent); }
+#sdc_toolbar .sdc-ab-slot:hover .sdc-ab-icon { opacity: 1; }
+
+/* press feedback */
+#sdc_toolbar .sdc-ab-slot:active,
+#sdc_toolbar .sdc-ab-slot.sdc-ab-pressed {
+    animation: sdc-ab-press 0.2s ease-out;
+}
+@keyframes sdc-ab-press {
+    0% {
+        transform: translateY(0) scale(1);
+    }
+    35% {
+        transform: translateY(1px) scale(0.92);
+        box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.85),
+                    0 0 10px rgba(109, 255, 168, 0.7);
+        background: rgba(109, 255, 168, 0.35);
+    }
+    100% {
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* CRT slot: screen variant per filter mode */
+#sdc_toolbar .sdc-ab-curved,
+#sdc_toolbar .sdc-ab-flat,
+#sdc_toolbar .sdc-ab-off { display: none; }
+#sdc_toolbar [data-state="curved"] .sdc-ab-curved,
+#sdc_toolbar [data-state="flat"] .sdc-ab-flat,
+#sdc_toolbar [data-state="off"] .sdc-ab-off { display: inline; }
+
+/* tooltip below the slot (the bar is at the top of the screen); right-aligned
+   so it stays on screen, the first slot left-aligned */
+#sdc_toolbar .sdc-ab-slot::after {
+    content: attr(data-tip);
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin: 6px 0 0;
+    z-index: 10;
+    padding: 3px 6px;
+    font: 11px/1.2 var(--stat-font);
+    white-space: nowrap;
+    color: var(--sdc-accent);
+    background: rgba(2, 8, 4, 0.95);
+    border: 1px solid var(--sdc-accent-dim);
+    border-radius: 2px;
+    box-shadow: 0 0 6px rgba(109, 255, 168, 0.2);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.12s;
+}
+#sdc_toolbar .sdc-ab-slot:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0.35s;
+}
