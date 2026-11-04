@@ -100,7 +100,6 @@ function (api, kit, map_knowledge, player, dngn) {
     var walls = {};               // cell key -> tint id of remembered walls
     var items = {};               // cell key -> 1 while a non-monster fg shows
     var lost = [];                // [{x, y, t}] cells that just lost an item
-    var live = 0;
     var last_pos = null;
     var dug_pending = [];         // wall->floor cells awaiting the next flush
     var dug_timer = 0;
@@ -148,22 +147,8 @@ function (api, kit, map_knowledge, player, dngn) {
     // Spawn one transient element, auto-removed when its animation ends.
     function spawn(css, w, h, frames, opts)
     {
-        if (live >= MAX_LIVE) return null;
-        var host = kit.layer("terrainfx");
-        var el = kit.mk(host, "width:" + w + "px;height:" + h + "px;" + css);
-        var a;
-        try { a = kit.anim(el, frames, opts); }
-        catch (e) { a = null; }
-        if (!a) { host.removeChild(el); return null; }
-        live++;
-        var done = function () {
-            if (el.parentNode) el.parentNode.removeChild(el);
-            live--;
-            a.onfinish = a.oncancel = null;
-        };
-        a.onfinish = done;
-        a.oncancel = done;
-        return el;
+        return kit.spawn("terrainfx", "width:" + w + "px;height:" + h
+                         + "px;" + css, frames, opts, MAX_LIVE);
     }
 
     function line(a, b)
@@ -463,36 +448,19 @@ function (api, kit, map_knowledge, player, dngn) {
         }
     }
 
-    function hook_merge()
-    {
-        if (map_knowledge.merge.sdc_terrain) return;
-        var orig = map_knowledge.merge;
-        var wrapped = function () {
-            var res = orig.apply(this, arguments);
-            try
-            {
-                if (wall_of)
-                {
-                    check_level();
-                    var dirty = map_knowledge.dirty(), batch = [];
-                    for (var i = 0; i < dirty.length; i++)
-                        note_cell(map_knowledge.get(dirty[i].x, dirty[i].y), batch);
-                    if (batch.length)
-                    {
-                        dug_pending = dug_pending.concat(batch);
-                        if (!dug_timer)
-                            dug_timer = window.setTimeout(flush_dug, 90);
-                    }
-                }
-            }
-            catch (e) { /* fail soft */ }
-            return res;
-        };
-        for (var k in orig)
-            if (/^sdc_/.test(k)) wrapped[k] = orig[k];
-        wrapped.sdc_terrain = true;
-        map_knowledge.merge = wrapped;
-    }
+    kit.on_merge(function () {
+        if (!wall_of) return;
+        check_level();
+        var dirty = map_knowledge.dirty(), batch = [];
+        for (var i = 0; i < dirty.length; i++)
+            note_cell(map_knowledge.get(dirty[i].x, dirty[i].y), batch);
+        if (batch.length)
+        {
+            dug_pending = dug_pending.concat(batch);
+            if (!dug_timer)
+                dug_timer = window.setTimeout(flush_dug, 90);
+        }
+    });
 
     // Messages and frames -----------------------------------------------------
 
@@ -527,19 +495,16 @@ function (api, kit, map_knowledge, player, dngn) {
         init_time = kit.now();
         level_key = null;
         clear_level();
-        live = 0;
         if (dug_timer) { window.clearTimeout(dug_timer); dug_timer = 0; }
         build_tables();
-        hook_merge();
     });
 
     api.on("game_cleanup", function () {
         if (dug_timer) { window.clearTimeout(dug_timer); dug_timer = 0; }
         clear_level();
-        live = 0;
     });
 
-    try { build_tables(); hook_merge(); }
+    try { build_tables(); }
     catch (e) { console.error("sdc terrainfx init:", e); }
 
     // Debug -------------------------------------------------------------------

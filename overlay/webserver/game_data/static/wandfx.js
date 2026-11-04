@@ -32,7 +32,6 @@ define(["./sdc_api", "./fxkit"], function (api, kit) {
     "use strict";
 
     var MAX_LIVE = 40;
-    var live = 0;
     var snap = [], snap_t = 0;       // previous monster snapshot
     var envs = [];                   // grade envelopes {name, t0, dur, fn}
 
@@ -45,22 +44,10 @@ define(["./sdc_api", "./fxkit"], function (api, kit) {
 
     function layer() { return kit.layer("wandfx"); }
 
-    function spawn(css, frames, opts, life)
+    // short-lived element in our layer, removed when it ends (capped)
+    function spawn(css, frames, opts)
     {
-        if (live >= MAX_LIVE) return null;
-        var el = kit.mk(layer(), css);
-        live++;
-        var a = kit.anim(el, frames, opts);
-        var done = function () {
-            if (el.parentNode) el.parentNode.removeChild(el);
-            live--;
-        };
-        if (a && a.addEventListener) a.addEventListener("finish", done);
-        else window.setTimeout(done, life || opts.duration + 50);
-        window.setTimeout(function () {       // belt and braces
-            if (el.parentNode) { done(); }
-        }, (life || opts.duration) + 400);
-        return el;
+        return kit.spawn("wandfx", css, frames, opts, MAX_LIVE);
     }
 
     // run a screen grade for dur ms: fn(k 0..1) -> grade object
@@ -163,13 +150,7 @@ define(["./sdc_api", "./fxkit"], function (api, kit) {
                 });
         }
         if (best) return best;
-        var p = kit.player_pos(), nearest = null, nd = 1e9;
-        if (!p) return null;
-        kit.monsters().forEach(function (m) {
-            var d = Math.abs(m.x - p.x) + Math.abs(m.y - p.y);
-            if (d > 0 && d < nd) { nd = d; nearest = m; }
-        });
-        return nearest;
+        return kit.nearest_monster();
     }
     function best_is(a, b) { return a && b && a.x === b.x && a.y === b.y; }
 
@@ -444,19 +425,13 @@ define(["./sdc_api", "./fxkit"], function (api, kit) {
 
     api.on("game_cleanup", function () {
         clear_grades();
-        live = 0;
         snap = [];
     });
 
     window.sdc_wandfx_test = function (kind)
     {
         kind = kind || "polymorph";
-        var p = kit.player_pos(), nearest = null, nd = 1e9;
-        if (p)
-            kit.monsters().forEach(function (m) {
-                var d = Math.abs(m.x - p.x) + Math.abs(m.y - p.y);
-                if (d > 0 && d < nd) { nd = d; nearest = m; }
-            });
+        var p = kit.player_pos(), nearest = kit.nearest_monster();
         var fake = nearest ? { x: nearest.x, y: nearest.y }
                            : (p ? { x: p.x + 2, y: p.y } : null);
         var tiles = { polymorph: mark_polymorph, charm: mark_charm,

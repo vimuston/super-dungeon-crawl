@@ -10,8 +10,10 @@ android {
         applicationId 'com.superdungeoncrawl.app'
         minSdk 26
         targetSdk 34
-        versionCode 3
-        versionName '2.0'
+        // CI passes these (release.yml): a growing code, so every build
+        // installs over the previous one; local builds keep the defaults
+        versionCode((System.getenv('SDC_VERSION_CODE') ?: '3') as int)
+        versionName(System.getenv('SDC_VERSION_NAME') ?: '2.0')
         ndk {
             abiFilters 'arm64-v8a'
         }

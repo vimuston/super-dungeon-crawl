@@ -31,6 +31,7 @@ API=26
 TRIPLE=aarch64-linux-android
 SRC="$ROOT/crawl-android"           # separate tree, like crawl-arm64
 NC_VER=6.5
+NC_SHA256=136d91bc269a9a5785e5f9e980bc76ab57428f604ce3e5a5a90cebc767971cc6
 NC="$ROOT/ncurses-android"          # install prefix
 BIN="$ROOT/android-bin"             # $TRIPLE-gcc etc. wrappers for the Makefile
 OUT="$ROOT/android-out"
@@ -66,8 +67,12 @@ build_ncurses() {
   [ -f "$NC/lib/libncursesw.a" ] && return
   local work="$ROOT/ncurses-$NC_VER"
   if [ ! -d "$work" ]; then
-    curl -fL -o "$ROOT/ncurses-$NC_VER.tar.gz" \
+    curl -fL -o "$ROOT/ncurses-$NC_VER.tar.gz.part" \
       "https://ftp.gnu.org/gnu/ncurses/ncurses-$NC_VER.tar.gz"
+    # same checksum from ftp.gnu.org and invisible-island's own mirror
+    echo "$NC_SHA256  $ROOT/ncurses-$NC_VER.tar.gz.part" | sha256sum -c --quiet - \
+      || { rm -f "$ROOT/ncurses-$NC_VER.tar.gz.part"; echo "ncurses checksum mismatch" >&2; exit 1; }
+    mv "$ROOT/ncurses-$NC_VER.tar.gz.part" "$ROOT/ncurses-$NC_VER.tar.gz"
     tar -xzf "$ROOT/ncurses-$NC_VER.tar.gz" -C "$ROOT"
   fi
   cd "$work"
@@ -92,9 +97,7 @@ prepare_tree() {
     git -C "$SRC" clean -xfdq || true
     git -C "$SRC" submodule foreach -q --recursive 'git clean -xfdq' || true
   fi
-  for p in "$HERE"/patches/*.patch; do
-    git -C "$SRC" apply -R --check "$p" 2>/dev/null || git -C "$SRC" apply "$p"
-  done
+  bash "$HERE/scripts/apply_patches.sh" "$SRC"
   # Crawl's __ANDROID__ code is for its SDL port (JNI keyboard, SDL storage
   # paths, logcat). This is a plain console+webtiles build that happens to
   # run on Android, so retarget those blocks to a macro nobody defines.
@@ -129,25 +132,9 @@ build_host() {
 }
 
 stage() {
-  local s="$SRC/crawl-ref/source"
-  # the Super Dungeon Crawl client, exactly as apply.sh puts it on the server
-  git -C "$SRC" checkout -- \
-    crawl-ref/source/webserver/game_data/static/game.js \
-    crawl-ref/source/webserver/game_data/templates/game.html
-  cp -r "$HERE/overlay/webserver/game_data/." "$s/webserver/game_data/"
-  python3 "$HERE/scripts/patch_client.py" "$s/webserver/game_data"
-
+  # a fresh asset tree every time: the APK holds no player data
   rm -rf "$OUT/assets"
-  mkdir -p "$OUT/assets/crawl/rcs" "$OUT/assets/web/gamedata"
-  cp -r "$s/dat" "$s/../docs" "$s/../settings" "$OUT/assets/crawl/"
-  rm -rf "$OUT/assets/crawl/docs/develop"
-  rm -rf "$OUT/assets/crawl/dat/tiles"      # local-tiles only
-  cp -r "$s/webserver/static" "$OUT/assets/web/static"
-  cp -r "$s/webserver/game_data/static/." "$OUT/assets/web/gamedata/"
-  sed 's/{{ *version *}}/local/g' "$s/webserver/game_data/templates/game.html" \
-    > "$OUT/assets/web/game.html"
-  python3 "$HERE/android/native/render_client.py" "$s/webserver/templates" \
-    > "$OUT/assets/web/index.html"
+  bash "$HERE/scripts/stage_client.sh" "$SRC" "$OUT/assets"
   # optional starting options file (the player can change options in game)
   if [ -n "${SDC_PLAYER_RC:-}" ]; then
     cp "$SDC_PLAYER_RC" "$OUT/assets/crawl/rcs/player.rc"

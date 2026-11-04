@@ -27,13 +27,7 @@ prepare_tree() {
   if [ ! -d "$SRC/.git" ] || [ -n "${SDC_CRAWL_REF:-}" ]; then
     bash "$HERE/scripts/fetch_crawl.sh" "$SRC"
   fi
-  for p in "$HERE"/patches/*.patch; do
-    if git -C "$SRC" apply -R --check "$p" 2>/dev/null; then
-      echo "Patch already applied: $(basename "$p")"
-    else
-      git -C "$SRC" apply "$p" && echo "Applied patch: $(basename "$p")"
-    fi
-  done
+  bash "$HERE/scripts/apply_patches.sh" "$SRC"
 }
 
 build_crawl() {
@@ -62,27 +56,9 @@ build_host() {
 }
 
 stage() {
-  local s="$SRC/crawl-ref/source"
-  # the Super Dungeon Crawl client, exactly as apply.sh puts it on the server
-  git -C "$SRC" checkout -- \
-    crawl-ref/source/webserver/game_data/static/game.js \
-    crawl-ref/source/webserver/game_data/templates/game.html
-  cp -r "$HERE/overlay/webserver/game_data/." "$s/webserver/game_data/"
-  python3 "$HERE/scripts/patch_client.py" "$s/webserver/game_data"
-
-  # saves/ and rcs/ belong to the player: leave them alone on a re-stage
-  rm -rf "$PKG/web" "$PKG/crawl/dat" "$PKG/crawl/docs" "$PKG/crawl/settings"
-  mkdir -p "$PKG/crawl/rcs" "$PKG/web/gamedata"
-  cp -r "$s/dat" "$s/../docs" "$s/../settings" "$PKG/crawl/"
-  rm -rf "$PKG/crawl/docs/develop"
-  rm -rf "$PKG/crawl/dat/tiles"      # local-tiles only
-  cp -r "$s/webserver/static" "$PKG/web/static"
-  cp -r "$s/webserver/game_data/static/." "$PKG/web/gamedata/"
-  sed 's/{{ *version *}}/local/g' "$s/webserver/game_data/templates/game.html" \
-    > "$PKG/web/game.html"
   python3 -c 'import tornado' 2>/dev/null || python3 -m pip install -q tornado
-  python3 "$HERE/android/native/render_client.py" "$s/webserver/templates" \
-    > "$PKG/web/index.html"
+  # client + game data (saves/ and rcs/ files already in $PKG are kept)
+  bash "$HERE/scripts/stage_client.sh" "$SRC" "$PKG"
   # saves/.prepared marks the compiled des/db caches; new data invalidates it
   rm -rf "$PKG/crawl/saves/des" "$PKG/crawl/saves/db" "$PKG/crawl/saves/.prepared"
   git -C "$SRC" rev-parse --short HEAD > "$PKG/crawl/VERSION"

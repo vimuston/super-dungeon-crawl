@@ -37,7 +37,10 @@ patches (see [Crawl patches](#crawl-patches)).
   heaves, trees sway, gold glints, hits send ripples). See the header of
   `alive.js` for the full list.
 - **2.5D view**: an optional slanted camera with raised walls and upright
-  creatures.
+  creatures. Hold the middle mouse button (mouse3) on the view and drag
+  sideways to rotate it, up/down to zoom; a middle click resets both. With
+  Shift held, dragging up/down changes the perspective instead, and
+  Shift + middle click resets it.
 - **Effects**: damage numbers, spell and god-ability effects, status auras,
   ranged-weapon recoil, terminal-style splash text for statuses, big hits,
   level-ups and new areas.
@@ -62,6 +65,9 @@ Python, .NET or server needed. On first start the game files unpack to
 Saves, morgue files and `rcs/player.rc` live in its `crawl\` folder and
 survive updates. The game shows in its own window (WebView2, part of Windows
 10/11; F11 = fullscreen). Closing the window saves the game and exits.
+
+The exe isn't code-signed, so on first start Windows SmartScreen may warn
+about an unrecognised app: choose More info > Run anyway.
 
 ### Android
 
@@ -88,10 +94,12 @@ tar -xzf super-dungeon-crawl-server-linux-x86_64.tar.gz
 super-dungeon-crawl-server/start.sh
 ```
 
-Then open `http://<that machine>:8080`. Its `README.txt` covers the
-configuration; read [Security notes](#security-notes) before putting it on a
-network you don't trust. To update, unpack a newer package over the old one
-(saves and options stay).
+Then open <http://localhost:8080> on that machine. By default it listens on
+loopback only; to play from other devices on your home network, set
+`bind_address: ""` in `crawl-ref/source/webserver/config.yml` (created on the
+first start; read [Security notes](#security-notes) first). Its `README.txt`
+covers the configuration. To update, unpack a newer package over the old one:
+`config.yml`, saves and options stay.
 
 ### Linux, or Windows with WSL (from source)
 
@@ -155,6 +163,8 @@ Environment variables:
 | `SDC_CRAWL_REF` | master's head | crawl commit, branch or tag to fetch (`setup.sh`, Windows build) |
 | `SDC_MAKE_FLAGS` | (none) | extra `make` flags for `setup.sh`, e.g. `BUILD_LUA=y BUILD_SQLITE=y BUILD_ZLIB=y` |
 | `SDC_SKIP_BUILD` | `0` | `1`: `setup.sh` only fetches and patches the sources |
+| `SDC_ALLOW_PATCH_FAIL` | `0` | `1`: skip a patch that no longer applies instead of failing |
+| `SDC_VERSION_CODE`, `SDC_VERSION_NAME` | `3`, `2.0` | Android version (CI sets them per run) |
 | `SDC_JOBS` | all cores | parallel build jobs |
 | `DCSS_ANDROID_TOOLS` | `~/android-build` | Android SDK, NDK, Gradle |
 | `SDC_PLAYER_RC` | (none) | options file bundled as the APK's starting `player.rc` |
@@ -278,7 +288,9 @@ installs.
 
 ## Crawl patches
 
-`setup.sh` and the cross-builds apply every `patches/*.patch` (idempotently):
+Every build applies every `patches/*.patch` through `scripts/apply_patches.sh`
+(idempotently). A patch that no longer applies to the chosen crawl commit
+stops the build; `SDC_ALLOW_PATCH_FAIL=1` builds without it instead.
 
 - `damage-numbers.patch` (`attack.cc`): melee and missile attack messages
   carry the damage dealt ("You hit the goblin for 7!"); the client shows it as
@@ -296,13 +308,25 @@ To revert them, `git checkout` those files in `$SDC_BUILD/crawl` and rebuild.
 ## Security notes
 
 - The bundled `overlay/webserver/config.yml` logs everyone in as `player`
-  with no password. It is for a single-user local install only. To host for
-  other people, use `overlay/webserver/config.public.yml` (real accounts,
-  loopback bind) behind an HTTPS reverse proxy.
+  with no password. It is for a single-user local install only (from source it
+  listens on all interfaces inside WSL, which only this PC can reach; the
+  server package listens on loopback unless you change it). Anyone who can
+  reach the port plays as `player`, so never open it on a public or shared
+  network. To host for other people, use `overlay/webserver/config.public.yml`
+  (real accounts, loopback bind) behind an HTTPS reverse proxy.
 - The Android app and the Windows exe serve the game on loopback
-  (`127.0.0.1`) only. The Android app allows plain http only to loopback and
-  navigates nowhere else. WebView remote debugging (`chrome://inspect`) is off
-  unless the APK is built debuggable (`-PsdcDebug` on the Gradle command line).
+  (`127.0.0.1`), which other apps on the device and web pages in a browser
+  can also reach. So every launch makes a random token: the page URL carries
+  it, `index.html` is only served with it, and the game's WebSocket needs it
+  plus a loopback `Host` and `Origin` header. Other pages, apps and DNS
+  rebinding get a 403. Message sizes are capped.
+- The Android app allows plain http only to loopback and navigates nowhere
+  else. WebView remote debugging (`chrome://inspect`) is off unless the APK
+  is built debuggable (`-PsdcDebug` on the Gradle command line).
+- Build downloads are checked: the Android command-line tools, Gradle and
+  ncurses against pinned SHA-256 checksums, the Cygwin installer against its
+  checksum and Authenticode signature. GitHub Actions are pinned to commit
+  hashes (Dependabot proposes updates).
 
 ## Development
 
@@ -321,6 +345,8 @@ patches/                      crawl source patches
 scripts/
   setup.sh, run.sh, apply.sh  local server: build, start, apply the client
   fetch_crawl.sh              shallow crawl checkout at SDC_CRAWL_REF
+  apply_patches.sh            patches/ into a crawl checkout (every build)
+  stage_client.sh             client + game data for the Android / Windows builds
   package-server.sh           Linux server tarball
   patch_client.py             hooks crt.js into game.js / game.html
   ensure_user.py              creates the autologin user

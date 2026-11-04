@@ -4,7 +4,8 @@
 // cell) when the map changes, and eases the effect in and out.
 //
 // Middle mouse button on the view: drag sideways = rotate, up/down = zoom,
-// click = reset (rotation 12, zoom 100%). Both are also sliders in the
+// click = reset (rotation 12, zoom 100%). Shift + drag up/down = perspective,
+// Shift + click = reset perspective (90%). All are also sliders in the
 // settings panel.
 // "Rotation" turns the view (yaw, degrees) about the screen centre; walls
 // still rise toward the top of the screen. Creatures share the map canvas,
@@ -38,8 +39,9 @@
 //
 // Debug (browser console): sdc_depth_debug.stats()
 define(["jquery", "./sdc_api", "./map_knowledge", "./dungeon_renderer",
-        "./enums", "./player", "./tileinfo-dngn", "./tileinfo-main"],
-function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main) {
+        "./enums", "./player", "./tileinfo-dngn", "./tileinfo-main", "./fxkit"],
+function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
+          kit) {
     "use strict";
 
     var REBUILD_MS = 2000;      // safety rebuild interval
@@ -156,21 +158,8 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main) {
         return window.performance ? window.performance.now() : Date.now();
     }
 
-    function hook_merge()
-    {
-        var cur = map_knowledge.merge;
-        if (cur.sdc_depth) return;
-        var wrapped = function () {
-            var res = cur.apply(this, arguments);
-            dirty = true;
-            return res;
-        };
-        // keep other modules' "already wrapped" markers (light, alive)
-        for (var k in cur)
-            if (/^sdc_/.test(k)) wrapped[k] = cur[k];
-        wrapped.sdc_depth = true;
-        map_knowledge.merge = wrapped;
-    }
+    // every map update marks the scan dirty (shared wrapper in fxkit)
+    kit.on_merge(function () { dirty = true; });
 
     function build(vx, vy)
     {
@@ -362,7 +351,6 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main) {
     }
 
     api.on("game_init", function () {
-        hook_merge();
         dirty = true;
         last_sig = "";
     });
@@ -387,10 +375,12 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main) {
     document.addEventListener("keydown", handle_keydown, true);
 
     // Middle mouse button on the game view: drag sideways to rotate, up/down
-    // to zoom, click (no drag) to reset both. Capture phase, so crt.js never
-    // forwards the middle button to the game.
+    // to zoom, click (no drag) to reset both. With Shift held, up/down sets
+    // the perspective instead and a click resets it. Capture phase, so crt.js
+    // never forwards the middle button to the game.
     var drag = null;
     var DRAG_DEG = 0.25, DRAG_ZOOM = 0.4;   // deg per px, zoom % per px
+    var DRAG_PERSP = 0.3;                   // perspective % per px
     var CLICK_PX = 4, CLICK_MS = 350;
 
     function on_screen(ev)
@@ -405,27 +395,47 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main) {
         ev.stopImmediatePropagation();
         drag = { x: ev.clientX, y: ev.clientY, t: now(), moved: false,
                  rot: Number(api.settings.depth_rot) || 0,
-                 zoom: Number(api.settings.depth_zoom) || 100 };
+                 zoom: Number(api.settings.depth_zoom) || 100,
+                 persp: Number(api.settings.depth_persp) || 0,
+                 shift: ev.shiftKey };
     }, true);
 
     window.addEventListener("mousemove", function (ev) {
         if (!drag) return;
+        if (ev.shiftKey !== drag.shift)
+        {
+            // Shift pressed / released mid-drag: restart the vertical axis
+            // from here so neither value jumps
+            drag.shift = ev.shiftKey;
+            drag.y = ev.clientY;
+            drag.zoom = Number(api.settings.depth_zoom) || 100;
+            drag.persp = Number(api.settings.depth_persp) || 0;
+        }
         var dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
         if (Math.abs(dx) + Math.abs(dy) > CLICK_PX) drag.moved = true;
         if (!drag.moved) return;
         // 0.1 steps: whole degrees / percents step visibly on a slow drag
         api.settings.depth_rot = Math.max(-45, Math.min(45,
             Math.round((drag.rot + dx * DRAG_DEG) * 10) / 10));
-        api.settings.depth_zoom = Math.max(50, Math.min(200,
-            Math.round((drag.zoom - dy * DRAG_ZOOM) * 10) / 10));
+        if (drag.shift)
+            api.settings.depth_persp = Math.max(0, Math.min(100,
+                Math.round((drag.persp - dy * DRAG_PERSP) * 10) / 10));
+        else
+            api.settings.depth_zoom = Math.max(50, Math.min(200,
+                Math.round((drag.zoom - dy * DRAG_ZOOM) * 10) / 10));
     });
 
     window.addEventListener("mouseup", function (ev) {
         if (!drag || ev.button !== 1) return;
         if (!drag.moved && now() - drag.t < CLICK_MS)
         {
-            api.settings.depth_rot = 12;
-            api.settings.depth_zoom = 100;
+            if (ev.shiftKey)
+                api.settings.depth_persp = 90;
+            else
+            {
+                api.settings.depth_rot = 12;
+                api.settings.depth_zoom = 100;
+            }
         }
         drag = null;
         api.save();

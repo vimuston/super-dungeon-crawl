@@ -158,6 +158,109 @@ html body.sdc-mobile #sdc_statuses {
 }
 html body.sdc-mobile #sdc_stats { display: none; order: 2; }
 #sdc_m_sheet { display: none; }
+/* AC / EV / SH: a third line in the pill, numbers styled like the HP/MP
+   values. Calm at rest; a change pops the chip and floats "+N" / "-N". */
+#sdc_m_def { display: none; }
+html body.sdc-mobile #sdc_m_def {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    height: 12px;
+    margin-top: 1px;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+html body.sdc-mobile.sdc-m-open #sdc_m_def { display: none; }
+#sdc_m_def .sdc-m-d {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    transform-origin: 30% 50%;
+}
+#sdc_m_def .sdc-ico {
+    width: 10px;
+    height: 10px;
+    flex: none;
+    overflow: visible;
+    color: var(--sdc-accent);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.75;
+}
+#sdc_m_def .sdc-ico .sdc-ico-faint { opacity: 0.5; }
+#sdc_m_def b { font-weight: normal; }
+#sdc_m_def .sdc-m-zero { opacity: 0.35; }
+/* turn / speed chip mirrored from the stats card */
+#sdc_m_def .sdc-m-counter[data-rate="none"],
+#sdc_m_def .sdc-m-counter[data-rate="normal"],
+#sdc_m_def .st-turns { opacity: 0.75; }
+#sdc_m_def .sdc-m-counter[data-rate="fast"] { color: #6dffa8; }
+#sdc_m_def .sdc-m-counter[data-rate="slow"] { color: #ffc24d; }
+#sdc_m_def .sdc-m-counter[data-rate="vslow"] { color: #ff5c5c; }
+#sdc_m_def .sdc-m-counter[data-rate] .sdc-ico { color: inherit; }
+#sdc_m_def .sdc-m-up { animation: sdc-m-d-up 0.9s ease-out; }
+#sdc_m_def .sdc-m-down { animation: sdc-m-d-down 0.6s ease-out; }
+#sdc_m_def .sdc-m-up .sdc-ico { animation: sdc-m-d-ico 0.9s ease-out; }
+@keyframes sdc-m-d-up {
+    0%   { transform: scale(1); }
+    18%  { transform: scale(1.45); color: #b8ffcf;
+           text-shadow: 0 0 6px #5dff7a, 0 0 12px rgba(93, 255, 122, 0.6); }
+    45%  { transform: scale(0.94); }
+    65%  { transform: scale(1.06); color: #5dff7a; text-shadow: 0 0 4px #5dff7a; }
+    100% { transform: scale(1); }
+}
+@keyframes sdc-m-d-ico {
+    0%   { opacity: 0.75; }
+    18%  { opacity: 1; color: #b8ffcf; filter: drop-shadow(0 0 4px #5dff7a); }
+    100% { opacity: 0.75; }
+}
+@keyframes sdc-m-d-down {
+    0%, 100% { transform: none; }
+    15% { transform: translateX(-2px); color: #ff6b6b; text-shadow: 0 0 5px #ff4d4d; }
+    35% { transform: translateX(2px); color: #ff6b6b; }
+    55% { transform: translateX(-1px); }
+    75% { transform: translateX(1px); }
+}
+#sdc_m_def .sdc-m-float {
+    position: absolute;
+    left: 100%;
+    top: -2px;
+    margin-left: 1px;
+    font: bold 9px/1 var(--stat-font);
+    font-style: normal;
+    pointer-events: none;
+    white-space: nowrap;
+    color: #5dff7a;
+    text-shadow: 0 0 4px #5dff7a;
+    animation: sdc-m-d-float 1.25s ease-out both;
+}
+#sdc_m_def .sdc-m-down .sdc-m-float {
+    color: #ff6b6b;
+    text-shadow: 0 0 4px #ff4d4d;
+    animation-name: sdc-m-d-sink;
+}
+@keyframes sdc-m-d-float {
+    0%   { opacity: 0; transform: translateY(4px) scale(0.7); }
+    15%  { opacity: 1; transform: translateY(-1px) scale(1.15); }
+    70%  { opacity: 1; transform: translateY(-4px); }
+    100% { opacity: 0; transform: translateY(-9px); }
+}
+@keyframes sdc-m-d-sink {
+    0%   { opacity: 0; transform: translateY(-3px); }
+    15%  { opacity: 1; transform: none; }
+    70%  { opacity: 1; transform: translateY(3px); }
+    100% { opacity: 0; transform: translateY(6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+    #sdc_m_def .sdc-m-up, #sdc_m_def .sdc-m-down,
+    #sdc_m_def .sdc-m-float { animation-duration: 0.01s; }
+}
+
 
 /* open: name line, full stats card and the buttons */
 html body.sdc-mobile.sdc-m-open #sdc_vitals { width: auto !important; min-width: 220px; }

@@ -30,6 +30,23 @@
     paint-order: stroke fill;
     text-shadow: 0 0 0.35em rgba(255, 190, 40, 0.9), 0 0.06em 0 #3a1c06;
     transform-origin: 50% 60%;
+    /* jitter rides on `translate`, which composes with the WAAPI `transform`
+       flight path instead of overriding it */
+    animation: cb-shake 0.11s steps(1, end) infinite;
+    --cb-sh: 0.035em;
+}
+#sdc_combat .cb-word.cb-heavy,
+#sdc_combat .cb-word.cb-kill { --cb-sh: 0.06em; }
+#sdc_combat .cb-word.cb-miss { --cb-sh: 0.02em; }
+@keyframes cb-shake {
+    0%   { translate: var(--cb-sh) calc(var(--cb-sh) * -0.6); }
+    20%  { translate: calc(var(--cb-sh) * -0.8) var(--cb-sh); }
+    40%  { translate: calc(var(--cb-sh) * 0.5) calc(var(--cb-sh) * 0.8); }
+    60%  { translate: calc(var(--cb-sh) * -1) calc(var(--cb-sh) * -0.4); }
+    80%  { translate: calc(var(--cb-sh) * 0.7) calc(var(--cb-sh) * -1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    #sdc_combat .cb-word { animation: none; }
 }
 #sdc_combat .cb-word.cb-heavy {
     color: #fff6c8;

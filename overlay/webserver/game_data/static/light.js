@@ -11,7 +11,8 @@
 //   still bleeds in) are scanned from map_knowledge: bg (features), fg
 //   (monsters/items), cloud, ov (bolt/zap overlays), halo / orb_glow /
 //   sanctuary / disjunction fields and the screen "flash" colour.
-// - Bolts/explosions are transient, so map_knowledge.merge is wrapped to
+// - Bolts/explosions are transient, so every map update (fxkit.on_merge) is
+//   checked to
 //   catch every intermediate beam step, and each lit cell keeps a fading
 //   afterglow (~350ms) after the tile disappears.
 // - Lights are additive radial-gradient sprites (one pre-rendered sprite per
@@ -29,9 +30,9 @@
 //   sdc_light_debug.canvas()             the light canvas (append to see)
 define(["jquery", "./sdc_api", "./map_knowledge", "./dungeon_renderer",
         "./enums", "./player", "./view_data", "./tileinfo-dngn",
-        "./tileinfo-main", "./tileinfo-player", "./cell_renderer"],
+        "./tileinfo-main", "./tileinfo-player", "./cell_renderer", "./fxkit"],
 function ($, api, map_knowledge, dungeon_renderer, enums, player, view_data,
-          dngn, main, tileinfo_player, cell_renderer) {
+          dngn, main, tileinfo_player, cell_renderer, kit) {
     "use strict";
 
     var LIGHT_PX = 8;           // light map pixels per dungeon cell
@@ -124,6 +125,9 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, view_data,
         // --- items ---
         [/^(ORB|UNCOLLECTED_ORB)$/, "orb"],
         [/^UNCOLLECTED_RUNE_/, "magic"],
+        // offhand orbs (orb of energy etc.): the tile carries no ego, so
+        // every floor orb gets the glow
+        [/^ARM_ORB(_RANDART)?$/, "magic"],
 
         // --- monsters ---
         [/^MONS_(FIRE_ELEMENTAL|FIRE_VORTEX|ORB_OF_FIRE|SOLAR_EMBER|FOXFIRE|EFREET|BALRUG|SALAMANDER|FIRE_CRAB|FIRE_BAT|HELL_HOUND|HELL_HOG|HELLEPHANT|LAVA_SNAKE|FIRE_GIANT|FIRE_DRAGON|BLAZEHEART|BRIMSTONE_FIEND|SUN_DEMON|SUNNIER_DEMON|HELLION|HELL_SENTINEL|HELLFIRE_MORTAR|FIRESPITTER|FIRE_ELEMENTALIST|JADE_CRYSTAL_FIRE|SERPENT_OF_HELL_GEHENNA|CEREBOV|JACK_O_LANTERN|FLAME_CULT|GLOWING_ORANGE_BRAIN|HELLWING)/, "fire"],
@@ -320,34 +324,16 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, view_data,
 
     // Catch every intermediate beam step: messages can arrive faster than
     // our ~30fps frame loop.
-    function hook_merge()
-    {
-        if (map_knowledge.merge.sdc_light) return;
-        var orig = map_knowledge.merge;
-        var wrapped = function () {
-            var res = orig.apply(this, arguments);
-            if (cls_of)
-            {
-                try
-                {
-                    var now = performance.now();
-                    var dirty = map_knowledge.dirty();
-                    for (var i = 0; i < dirty.length; i++)
-                    {
-                        var d = dirty[i];
-                        note_transient(map_knowledge.get(d.x, d.y), now);
-                    }
-                }
-                catch (e) {}
-            }
-            return res;
-        };
-        // keep other modules' "already wrapped" markers (alive)
-        for (var k in orig)
-            if (/^sdc_/.test(k)) wrapped[k] = orig[k];
-        wrapped.sdc_light = true;
-        map_knowledge.merge = wrapped;
-    }
+    kit.on_merge(function () {
+        if (!cls_of) return;
+        var now = performance.now();
+        var dirty = map_knowledge.dirty();
+        for (var i = 0; i < dirty.length; i++)
+        {
+            var d = dirty[i];
+            note_transient(map_knowledge.get(d.x, d.y), now);
+        }
+    });
 
     // The stock square HALO_RANGE tile (Shining One aura) and the SILENCED
     // tile (silence aura) are replaced by a round, soft light below.
@@ -609,12 +595,10 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, view_data,
 
     api.on("game_init", function () {
         build_tables();
-        hook_merge();
         reset();
     });
     api.on("game_cleanup", reset);
 
-    hook_merge();
     api.set_light_source(light_source);
 
     // Line of sight mask -----------------------------------------------------

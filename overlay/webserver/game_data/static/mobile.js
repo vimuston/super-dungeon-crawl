@@ -181,7 +181,7 @@ function ($, comm, api, renderer, enums, options) {
         {
             if (navigator.vibrate) navigator.vibrate(12);
         }
-        catch (e) {}
+        catch (e) { /* vibration blocked or unsupported: just skip it */ }
     }
 
     // DOM ---------------------------------------------------------------------
@@ -754,6 +754,93 @@ function ($, comm, api, renderer, enums, options) {
     document.addEventListener("touchend", on_touchend, opts);
     document.addEventListener("touchcancel", on_touchend, opts);
     document.addEventListener("contextmenu", on_contextmenu, true);
+
+    // Defenses in the pill -----------------------------------------------------
+    // AC / EV / SH as a third line inside #sdc_vitals (closed sheet only; CSS
+    // hides it when open, the full card shows them there). Only rebuilt when
+    // a value changes, so its pop / "+N" float plays exactly once.
+    var DEF_KEYS = ["ac", "ev", "sh"];
+    var def_last = null, def_who = null;
+
+    function def_row()
+    {
+        var row = document.getElementById("sdc_m_def");
+        var vitals = document.getElementById("sdc_vitals");
+        if (!row && vitals)
+        {
+            row = document.createElement("div");
+            row.id = "sdc_m_def";
+            vitals.appendChild(row);
+        }
+        return row;
+    }
+
+    function update_defenses(player)
+    {
+        var row = def_row();
+        if (!row || player[DEF_KEYS[0]] == null) return;
+        if (player.name !== def_who) { def_who = player.name; def_last = null; }
+        DEF_KEYS.forEach(function (k) {
+            var v = Number(player[k]) || 0;
+            var chip = row.querySelector("[data-k='" + k + "']");
+            if (!chip)
+            {
+                chip = document.createElement("span");
+                chip.className = "sdc-m-d";
+                chip.setAttribute("data-k", k);
+                var ico = document.querySelector(
+                    "#sdc_stats .sdc-ico[data-ico='" + k + "']");
+                if (ico) chip.appendChild(ico.cloneNode(true));
+                var n = document.createElement("b");
+                chip.appendChild(n);
+                row.appendChild(chip);
+            }
+            var num = chip.querySelector("b");
+            // keep stock colouring (boosted / degenerated defense)
+            var src = document.querySelector(
+                "#sdc_stats .st-chip[data-k='" + k + "'] .sdc-num");
+            num.className = src ? src.className : "";
+            num.textContent = v;
+            chip.classList.toggle("sdc-m-zero", v === 0);
+            var old = def_last ? def_last[k] : null;
+            if (old == null || old === v) return;
+            var up = v > old;
+            chip.classList.remove("sdc-m-up", "sdc-m-down");
+            void chip.offsetWidth;      // restart the animation
+            chip.classList.add(up ? "sdc-m-up" : "sdc-m-down");
+            var f = document.createElement("i");
+            f.className = "sdc-m-float";
+            f.textContent = (up ? "+" : "−") + Math.abs(v - old);
+            chip.appendChild(f);
+            setTimeout(function () { f.remove(); }, 1300);
+        });
+        def_last = {};
+        DEF_KEYS.forEach(function (k) { def_last[k] = Number(player[k]) || 0; });
+        mirror_counter(row);
+    }
+
+    // The turn / speed chip from the stats card (the "Turn counter" option),
+    // copied after the defenses. The card is rendered before hud_update, so
+    // it is already current here.
+    function mirror_counter(row)
+    {
+        var old = row.querySelector(".sdc-m-counter");
+        var src = document.querySelector(
+            "#sdc_stats .st-speed, #sdc_stats .st-turns");
+        if (!src)
+        {
+            if (old) old.remove();
+            return;
+        }
+        var chip = src.cloneNode(true);
+        chip.classList.add("sdc-m-d", "sdc-m-counter");
+        if (old) row.replaceChild(chip, old);
+        else row.appendChild(chip);
+    }
+    api.on("hud_update", function (player) {
+        try { update_defenses(player); }
+        catch (e) { console.error("sdc: mobile defenses", e); }
+    });
 
     // Lifecycle ---------------------------------------------------------------
 

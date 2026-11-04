@@ -79,9 +79,9 @@
 //   sdc_alive_debug.stats()            timings and current parameters
 define(["jquery", "./sdc_api", "./map_knowledge", "./dungeon_renderer",
         "./enums", "./player", "./tileinfo-dngn", "./tileinfo-main",
-        "./tileinfo-player", "./tileinfo-wall"],
+        "./tileinfo-player", "./tileinfo-wall", "./fxkit"],
 function ($, api, map_knowledge, dungeon_renderer, enums, player,
-          dngn, main, tileinfo_player, wall) {
+          dngn, main, tileinfo_player, wall, kit) {
     "use strict";
 
     // Tuning ----------------------------------------------------------------
@@ -112,7 +112,8 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
     // Classes ---------------------------------------------------------------
     var MAT_NAMES = ["none", "shallow", "deep", "lava", "tree", "torch", "fire",
                      "crystal", "wall", "door", "down", "up", "portal", "altar",
-                     "fountain", "bog", "grass", "door_shut", "frozen"];
+                     "fountain", "bog", "grass", "door_shut", "frozen",
+                     "verdant"];
     var ITEM_NAMES = ["none", "gold", "gem", "potion", "paper", "corpse",
                       "cloud", "cloud_fire", "cloud_cold"];
     var KIND_NAMES = ["normal", "plant", "still", "undead", "ghost", "ooze",
@@ -152,6 +153,7 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
         [/^(DNGN_TREE|DNGN_MANGROVE|DNGN_DEMONIC_TREE|DNGN_DEAD_TREE)/, M.TREE],
         [/^(DNGN_TOXIC_BOG|FLOOR_MUD|LIQUEFACTION)/, M.BOG],
         [/^(FLOOR_GRASS|FLOOR_NECROPOLIS_(SQUARE_)?GRASS|FLOOR_MOSS|FLOOR_VINES|FLOOR_SPROUTING|DNGN_FLOWER_PATCH|DNGN_GARDEN_PATCH|HALO_GRASS)/, M.GRASS],
+        [/^FLOOR_LAIR/, M.VERDANT],
         [/^(WALL_|STONE_WALL|ROCK_WALL|METAL_WALL|DNGN_STONE_(WALL|DARK)|DNGN_METAL_(WALL|IRON|ZOT|STEEL)|DNGN_TRANSPARENT_STONE|DNGN_SILVER_WALL|CLEAR_PERMAROCK|SLIMY_TRANSPARENT|DNGN_GRATE|DNGN_WALL_SHADOW|DNGN_FIRST_TRANSPARENT)/, M.WALL],
     ];
 
@@ -292,29 +294,14 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
     var wind_base = 0.6;
     var last_pos = null, last_key = null;
 
-    var reduce_motion = window.matchMedia
-        && window.matchMedia("(prefers-reduced-motion: reduce)");
 
     function now()
     {
         return window.performance ? window.performance.now() : Date.now();
     }
 
-    function hook_merge()
-    {
-        var cur = map_knowledge.merge;
-        if (cur.sdc_alive) return;
-        var wrapped = function () {
-            var res = cur.apply(this, arguments);
-            dirty = true;
-            return res;
-        };
-        // keep other modules' "already wrapped" markers (light)
-        for (var k in cur)
-            if (/^sdc_/.test(k)) wrapped[k] = cur[k];
-        wrapped.sdc_alive = true;
-        map_knowledge.merge = wrapped;
-    }
+    // every map update marks the scan dirty (shared wrapper in fxkit)
+    kit.on_merge(function () { dirty = true; });
 
     // Map scan --------------------------------------------------------------
     function fg_flags(t)
@@ -493,53 +480,12 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
     // Message log: shouts startle hostiles, explosions/rumbles shake the view
     var STARTLE_RE = /\b(shouts?|roars?|bellows?|howls?|screams?|yells?|snarls?|You hear an? (?:\w+ )?(?:shout|roar|howl|bellow|scream|yell))\b/i;
     var QUAKE_RE = /\b(explodes?|explosion|You hear an? (?:\w+ )?(?:crash|rumble|rumbling|grinding|clank)|(?:ground|dungeon|walls?) (?:shakes?|rumbles?|trembles?)|crumbles?|collapses?)\b/i;
-    var msg_observer = null;
-    var seen_msgs = window.WeakSet ? new WeakSet() : null;
-
-    function handle_msg_el(el)
-    {
-        if (!seen_msgs || seen_msgs.has(el)) return;
-        seen_msgs.add(el);
-        if (now() - t_init < MSG_GRACE) return;
-        var text = el.textContent || "";
+    // new message-log text (shared observer in fxkit, which skips the
+    // first moments of a game and replays)
+    kit.on_message(function (text) {
         if (STARTLE_RE.test(text)) startle = 1;
         if (QUAKE_RE.test(text)) quake = Math.max(quake, 1);
-    }
-
-    function seed_msgs(root)
-    {
-        if (!seen_msgs || !root.querySelectorAll) return;
-        var all = root.querySelectorAll(".game_message");
-        for (var i = 0; i < all.length; i++) seen_msgs.add(all[i]);
-    }
-
-    function watch_messages()
-    {
-        if (msg_observer) msg_observer.disconnect();
-        var el = document.getElementById("message_pane")
-                 || document.getElementById("messages_container")
-                 || document.getElementById("normal");
-        if (!el || !window.MutationObserver) return;
-        seed_msgs(el);
-        msg_observer = new MutationObserver(function (records) {
-            records.forEach(function (r) {
-                Array.prototype.forEach.call(r.addedNodes, function (node) {
-                    if (node.nodeType !== 1) return;
-                    if (node.classList.contains("game_message"))
-                        handle_msg_el(node);
-                    else if (node.id === "messages")
-                        seed_msgs(node);    // stock layout() re-insert
-                    else if (node.querySelectorAll)
-                    {
-                        var ms = node.querySelectorAll(".game_message");
-                        for (var i = 0; i < ms.length; i++)
-                            handle_msg_el(ms[i]);
-                    }
-                });
-            });
-        });
-        msg_observer.observe(el, { childList: true, subtree: true });
-    }
+    });
 
     // Mood ------------------------------------------------------------------
     // tempo: creature rhythm speed, unrest: heat shimmer / restless hostiles,
@@ -675,7 +621,7 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
     {
         var dr = dungeon_renderer;
         if (api.settings.alive === false) return null;
-        if (reduce_motion && reduce_motion.matches) return null;
+        if (api.reduced_motion()) return null;
         if (dr.ui_state == enums.ui.VIEW_MAP) return null;
         if (!dr.cols || !dr.rows || !dr.view || !player.pos) return null;
         build_tables();
@@ -788,21 +734,16 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
     }
 
     api.on("game_init", function () {
-        hook_merge();
         reset();
         t_init = now();
-        watch_messages();
     });
     api.on("game_cleanup", function () {
         reset();
-        if (msg_observer) msg_observer.disconnect();
-        msg_observer = null;
     });
     api.on("setting", function (key) {
         if (key === "alive") dirty = true;
     });
 
-    hook_merge();
     api.set_alive_source(alive_source);
 
     // Debug -----------------------------------------------------------------
@@ -877,7 +818,7 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
         stats: function () {
             return $.extend({}, stats, {
                 cols: cols, rows: rows, enabled: api.settings.alive !== false,
-                reduced_motion: !!(reduce_motion && reduce_motion.matches),
+                reduced_motion: api.reduced_motion(),
                 mood: $.extend({}, mood), ripples: ripples.length,
                 hostiles: hostiles.length, glancers: glancers.length,
                 player: Array.prototype.slice.call(U.u_alive_pl),

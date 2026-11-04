@@ -252,8 +252,6 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, main) {
     var last_t = 0;
     var stats = { cells: 0, drawn: 0, kinds: {}, ms: 0, frames: 0,
                   curved: false, reason: "" };
-    var reduce_motion = window.matchMedia
-        && window.matchMedia("(prefers-reduced-motion: reduce)");
 
     function key_of(x, y)
     {
@@ -432,7 +430,7 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, main) {
         stats.curved = k_curve > 0;
         stats.reason = "drawing";
 
-        var still = !!(reduce_motion && reduce_motion.matches);
+        var still = api.reduced_motion();
         var secs = still ? 0 : t / 1000;
 
         ctx.setTransform(1, 0, 0, 1, 0, 0);

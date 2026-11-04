@@ -19,26 +19,17 @@ SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO="sudo"
 
 export DEBIAN_FRONTEND=noninteractive
 $SUDO apt-get update -qq
+# webtiles build deps (no SDL/FreeType/fonts: those are for local tiles);
+# libpng: the tile-sheet generator, advancecomp/pngcrush: its PNG optimiser
 $SUDO apt-get install -y -qq build-essential libncursesw5-dev bison flex \
   liblua5.1-0-dev libsqlite3-dev zlib1g-dev pkg-config python3-yaml \
-  python3-tornado binutils-gold libsdl2-image-dev libsdl2-mixer-dev \
-  libsdl2-dev libfreetype6-dev libpng-dev fonts-dejavu-core advancecomp \
-  pngcrush git rsync
+  python3-tornado binutils-gold libpng-dev advancecomp pngcrush git rsync
 
 mkdir -p "$BUILD_ROOT"
 bash "$HERE/scripts/fetch_crawl.sh" "$CRAWL"
 
-# Local patches (see README "Crawl patches"): apply idempotently.
-for p in "$HERE"/patches/*.patch; do
-  [ -f "$p" ] || continue
-  if git -C "$CRAWL" apply -R --check "$p" 2>/dev/null; then
-    echo "Patch already applied: $(basename "$p")"
-  elif git -C "$CRAWL" apply --check "$p" 2>/dev/null; then
-    git -C "$CRAWL" apply "$p" && echo "Applied patch: $(basename "$p")"
-  else
-    echo "WARNING: patch does not apply, skipping: $(basename "$p")"
-  fi
-done
+# Local patches (see README "Crawl patches")
+bash "$HERE/scripts/apply_patches.sh" "$CRAWL"
 
 if [ "${SDC_SKIP_BUILD:-0}" = 1 ]; then
   echo "Sources ready in $CRAWL (build skipped)"

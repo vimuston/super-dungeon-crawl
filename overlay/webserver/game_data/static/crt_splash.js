@@ -17,8 +17,9 @@
 // window.sdc_splash_zone_test(place, depth)
 //   place  "Lair", "Orcish Mines", "a bazaar", "Zot" ...; depth 0 = none
 // window.sdc_splash_banner_test("death"|"glory")
-define(["jquery", "./sdc_api", "./player", "./dungeon_renderer", "./enums"],
-function ($, api, player, dungeon_renderer, enums) {
+define(["jquery", "./sdc_api", "./player", "./dungeon_renderer", "./enums",
+        "./fxkit"],
+function ($, api, player, dungeon_renderer, enums, kit) {
     "use strict";
 
     api.register_option({
@@ -38,13 +39,10 @@ function ($, api, player, dungeon_renderer, enums) {
     var last_launch = 0;
     var recent = {};           // text -> time
     var pump_timer = null;
-    var msg_observer = null;
     var init_time = 0;
     var have_state = false;    // seen a hud_update with prev
     var last_kill = 0;
 
-    var reduce_motion = window.matchMedia
-        && window.matchMedia("(prefers-reduced-motion: reduce)");
 
     var NASTY_KINDS = { nasty: 1, damage: 1, poison: 1, mind: 1 };
 
@@ -67,7 +65,7 @@ function ($, api, player, dungeon_renderer, enums) {
 
     function reduced()
     {
-        return !!(reduce_motion && reduce_motion.matches);
+        return api.reduced_motion();
     }
 
     // Zone titles -------------------------------------------------------------
@@ -461,21 +459,12 @@ function ($, api, player, dungeon_renderer, enums) {
                alt: { terminal: "TARGET DESTROYED" } } },
     ];
 
-    function on_message_nodes(records)
-    {
+    // new message-log text (shared observer in fxkit)
+    kit.on_message(function (text) {
         var m = mode();
         if (!m || !have_state || now() - init_time < MSG_GRACE) return;
-        records.forEach(function (r) {
-            Array.prototype.forEach.call(r.addedNodes, function (node) {
-                if (node.nodeType !== 1
-                    || !node.classList.contains("game_message"))
-                {
-                    return;
-                }
-                handle_message((node.textContent || "").trim(), m);
-            });
-        });
-    }
+        handle_message(text, m);
+    });
 
     function handle_message(text, m)
     {
@@ -496,15 +485,6 @@ function ($, api, player, dungeon_renderer, enums) {
         }
     }
 
-    function watch_messages()
-    {
-        if (msg_observer)
-            msg_observer.disconnect();
-        var el = document.getElementById("messages");
-        if (!el || !window.MutationObserver) return;
-        msg_observer = new MutationObserver(on_message_nodes);
-        msg_observer.observe(el, { childList: true });
-    }
 
     // Queue -------------------------------------------------------------------
 
@@ -1050,14 +1030,10 @@ function ($, api, player, dungeon_renderer, enums) {
         init_time = now();
         have_state = false;
         recent = {};
-        watch_messages();
     });
 
     api.on("game_cleanup", function () {
         clear_all();
-        if (msg_observer)
-            msg_observer.disconnect();
-        msg_observer = null;
         if (layer && layer.parentNode)
             layer.parentNode.removeChild(layer);
         layer = null;

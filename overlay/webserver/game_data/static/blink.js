@@ -17,8 +17,9 @@
 //
 // Layer: #sdc_blink, fixed, z-index 4 (above the dungeon, below the HUD).
 // Debug: window.sdc_blink_test("blink" | "teleport")
-define(["jquery", "./sdc_api", "./player", "./dungeon_renderer", "./enums"],
-function ($, api, player, dungeon_renderer, enums) {
+define(["jquery", "./sdc_api", "./player", "./dungeon_renderer", "./enums",
+        "./fxkit"],
+function ($, api, player, dungeon_renderer, enums, kit) {
     "use strict";
 
     var MSG_GRACE = 1500;      // ms after game_init before messages count
@@ -30,7 +31,6 @@ function ($, api, player, dungeon_renderer, enums) {
 
     var layer = null;
     var fx_list = [];
-    var msg_observer = null;
     var init_time = 0;
     var last_fire = -1e9;
     var pending = null;        // {kind, strong, from, timer}
@@ -52,8 +52,6 @@ function ($, api, player, dungeon_renderer, enums) {
         if (list.length > 20) list.shift();
     }
 
-    var reduce_motion = window.matchMedia
-        && window.matchMedia("(prefers-reduced-motion: reduce)");
 
     var C_GREEN = "125,255,176";
     var C_CYAN = "102,240,255";
@@ -78,7 +76,7 @@ function ($, api, player, dungeon_renderer, enums) {
 
     function reduced()
     {
-        return !!(reduce_motion && reduce_motion.matches);
+        return api.reduced_motion();
     }
 
     function strip(s)
@@ -170,10 +168,7 @@ function ($, api, player, dungeon_renderer, enums) {
 
     // Building blocks ---------------------------------------------------------
 
-    function rgba(c, a)
-    {
-        return "rgba(" + c + "," + a + ")";
-    }
+    var rgba = kit.rgba;
 
     function mk(parent, css)
     {
@@ -564,88 +559,6 @@ function ($, api, player, dungeon_renderer, enums) {
         }
     }
 
-    function node_text(node)
-    {
-        var c = node.cloneNode(true);
-        var g = c.querySelectorAll(".prefix_glyph");
-        for (var i = 0; i < g.length; i++)
-            g[i].parentNode.removeChild(g[i]);
-        return (c.textContent || "").trim();
-    }
-
-    // game_message element -> text already handled. Only text that is new
-    // since last time is tested, so cosmetic edits (the "_" turn marker),
-    // merged lines and cloned nodes don't replay old effects.
-    var seen_msg = window.WeakMap ? new WeakMap() : null;
-    var in_grace = false;
-
-    function process_msg(el, quiet)
-    {
-        var text = node_text(el);
-        var old = seen_msg ? seen_msg.get(el) : undefined;
-        if (old === text) return;
-        if (seen_msg) seen_msg.set(el, text);
-        if (quiet || in_grace) return;
-        var fresh = (old !== undefined && text.indexOf(old) === 0)
-                    ? text.slice(old.length) : text;
-        handle_message(fresh);
-    }
-
-    function seed_all(root)
-    {
-        var all = root.querySelectorAll ? root.querySelectorAll(".game_message") : [];
-        for (var i = 0; i < all.length; i++)
-            process_msg(all[i], true);
-    }
-
-    function owner_msg(n)
-    {
-        var el = n.nodeType === 1 ? n : n.parentElement;
-        return el && el.closest ? el.closest(".game_message") : null;
-    }
-
-    function on_message_nodes(records)
-    {
-        if (!enabled()) return;
-        in_grace = now() - init_time < MSG_GRACE;
-        if (in_grace)
-            dlog(dbg.suppressed, "msg", "", "grace");
-        records.forEach(function (r) {
-            var own = owner_msg(r.target);
-            if (own)
-                process_msg(own);
-            Array.prototype.forEach.call(r.addedNodes, function (node) {
-                if (node.nodeType === 1)
-                {
-                    if (node.classList.contains("game_message"))
-                        process_msg(node);
-                    else if (node.id === "messages"
-                             || node.querySelector(".game_message"))
-                        seed_all(node);    // bulk re-insert (stock layout())
-                    else if (own)
-                        process_msg(own);
-                }
-                else if (own)
-                    process_msg(own);
-            });
-        });
-    }
-
-    // Observe a stable ancestor: the stock layout() replaces #messages with
-    // a clone, which would leave an observer on #messages itself pointing at
-    // a detached element.
-    function watch_messages()
-    {
-        if (msg_observer)
-            msg_observer.disconnect();
-        var el = document.getElementById("message_pane")
-                 || document.getElementById("messages_container")
-                 || document.getElementById("normal");
-        if (!el || !window.MutationObserver) return;
-        seed_all(el);
-        msg_observer = new MutationObserver(on_message_nodes);
-        msg_observer.observe(el, { childList: true, subtree: true });
-    }
 
     // Position tracking ------------------------------------------------------
 
@@ -781,20 +694,20 @@ function ($, api, player, dungeon_renderer, enums) {
         streak = 0;
         pos_queue = [];
         hook_pos();
-        watch_messages();
     });
 
     api.on("game_cleanup", function () {
         clear_all();
-        if (msg_observer)
-            msg_observer.disconnect();
-        msg_observer = null;
         if (layer && layer.parentNode)
             layer.parentNode.removeChild(layer);
         layer = null;
     });
 
     api.on("frame", on_frame);
+    // new message-log text, shared with the other modules (fxkit)
+    kit.on_message(function (text) {
+        if (enabled()) handle_message(text);
+    });
     api.on("hud_update", on_hud_update);
 
     // sdc_blink_test(kind, true): instead append real-looking messages
@@ -818,7 +731,6 @@ function ($, api, player, dungeon_renderer, enums) {
             });
             var g = els[0].querySelector(".prefix_glyph");
             if (g) g.textContent = "_";   // as new_command() would
-            init_time = Math.min(init_time, now() - MSG_GRACE - 1);
             return;
         }
         var cur = player.pos ? { x: player.pos.x, y: player.pos.y } : null;

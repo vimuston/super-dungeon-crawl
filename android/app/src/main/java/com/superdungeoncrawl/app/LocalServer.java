@@ -14,6 +14,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
@@ -26,6 +27,12 @@ import java.util.Map;
  * client over http://127.0.0.1:port/ and runs crawl (through crawlhost) for
  * the page's WebSocket. Mirrors what ws_handler.py / process_handler.py do
  * for a player, minus accounts, lobby, spectators and chat.
+ *
+ * Access control: other apps on the device and web pages in a browser can
+ * reach 127.0.0.1 too. Every launch makes a random token; the page URL
+ * carries it (?k=...), index.html is only served with it, and the WebSocket
+ * needs it plus a loopback Host and Origin (no DNS rebinding, no cross-site
+ * pages). Request and message sizes are capped.
  *
  * No Android imports, so it can be run and tested on a desktop JVM.
  */
@@ -53,6 +60,10 @@ public class LocalServer {
     private final Object lock = new Object();
     /** log message traffic to stdout (desktop testing) */
     public static boolean debug = false;
+
+    private static final int MAX_LINE = 16 * 1024;          // HTTP request/header line
+    private static final int MAX_MESSAGE = 8 * 1024 * 1024; // one WebSocket message
+    private final String token = randomToken();
 
     public LocalServer(Assets assets, File host, File crawl, File workdir,
                        Listener listener) {
@@ -87,6 +98,50 @@ public class LocalServer {
 
     public int port() {
         return server.getLocalPort();
+    }
+
+    /** The secret the page URL must carry: "?k=" + token(). */
+    public String token() {
+        return token;
+    }
+
+    private static String randomToken() {
+        byte[] b = new byte[24];
+        new SecureRandom().nextBytes(b);
+        StringBuilder h = new StringBuilder();
+        for (byte x : b)
+            h.append(String.format("%02x", x & 0xff));
+        return h.toString();
+    }
+
+    private boolean tokenOk(String query) {
+        if (query == null)
+            return false;
+        for (String kv : query.split("&"))
+            if (kv.startsWith("k=")
+                && MessageDigest.isEqual(kv.substring(2).getBytes(StandardCharsets.US_ASCII),
+                                         token.getBytes(StandardCharsets.US_ASCII)))
+                return true;
+        return false;
+    }
+
+    /** Host must name this server by its loopback address (DNS rebinding). */
+    private boolean hostOk(String host) {
+        return host != null && (host.equals("127.0.0.1:" + port())
+                                || host.equals("localhost:" + port()));
+    }
+
+    /** Browsers send Origin on WebSocket upgrades: only our own page. */
+    private boolean originOk(String origin) {
+        return origin != null && (origin.equals("http://127.0.0.1:" + port())
+                                  || origin.equals("http://localhost:" + port()));
+    }
+
+    private static void forbidden(OutputStream out) throws IOException {
+        out.write(("HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n"
+                   + "Content-Length: 9\r\nConnection: close\r\n\r\nforbidden")
+                  .getBytes(StandardCharsets.US_ASCII));
+        out.flush();
     }
 
     public boolean running() {
@@ -138,15 +193,31 @@ public class LocalServer {
                 String[] parts = request.split(" ");
                 if (parts.length < 2)
                     break;
-                String path = parts[1];
+                String path = parts[1], query = null;
                 int q = path.indexOf('?');
-                if (q >= 0)
+                if (q >= 0) {
+                    query = path.substring(q + 1);
                     path = path.substring(0, q);
+                }
+                if (!hostOk(headers.get("host"))) {
+                    forbidden(out);
+                    break;
+                }
                 if ("websocket".equalsIgnoreCase(headers.get("upgrade"))) {
+                    if (!path.equals("/socket") || !tokenOk(query)
+                        || !originOk(headers.get("origin"))) {
+                        forbidden(out);
+                        break;
+                    }
                     websocket(s, in, out, headers);
                     return;
                 }
-                if (!file(out, path, headers.get("host")))
+                if (assetPath(path) != null && assetPath(path).equals("web/index.html")
+                    && !tokenOk(query)) {
+                    forbidden(out);
+                    break;
+                }
+                if (!file(out, path))
                     break;
                 if ("close".equalsIgnoreCase(headers.get("connection")))
                     break;
@@ -191,8 +262,7 @@ public class LocalServer {
     }
 
     /** Returns false if the connection should be closed. */
-    private boolean file(OutputStream out, String path, String hostHeader)
-        throws IOException {
+    private boolean file(OutputStream out, String path) throws IOException {
         String asset = assetPath(path);
         byte[] body = null;
         if (asset != null && !asset.contains("..") && !asset.contains("\\")
@@ -215,9 +285,8 @@ public class LocalServer {
         }
         if (asset.equals("web/index.html")) {
             String html = new String(body, StandardCharsets.UTF_8)
-                .replace("@SOCKET_SERVER@", "ws://"
-                         + (hostHeader != null ? hostHeader : "127.0.0.1:" + port())
-                         + "/socket");
+                .replace("@SOCKET_SERVER@", "ws://127.0.0.1:" + port()
+                         + "/socket?k=" + token);
             body = html.getBytes(StandardCharsets.UTF_8);
         }
         String ext = asset.substring(asset.lastIndexOf('.') + 1)
@@ -279,6 +348,9 @@ public class LocalServer {
                     for (int i = 0; i < 8; i++)
                         len = (len << 8) | in.read();
                 }
+                if (len < 0 || len > MAX_MESSAGE
+                    || message.size() + len > MAX_MESSAGE)
+                    break; // oversized: drop the connection
                 byte[] mask = new byte[4];
                 if ((b1 & 0x80) != 0)
                     readFully(in, mask);
@@ -379,7 +451,11 @@ public class LocalServer {
             Object codes = obj.get("data");
             if (codes instanceof List)
                 for (Object c : (List<?>) codes)
-                    data.appendCodePoint(((Number) c).intValue());
+                    if (c instanceof Number) {
+                        int cp = ((Number) c).intValue();
+                        if (Character.isValidCodePoint(cp))
+                            data.appendCodePoint(cp);
+                    }
             Object t = obj.get("text");
             if (t instanceof String)
                 data.append((String) t);
@@ -556,6 +632,8 @@ public class LocalServer {
                 return b.toString();
             }
             b.append((char) c);
+            if (b.length() > MAX_LINE)
+                throw new IOException("request line too long");
         }
         return b.length() > 0 ? b.toString() : null;
     }

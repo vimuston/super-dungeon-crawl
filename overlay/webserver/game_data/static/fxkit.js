@@ -22,6 +22,23 @@
 //   fxkit.rgba("r,g,b", a), fxkit.rnd(a, b), fxkit.pick(list), fxkit.now(),
 //   fxkit.reduced()              prefers-reduced-motion
 //   fxkit.has_light(status, name)  status light by base name (e.g. "Haste")
+//   fxkit.on_merge(fn())         after every map_knowledge.merge (a server map
+//                                update), with map_knowledge.dirty() listing
+//                                the changed cells: catches transient tile
+//                                content (bolts, missiles) between frames.
+//                                One shared wrapper; callbacks run in order.
+//   fxkit.nearest_monster(list?) closest visible monster to the player
+//                                (Manhattan distance) or null
+//   fxkit.spawn(layer_id, css, frames, opts, max)  animated element in
+//                                layer(id), removed when the animation ends;
+//                                null once `max` (default 40) are live there
+//   fxkit.brand_of(text, loose)  weapon/ammo brand id ("flame", "freeze",
+//                                "elec", "venom", "poison", "drain", "vamp",
+//                                "pain", "holy", "distort", "chaos", "anti",
+//                                "foul", "acid", "silver", "steel", "pierce",
+//                                "disperse", "speed", "explode") or null.
+//                                Item names: strict ("of flaming", "{flame");
+//                                loose also reads words in messages ("fiery")
 //
 // Events on sdc_api (in addition to those listed there):
 //   "message" (text)             same as on_message
@@ -40,8 +57,6 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge) {
     var MSG_GRACE = 1500;
     var msg_observer = null, init_time = 0, seen_msg = null;
     var layers = {};
-    var reduce_motion = window.matchMedia
-        && window.matchMedia("(prefers-reduced-motion: reduce)");
 
     function now()
     {
@@ -49,7 +64,7 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge) {
     }
     function rnd(a, b) { return a + Math.random() * (b - a); }
     function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
-    function reduced() { return !!(reduce_motion && reduce_motion.matches); }
+    function reduced() { return api.reduced_motion(); }
     function strip(s) { return String(s || "").replace(/<[^>]*>/g, "").trim(); }
     function base_light(light) { return strip(light).split(/[\s(]/)[0]; }
 
@@ -195,7 +210,109 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge) {
         return el;
     }
 
-    function rgba(c, a) { return "rgba(" + c + "," + a + ")"; }
+    function rgba(c, a)
+    {
+        return "rgba(" + c + "," + (a < 0 ? 0 : a > 1 ? 1 : a) + ")";
+    }
+
+    var live = {};              // layer id -> live spawn() elements
+    function spawn(id, css, frames, opts, max)
+    {
+        if ((live[id] || 0) >= (max || 40)) return null;
+        var el = mk(layer(id), css);
+        live[id] = (live[id] || 0) + 1;
+        var gone = false;
+        var done = function () {
+            if (gone) return;
+            gone = true;
+            if (el.parentNode) el.parentNode.removeChild(el);
+            live[id] = Math.max(0, (live[id] || 1) - 1);
+        };
+        var a;
+        try { a = anim(el, frames, opts); }
+        catch (e) { a = null; api.warn("spawn " + id, e); }
+        if (!a) { done(); return null; }
+        a.addEventListener("finish", done);
+        a.addEventListener("cancel", done);
+        // belt and braces: hidden tabs may never finish the animation
+        var n = opts.iterations === undefined ? 1 : opts.iterations;
+        if (isFinite(n))
+            window.setTimeout(done, (opts.duration || 500) * n
+                              + (opts.delay || 0) + (opts.endDelay || 0) + 400);
+        return el;
+    }
+
+    // Map updates -----------------------------------------------------------
+
+    var merge_fns = [];
+    function install_merge()
+    {
+        if (map_knowledge.merge.sdc_fxkit) return;
+        var orig = map_knowledge.merge;
+        var wrapped = function () {
+            var res = orig.apply(this, arguments);
+            for (var i = 0; i < merge_fns.length; i++)
+            {
+                try { merge_fns[i](); }
+                catch (e) { api.warn("map update hook", e); }
+            }
+            return res;
+        };
+        wrapped.sdc_fxkit = true;
+        map_knowledge.merge = wrapped;
+    }
+    function on_merge(fn)
+    {
+        merge_fns.push(fn);
+        install_merge();
+    }
+
+    function nearest_monster(list)
+    {
+        var p = player_pos();
+        if (!p) return null;
+        var best = null, bd = 1e9;
+        (list || monsters()).forEach(function (m) {
+            var d = Math.abs(m.x - p.x) + Math.abs(m.y - p.y);
+            if (d > 0 && d < bd) { bd = d; best = m; }
+        });
+        return best;
+    }
+
+    // Brands ----------------------------------------------------------------
+    // [id, strict (item names), loose (message words, ammo)]; first match wins
+    var BRANDS = [
+        ["foul",     /\bof foul ?flame\b|\{foul ?flame\b/, /\bfoul ?flame\b/],
+        ["flame",    /\bof flam(?:e|ing)\b|\{flame\b/, /\b(?:flam(?:e|ing|es)|fiery|fire)\b/],
+        ["freeze",   /\bof (?:freezing|frost)\b|\{freeze\b/, /\b(?:freez(?:e|ing)|frost(?:y)?|icy|cold)\b/],
+        ["elec",     /\bof electrocution\b|\{elec\b/, /\belectrocut|\blightning\b|\bshocking\b/],
+        ["venom",    /\bof venom\b|\{venom\b|\bcurare\b/, /\bvenom|\bcurar/],
+        ["poison",   /\bof poison\b|\bpoisoned\b/, /\bpoison/],
+        ["drain",    /\bof draining\b|\{drain\b/, /\bdrain(?:ing)?\b/],
+        ["vamp",     /\bof vampirism\b|\{vamp\b/, /\bvampiric\b/],
+        ["pain",     /\bof pain\b|\{pain\b/, /\bpain\b/],
+        ["holy",     /\bof holy wrath\b|\{holy\b/, /\bholy\b/],
+        ["distort",  /\bof distortion\b|\{distort\b/, /\bdistort/],
+        ["chaos",    /\bof chaos\b|\{chaos\b/, /\bchao(?:s|tic)\b/],
+        ["anti",     /\bof antimagic\b|\{antimagic\b/, /\bantimagic\b/],
+        ["acid",     /\bof acid\b|\{acid\b|\{corrode\b/, /\bacid\b|\bcorrod/],
+        ["silver",   /\bsilver\b/, null],
+        ["steel",    /\bsteel\b/, null],
+        ["pierce",   /\bof penetration\b|\{penet/, /\bpenetrat/],
+        ["disperse", /\bof dispersal\b|\{disperse\b/, /\bdispers(?:al|e)\b/],
+        ["speed",    /\bof speed\b|\{speed\b/, null],
+        ["explode",  /\bof exploding\b|\bexploding\b/, null]
+    ];
+    function brand_of(text, loose)
+    {
+        var t = String(text || "").toLowerCase();
+        for (var i = 0; i < BRANDS.length; i++)
+        {
+            var b = BRANDS[i];
+            if (b[1].test(t) || (loose && b[2] && b[2].test(t))) return b[0];
+        }
+        return null;
+    }
 
     function mk(parent, css)
     {
@@ -325,6 +442,8 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge) {
     api.on("game_init", function () {
         init_time = now();
         prev_lights = null;
+        live = {};
+        if (merge_fns.length) install_merge();
         Object.keys(layers).forEach(function (k) {
             var el = layers[k];
             if (el && el.parentNode) el.parentNode.removeChild(el);
@@ -353,6 +472,8 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge) {
         view_rect: view_rect,
         mk: mk, anim: anim, at: at, rgba: rgba,
         rnd: rnd, pick: pick, now: now, reduced: reduced,
-        strip: strip, has_light: has_light, base_light: base_light
+        strip: strip, has_light: has_light, base_light: base_light,
+        on_merge: on_merge, nearest_monster: nearest_monster, spawn: spawn,
+        brand_of: brand_of
     };
 });

@@ -81,12 +81,12 @@ jobs:
       # bundle Lua, SQLite and zlib: only glibc, libstdc++ and ncurses at runtime
       SDC_MAKE_FLAGS: BUILD_LUA=y BUILD_SQLITE=y BUILD_ZLIB=y
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Build crawl
         run: bash scripts/setup.sh
       - name: Package
         run: bash scripts/package-server.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: server-linux-${{ matrix.arch }}
           path: dist/super-dungeon-crawl-server-linux-${{ matrix.arch }}.tar.gz
@@ -99,8 +99,8 @@ jobs:
     env:
       SDC_CRAWL_REF: ${{ needs.prepare.outputs.crawl_ref }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad  # v6.1.0
         with:
           distribution: temurin
           java-version: "17"
@@ -125,8 +125,12 @@ jobs:
           SDC_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           SDC_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           SDC_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          # grows with every run (tags and manual runs alike), so each APK
+          # installs over the one before it
+          SDC_VERSION_CODE: ${{ github.run_number }}0
+          SDC_VERSION_NAME: ${{ needs.prepare.outputs.version }}
         run: bash scripts/build-android.sh build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: android
           path: dist/super-dungeon-crawl.apk
@@ -139,11 +143,11 @@ jobs:
     env:
       SDC_CRAWL_REF: ${{ needs.prepare.outputs.crawl_ref }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Build (Cygwin, crawl, launcher, package)
         shell: pwsh
         run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1 all
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: windows
           path: dist/super-dungeon-crawl.exe
@@ -156,7 +160,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
           path: out
           merge-multiple: true

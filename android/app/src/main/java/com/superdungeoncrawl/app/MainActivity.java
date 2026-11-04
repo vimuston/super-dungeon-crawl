@@ -241,8 +241,8 @@ public class MainActivity extends Activity {
     private void playLocal() {
         stopping = false;
         // the query makes it a new page load even if only the hash matched
-        web.loadUrl("http://127.0.0.1:" + local.port() + "/?t="
-                    + System.currentTimeMillis() + "#play-local");
+        web.loadUrl("http://127.0.0.1:" + local.port() + "/?k=" + local.token()
+                    + "&t=" + System.currentTimeMillis() + "#play-local");
     }
 
     /** Stop crawl (it saves), then run next. */

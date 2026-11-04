@@ -75,33 +75,13 @@ function (api, kit, player, map_knowledge, main) {
         explode:  { c: "255,140,40",  c2: "255,245,180", fx: "ember" }
     };
 
-    var BRAND_RE = [
-        ["shadow",  /\bfoul ?flame\b/],
-        ["flame",   /\b(?:flam(?:e|ing|es)|fiery|fire)\b|\{flame/],
-        ["freeze",  /\b(?:freez(?:e|ing)|frost(?:y)?|icy|cold)\b|\{freeze/],
-        ["elec",    /\belectrocut|\belec\b|\blightning\b|\bshocking\b/],
-        ["venom",   /\bvenom|\bcurare\b|\bcurar/],
-        ["poison",  /\bpoison/],
-        ["chaos",   /\bchaos\b|\bchaotic\b/],
-        ["holy",    /\bholy wrath\b|\bholy\b/],
-        ["drain",   /\bdraining\b|\bdrain\b/],
-        ["pain",    /\bpain\b|\bvampirism\b|\bvamp\b/],
-        ["silver",  /\bsilver\b/],
-        ["steel",   /\bsteel\b/],
-        ["pierce",  /\bpenetrat/],
-        ["disperse", /\bdispersal\b|\bdisperse\b/],
-        ["speed",   /\bof speed\b|\bspeed\b/],
-        ["acid",    /\bacid\b|\bcorrod/],
-        ["distort", /\bdistortion\b|\bdistort\b/],
-        ["anti",    /\bantimagic\b/],
-        ["explode", /\bexploding\b/]
-    ];
-
+    // fxkit's shared brand ids, mapped onto the styles above (loose: ammo
+    // words in messages count too, e.g. "a flaming arrow")
+    var BRAND_STYLE = { foul: "shadow", vamp: "pain" };
     function brand_of(text)
     {
-        for (var i = 0; i < BRAND_RE.length; i++)
-            if (BRAND_RE[i][1].test(text)) return BRAND_RE[i][0];
-        return null;
+        var b = kit.brand_of(text, true);
+        return b ? BRAND_STYLE[b] || b : null;
     }
 
     // Kinds -------------------------------------------------------------------------
@@ -223,8 +203,7 @@ function (api, kit, player, map_knowledge, main) {
     };
 
     // Helpers -----------------------------------------------------------------------
-    function rgba(c, a) { return "rgba(" + c + "," + (a < 0 ? 0 : a > 1 ? 1 : a) + ")"; }
-    function rnd(a, b) { return a + Math.random() * (b - a); }
+    var rgba = kit.rgba, rnd = kit.rnd;
     function ease_in(u) { return u * u; }
     function ease_out(u) { return 1 - (1 - u) * (1 - u); }
     // damped spring starting at 1, crossing zero with an overshoot
@@ -234,11 +213,7 @@ function (api, kit, player, map_knowledge, main) {
     {
         var p = kit.player_pos();
         if (!p) return null;
-        var best = null, bd = 1e9;
-        kit.monsters().forEach(function (m) {
-            var d = Math.abs(m.x - p.x) + Math.abs(m.y - p.y);
-            if (d > 0 && d < bd) { bd = d; best = m; }
-        });
+        var best = kit.nearest_monster();
         return best ? norm(best.x - p.x, best.y - p.y) : { x: 1, y: 0 };
     }
 
@@ -992,7 +967,7 @@ function (api, kit, player, map_knowledge, main) {
                     if (sh) { sx += sh.sx; sy += sh.sy; }
                 }
             }
-            catch (e) { window.sdc_rangedfx_err = e; }
+            catch (e) { api.warn("rangedfx frame", e); }
         }
         api.emit("player_kick", any && !red
                  ? { x: px, y: py, tremor: tr, squash: sq } : null);
@@ -1065,21 +1040,9 @@ function (api, kit, player, map_knowledge, main) {
         }
     }
 
-    function hook_merge()
-    {
-        if (map_knowledge.merge.sdc_rangedfx) return;
-        var orig = map_knowledge.merge;
-        var wrapped = function () {
-            var res = orig.apply(this, arguments);
-            try { if (api.get("ranged_feel")) note_cells(); }
-            catch (e) {}
-            return res;
-        };
-        for (var k in orig)
-            if (/^sdc_/.test(k)) wrapped[k] = orig[k];
-        wrapped.sdc_rangedfx = true;
-        map_knowledge.merge = wrapped;
-    }
+    kit.on_merge(function () {
+        if (api.get("ranged_feel")) note_cells();
+    });
 
     var LAUNCH_RE = /^You (shoot|throw)\s+(.*?)(?: into the darkness)?\.?$/;
 
@@ -1122,9 +1085,8 @@ function (api, kit, player, map_knowledge, main) {
         api.grade("rangedfx", null);
         if (cx && cv) cx.clearRect(0, 0, cv.width, cv.height);
     }
-    api.on("game_init", function () { hook_merge(); reset(); });
+    api.on("game_init", reset);
     api.on("game_cleanup", reset);
-    hook_merge();
 
     // Debug -------------------------------------------------------------------------
     // kind2/brand2: a second (off-hand) launcher, as a coglin volley
@@ -1142,12 +1104,5 @@ function (api, kit, player, map_knowledge, main) {
         return (kind || "bow") + "/" + (brand || "none")
                + (kind2 ? " + " + kind2 + "/" + (brand2 || "none") : "");
     };
-    window.sdc_rangedfx_state = function ()
-    {
-        return { shots: shots.map(function (s) {
-                     return { kind: s.kind, brand: s.brand, dir: s.dir };
-                 }), parts: parts.length, raf: !!raf };
-    };
-
     return {};
 });

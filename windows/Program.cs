@@ -85,9 +85,9 @@ static class Program
         }
         server.PrepareData();
 
-        string url = "http://127.0.0.1:" + port + "/#play-local";
-        if (debug)
-            Console.WriteLine(url);
+        string url = "http://127.0.0.1:" + port + "/?k=" + server.Token + "#play-local";
+        if (debug || !openBrowser)
+            Console.WriteLine(url); // the token in it is the only way in
 
         if (openBrowser && browser == null)
         {

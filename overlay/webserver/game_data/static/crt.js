@@ -606,6 +606,10 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "    d += c / r * exp(-e * e) * (1.0 - ph) * 0.03 * u_alive_amp0.y;",
         "  } else if (mat == 16.0) {",                // grass nods
         "    d.x += awind(wp) * 0.012 * up * u_alive_amp0.z;",
+        "  } else if (mat == 19.0) {",                // Lair floor: lighter, lusher green
+        "    float lush = 0.75 + 0.5 * vnoise(wp * 0.6);",
+        "    a_mul *= vec3(1.02, 1.16, 0.94);",
+        "    a_add += vec3(0.02, 0.05, 0.012) * lush;",
         "  }",
         // --- you ---
         "  if (st == 7.0) {",

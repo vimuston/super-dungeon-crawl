@@ -104,6 +104,19 @@ body.sdc-nostats #sdc_stats { display: none; }
     font-variant-numeric: tabular-nums;
     cursor: default;
 }
+#sdc_stats[data-skin="strip"] .st-speed {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-variant-numeric: tabular-nums;
+    cursor: default;
+}
+#sdc_stats[data-skin="strip"] .st-speed[data-rate="none"],
+#sdc_stats[data-skin="strip"] .st-speed[data-rate="normal"] { opacity: 0.75; }
+#sdc_stats[data-skin="strip"] .st-speed[data-rate="fast"] { color: #6dffa8; }
+#sdc_stats[data-skin="strip"] .st-speed[data-rate="slow"] { color: #ffc24d; }
+#sdc_stats[data-skin="strip"] .st-speed[data-rate="vslow"] { color: #ff5c5c; }
 #sdc_stats[data-skin="strip"] .st-pips { display: inline-flex; gap: 1px; }
 #sdc_stats[data-skin="strip"] .st-pips i { width: 3px; height: 8px; color: #6dffa8; background: #1b2a20; }
 #sdc_stats[data-skin="strip"] .st-pips i.on { background: currentColor; box-shadow: 0 0 2px currentColor; }

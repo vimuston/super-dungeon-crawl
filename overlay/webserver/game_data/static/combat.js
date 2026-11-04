@@ -44,8 +44,8 @@
 // | num_hit | num_heavy | num_miss | spell_<family>[_in] | brand_<family>;
 // also sdc_spell_test_all() and sdc_combat_msg(text)
 define(["jquery", "./sdc_api", "./player", "./dungeon_renderer", "./enums",
-        "./map_knowledge", "./spellfx"],
-function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
+        "./map_knowledge", "./spellfx", "./fxkit"],
+function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx, kit) {
     "use strict";
 
     api.register_option({ key: "combat_text", label: "Combat text",
@@ -59,7 +59,6 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
     var MAX_BLOOD = 60;
 
     var layer = null;
-    var msg_observer = null;
     var init_time = 0;
     var words = 0;
     var blood_els = 0;
@@ -68,9 +67,8 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
     var last_ppos = null;
     var snap = [];                // [{id, name, x, y, dmg, pet}] last frame
     var tile_t = {};              // "x,y" -> last word time (unbatched only)
+    var tile_live = {};          // "x,y" -> [{slot, until}] numbers on screen
 
-    var reduce_motion = window.matchMedia
-        && window.matchMedia("(prefers-reduced-motion: reduce)");
 
     function now()
     {
@@ -78,7 +76,7 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
     }
     function rnd(a, b) { return a + Math.random() * (b - a); }
     function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
-    function reduced() { return !!(reduce_motion && reduce_motion.matches); }
+    function reduced() { return api.reduced_motion(); }
 
     // Geometry (as blink.js) ----------------------------------------------
 
@@ -411,8 +409,9 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
 
     // ev: {dir: "out"|"in", result: "hit"|"miss"|"kill", damage, sev, verb,
     //      close, fam, spell, brand}; mode forces "numbers"/"words" (debug),
-    //      else the option. opt: {nudge: tiles sideways (several numbers on
-    //      one tile in one action), batched: skip the per-tile throttle}.
+    //      else the option. opt: {batched: skip the per-tile throttle}.
+    //      Numbers still on screen on the same tile (this action's or an
+    //      earlier one's) push a new one to a free slot beside them.
     // brand: a weapon/missile hit whose brand triggered: the number takes
     //      the element look + effect (fam) and a gold underline (cb-brand)
     //      that marks it as a weapon hit rather than a spell.
@@ -421,8 +420,8 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
         opt = opt || {};
         if (window.sdc_combat_trace) window.sdc_combat_trace(ev, pos, delay, opt);
         var a = anchor_of(pos);
-        if (!a || !document.body.animate) return;
-        if (opt.nudge) a.x += opt.nudge * a.cw;
+        if (!a || !document.body.animate)
+        { trace({ ev: "drop", why: "anchor", pos: pos }); return; }
         var key = pos.x + "," + pos.y, t = now();
         var kind = ev.result, incoming = ev.dir === "in";
         if (!opt.batched)
@@ -430,7 +429,8 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
             if (t - (tile_t[key] || 0) < 100 && kind !== "kill") return;
             tile_t[key] = t;
         }
-        if (words >= MAX_WORDS) return;
+        if (words >= MAX_WORDS)
+        { trace({ ev: "drop", why: "max_words", pos: pos }); return; }
         words++;
         mode = mode || api.get("combat_text");
         if (mode === "off") { words--; return; }   // blood still shows
@@ -452,6 +452,21 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
         }
         else
             text = word_for(kind, sev, ev.verb);
+        // slot 0 centred, then right / left / further right ..., slightly
+        // higher each ring, so a small number never hides under a big one
+        var start = t + (delay || 0);
+        var live = (tile_live[key] || []).filter(function (e) {
+            return e.until > start; });
+        var slot = 0;
+        while (live.some(function (e) { return e.slot === slot; })) slot++;
+        live.push({ slot: slot, until: start + 900 });
+        tile_live[key] = live;
+        if (slot)
+        {
+            var ring_n = Math.ceil(slot / 2);
+            a.x += (slot % 2 ? 1 : -1) * 0.42 * ring_n * a.cw;
+            a.y -= 0.18 * ring_n * a.ch;
+        }
         var big = kind !== "miss" && (kind === "kill" || sev >= 2);
         var fs = Math.max(14, Math.round(a.cw * (kind === "miss" ? 0.45
                  : 0.55 + Math.min(3, sev) * 0.09
@@ -697,26 +712,15 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
                    .test(n);
         });
     }
-    var WEAPON_BRANDS = [
-        ["fire",   /\bof flaming\b|\{flame\b/],
-        ["cold",   /\bof freezing\b|\{freeze\b/],
-        ["elec",   /\bof electrocution\b|\{elec\b/],
-        ["poison", /\bof venom\b|\{venom\b/],
-        ["necro",  /\bof draining\b|\{drain\b/],
-        ["blood",  /\bof vampirism\b|\{vamp\b|\bof pain\b|\{pain\b/],
-        ["holy",   /\bof holy wrath\b|\{holy\b/],
-        ["force",  /\bof distortion\b|\{distort\b/],
-        ["chaos",  /\bof chaos\b|\{chaos\b/],
-        ["anti",   /\bof antimagic\b|\{antimagic\b/],
-        ["shadow", /\bof foul flame\b|\{foul ?flame\b/],
-        ["acid",   /\bof acid\b|\{acid\b|\{corrode\b/]
-    ];
+    // fxkit brand id -> this module's element family
+    var BRAND_FAMILY = { flame: "fire", freeze: "cold", elec: "elec",
+                         venom: "poison", drain: "necro", vamp: "blood",
+                         pain: "blood", holy: "holy", distort: "force",
+                         chaos: "chaos", anti: "anti", foul: "shadow",
+                         acid: "acid" };
     function weapon_brand()
     {
-        var names = weapon_names().join("|");
-        for (var i = 0; i < WEAPON_BRANDS.length; i++)
-            if (WEAPON_BRANDS[i][1].test(names)) return WEAPON_BRANDS[i][0];
-        return null;
+        return BRAND_FAMILY[kit.brand_of(weapon_names().join("|"))] || null;
     }
 
     // Message classification --------------------------------------------------
@@ -908,8 +912,12 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
 
     // Action batches ----------------------------------------------------------
     //
-    // All attack lines of one player action arrive together (one "msgs"
-    // packet). They are collected for FLUSH_MS, then resolved at once:
+    // The attack lines of one player action usually arrive in one "msgs"
+    // packet, but missile / beam animations split them: "The slug hits the
+    // drude for 11!", then "Lightning courses through the drude!" and "You
+    // kill the drude!" a few animation frames later. Lines are collected
+    // until none has come for FLUSH_MS (at most BATCH_MAX_MS after the
+    // first), then resolved at once:
     //   1. strikes: every hit/miss line opens a strike; brand lines and the
     //      kill line attach to the latest strike on the same name (crawl
     //      prints hit -> brand -> kill per defender before moving on to the
@@ -920,11 +928,21 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
     //   3. numbers play in message order, STAGGER ms apart, each on its own
     //      tile; repeated numbers on one tile are nudged sideways.
 
-    var FLUSH_MS = 45;
+    var FLUSH_MS = 110;
+    var BATCH_MAX_MS = 400;
     var STAGGER = 70;
     var batch = null;
     var recent_msg = {};
-    var turn_dmg = {};     // norm target -> {v, t} last damage dealt
+
+    // Trace ring (debug): window.sdc_combat_log, newest last
+    var LOG_MAX = 80;
+    var clog = window.sdc_combat_log = [];
+    function trace(o)
+    {
+        o.t = Math.round(now());
+        clog.push(o);
+        if (clog.length > LOG_MAX) clog.shift();
+    }
 
     function handle_message(text)
     {
@@ -935,7 +953,9 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
             if (!part) return;
             var c = classify(part);
             if (!c) return;
-            if (recent_msg[part] && t - recent_msg[part] < 60) return;
+            trace({ ev: "line", text: part, k: c.k, dmg: c.damage });
+            if (recent_msg[part] && t - recent_msg[part] < 60)
+            { trace({ ev: "dup", text: part }); return; }
             recent_msg[part] = t;
             if (c.k === "mon_hit" || c.k === "mon_brand") last_hit_msg = t;
             if (!batch)
@@ -945,10 +965,13 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
                           ppos: p ? { x: p.x, y: p.y } : null,
                           ppos0: last_ppos ? { x: last_ppos.x, y: last_ppos.y }
                                            : null,
-                          dir: last_dir };
-                window.setTimeout(flush, FLUSH_MS);
+                          dir: last_dir, t0: t, timer: 0 };
             }
             batch.evs.push(c);
+            // debounce: wait for the rest of this action's lines
+            if (batch.timer) window.clearTimeout(batch.timer);
+            batch.timer = window.setTimeout(flush,
+                Math.max(0, Math.min(FLUSH_MS, batch.t0 + BATCH_MAX_MS - t)));
         });
     }
 
@@ -982,12 +1005,10 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
                 s = last_strike(name, function (x) { return !x.kill; });
                 if (s) s.kill = true;
                 else
-                {
-                    var td = turn_dmg[name];
+                    // the hit (and its number) went out in an earlier batch:
+                    // only the kill pop, never the same number twice
                     out.push({ k: "hit", name: name, kill: true, kind: "kill",
-                               damage: td && now() - td.t < 1500 ? td.v : null,
-                               sev: 0, brands: [] });
-                }
+                               damage: null, sev: 0, brands: [] });
                 break;
             case "brand":
                 if (c.vamp)
@@ -1182,11 +1203,13 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
         var t = now();
         var st = build_strikes(b.evs);
         resolve(st.out, b, scan_mons());
-        var tiles = {}, order = 0;
+        var order = 0;
         var all = st.out.map(function (s, i) { return { s: s, i: i }; });
         all.forEach(function (o) {
             var s = o.s;
             var pos = s.cand ? { x: s.cand.x, y: s.cand.y } : locate(s.name);
+            trace({ ev: "strike", name: s.name, k: s.k, kill: s.kill,
+                    dmg: s.damage, cand: !!s.cand, pos: pos });
             if (!pos) return;
             var bdmg = null, bfam = null, bsev = 0;
             s.brands.forEach(function (br) {
@@ -1196,20 +1219,14 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
             });
             var dmg = s.damage;
             if (bdmg !== null) dmg = (dmg || 0) + bdmg;
-            if (s.k === "hit" && dmg !== null && !s.kill)
-                turn_dmg[s.name] = { v: dmg, t: t };
-            if (s.kill) delete turn_dmg[s.name];
             var ev = { dir: "out", result: s.kill ? "kill" : s.k, damage: dmg,
                        sev: dmg !== null ? sev_of_dmg(dmg)
                             : Math.max(s.sev || 0, bsev),
                        verb: s.verb, target: s.name, close: s.close,
                        fam: s.fam || bfam, spell: s.spell,
                        brand: !s.fam && !!bfam };
-            var key = pos.x + "," + pos.y, n = tiles[key] || 0;
-            tiles[key] = n + 1;
-            var nudge = n ? (n % 2 ? 1 : -1) * 0.3 * Math.ceil(n / 2) : 0;
             show_fx(ev, pos, Math.min(order, 8) * STAGGER, null,
-                    { nudge: nudge, batched: true });
+                    { batched: true });
             order++;
         });
         st.inc.forEach(function (o) {
@@ -1233,78 +1250,9 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
         });
     }
 
-    // Message observation (as blink.js) -----------------------------------
 
-    function node_text(node)
-    {
-        var c = node.cloneNode(true);
-        var g = c.querySelectorAll(".prefix_glyph");
-        for (var i = 0; i < g.length; i++) g[i].parentNode.removeChild(g[i]);
-        return (c.textContent || "").trim();
-    }
-
-    var seen_msg = window.WeakMap ? new WeakMap() : null;
-    var in_grace = false;
-
-    function process_msg(el, quiet)
-    {
-        var text = node_text(el);
-        var old = seen_msg ? seen_msg.get(el) : undefined;
-        if (old === text) return;
-        if (seen_msg) seen_msg.set(el, text);
-        if (quiet || in_grace) return;
-        var fresh = (old !== undefined && text.indexOf(old) === 0)
-                    ? text.slice(old.length) : text;
-        handle_message(fresh);
-    }
-
-    function seed_all(root)
-    {
-        var all = root.querySelectorAll
-                  ? root.querySelectorAll(".game_message") : [];
-        for (var i = 0; i < all.length; i++) process_msg(all[i], true);
-    }
-
-    function owner_msg(n)
-    {
-        var el = n.nodeType === 1 ? n : n.parentElement;
-        return el && el.closest ? el.closest(".game_message") : null;
-    }
-
-    function on_message_nodes(records)
-    {
-        in_grace = now() - init_time < MSG_GRACE;
-        records.forEach(function (r) {
-            var own = owner_msg(r.target);
-            if (own) process_msg(own);
-            Array.prototype.forEach.call(r.addedNodes, function (node) {
-                if (node.nodeType === 1)
-                {
-                    if (node.classList.contains("game_message"))
-                        process_msg(node);
-                    else if (node.id === "messages"
-                             || node.querySelector(".game_message"))
-                        seed_all(node);
-                    else if (own)
-                        process_msg(own);
-                }
-                else if (own)
-                    process_msg(own);
-            });
-        });
-    }
-
-    function watch_messages()
-    {
-        if (msg_observer) msg_observer.disconnect();
-        var el = document.getElementById("message_pane")
-                 || document.getElementById("messages_container")
-                 || document.getElementById("normal");
-        if (!el || !window.MutationObserver) return;
-        seed_all(el);
-        msg_observer = new MutationObserver(on_message_nodes);
-        msg_observer.observe(el, { childList: true, subtree: true });
-    }
+    // new message-log text, shared with the other modules (fxkit)
+    kit.on_message(handle_message);
 
     // Hurt events -------------------------------------------------------------
 
@@ -1343,6 +1291,7 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
         if (layer && layer.parentNode) layer.parentNode.removeChild(layer);
         layer = null;
         words = 0;
+        tile_live = {};
         blood_els = 0;
     }
 
@@ -1354,12 +1303,9 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx) {
         last_ppos = null;
         snap = [];
         batch = null;
-        watch_messages();
     });
 
     api.on("game_cleanup", function () {
-        if (msg_observer) msg_observer.disconnect();
-        msg_observer = null;
         reset();
     });
 

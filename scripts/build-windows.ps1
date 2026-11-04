@@ -25,6 +25,10 @@ $Pkgs = Join-Path $Root 'cygwin-pkgs'
 $Out = Join-Path $Root 'out'
 $Bash = Join-Path $Cyg 'bin\bash.exe'
 $Mirror = 'https://mirrors.kernel.org/sourceware/cygwin/'
+# pinned Cygwin installer (Authenticode-signed; it verifies the package index
+# it downloads with Cygwin's own key)
+$SetupExe = 'setup-2.941.x86_64.exe'
+$SetupSha256 = '9D31FFC08B14EAAF5DDF15799A934F6BC1BE3D87ED986736CB1980C508ED9502'
 $Packages = @(
     'gcc-core', 'gcc-g++', 'make', 'bison', 'flex', 'pkg-config', 'git', 'patch',
     'python3', 'python3-pip', 'libncurses-devel', 'libpng-devel',
@@ -43,13 +47,22 @@ function Invoke-Cyg([string]$cmd) {
 
 function Init {
     New-Item -ItemType Directory -Force $Root, $Pkgs | Out-Null
-    $setup = Join-Path $Root 'setup-x86_64.exe'
+    $setup = Join-Path $Root $SetupExe
     if (-not (Test-Path $setup)) {
-        Invoke-WebRequest 'https://cygwin.com/setup-x86_64.exe' -OutFile $setup
+        $part = "$setup.part"
+        Invoke-WebRequest "https://cygwin.com/setup/$SetupExe" -OutFile $part -UseBasicParsing
+        $hash = (Get-FileHash $part -Algorithm SHA256).Hash
+        $sig = Get-AuthenticodeSignature $part
+        if ($hash -ne $SetupSha256 -or $sig.Status -ne 'Valid') {
+            Remove-Item $part -Force
+            throw "Cygwin $SetupExe failed verification (sha256 $hash, signature $($sig.Status))"
+        }
+        Move-Item $part $setup
     }
     & $setup -q -n -N -d -R $Cyg -s $Mirror -l $Pkgs -P $Packages | Out-Null
     # setup.exe returns before the post-install scripts finish in -q mode
-    while (Get-Process setup-x86_64 -ErrorAction SilentlyContinue) { Start-Sleep 3 }
+    $proc = [IO.Path]::GetFileNameWithoutExtension($SetupExe)
+    while (Get-Process $proc -ErrorAction SilentlyContinue) { Start-Sleep 3 }
     if (-not (Test-Path $Bash)) { throw 'Cygwin install failed' }
 }
 

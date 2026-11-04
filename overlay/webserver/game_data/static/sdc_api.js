@@ -15,6 +15,9 @@
 //                          on the first update of a game.
 //   "frame" (t)            ~30 fps while the game view is visible
 //   "setting" (key, value) a setting changed
+//
+// Helpers: warn(where, err) logs a survived error (rate-limited);
+// reduced_motion() is prefers-reduced-motion.
 // Emitted by blink.js:
 //   "blink" (kind, to, from) a blink/teleport effect played ("blink" |
 //                          "teleport"; to/from = map coords or null)
@@ -22,7 +25,6 @@ define(["jquery"], function ($) {
     "use strict";
 
     var STORE_KEY = "sdc-settings";
-    var OLD_STORE_KEY = "dcss-crt-settings";   // pre-rename; read as a fallback
     var settings = {};
     var options = [];       // [{key, label, choices: [[value, label]], default}]
     var handlers = {};
@@ -33,10 +35,9 @@ define(["jquery"], function ($) {
         var stored = null;
         try
         {
-            stored = JSON.parse(window.localStorage.getItem(STORE_KEY)
-                                || window.localStorage.getItem(OLD_STORE_KEY));
+            stored = JSON.parse(window.localStorage.getItem(STORE_KEY));
         }
-        catch (e) {}
+        catch (e) { warn("settings load", e); }   // blocked storage / bad JSON
         if (stored && typeof stored === "object")
             $.extend(settings, stored);
     }
@@ -47,7 +48,26 @@ define(["jquery"], function ($) {
         {
             window.localStorage.setItem(STORE_KEY, JSON.stringify(settings));
         }
-        catch (e) {}
+        catch (e) { warn("settings save", e); }   // private mode / full quota
+    }
+
+    // Report an error a module chose to survive (an effect that failed must
+    // not break the game): logged to the console, at most 3 times per `where`.
+    var warned = {};
+    function warn(where, err)
+    {
+        var n = warned[where] = (warned[where] || 0) + 1;
+        if (n <= 3 && window.console)
+            console.warn("sdc: " + where + (n === 3 ? " (muting further reports)" : ""),
+                         err);
+    }
+
+    // prefers-reduced-motion, live (the OS setting can change mid-game)
+    var reduce_mq = window.matchMedia
+        && window.matchMedia("(prefers-reduced-motion: reduce)");
+    function reduced_motion()
+    {
+        return !!(reduce_mq && reduce_mq.matches);
     }
 
     // Declare a setting with a default. If `choices` is given the option is
@@ -334,5 +354,7 @@ define(["jquery"], function ($) {
         get_fx: get_fx,
         set_player_anchor: set_player_anchor,
         player_anchor: player_anchor,
+        warn: warn,
+        reduced_motion: reduced_motion,
     };
 });

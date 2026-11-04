@@ -30,31 +30,14 @@ function (api, kit, map_knowledge) {
             orb_dirty = true;
     }
 
-    // a second wrapper on map_knowledge.merge, chained with light.js's
-    function hook_merge()
-    {
-        if (map_knowledge.merge.sdc_beamfx) return;
-        var orig = map_knowledge.merge;
-        var wrapped = function () {
-            var res = orig.apply(this, arguments);
-            try
-            {
-                var dirty = map_knowledge.dirty();
-                for (var i = 0; i < dirty.length; i++)
-                {
-                    var mc = map_knowledge.get(dirty[i].x, dirty[i].y);
-                    if (mc) note_orb(mc);
-                }
-            }
-            catch (e) {}
-            return res;
-        };
-        // keep other modules' "already wrapped" markers (light.js, ...)
-        for (var k in orig)
-            if (/^sdc_/.test(k)) wrapped[k] = orig[k];
-        wrapped.sdc_beamfx = true;
-        map_knowledge.merge = wrapped;
-    }
+    kit.on_merge(function () {
+        var dirty = map_knowledge.dirty();
+        for (var i = 0; i < dirty.length; i++)
+        {
+            var mc = map_knowledge.get(dirty[i].x, dirty[i].y);
+            if (mc) note_orb(mc);
+        }
+    });
 
     function dist(a, b)
     {
@@ -215,7 +198,7 @@ function (api, kit, map_knowledge) {
             }
             orb_frame(n);
         }
-        catch (e) {}
+        catch (e) { api.warn("beamfx frame", e); }
     });
 
     // Lifecycle ---------------------------------------------------------------
@@ -227,11 +210,9 @@ function (api, kit, map_knowledge) {
     }
 
     api.on("game_init", function () {
-        hook_merge();
         reset();
     });
     api.on("game_cleanup", reset);
-    hook_merge();
 
     // Debug -------------------------------------------------------------------
     window.sdc_beamfx_test = function (what)

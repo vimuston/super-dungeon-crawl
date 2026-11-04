@@ -38,7 +38,27 @@ rsync -a "$CRAWL/crawl-ref/docs" "$CRAWL/crawl-ref/settings" "$PKG/crawl-ref/"
 rm -rf "$PKG/crawl-ref/docs/develop"
 rsync -a --exclude __pycache__ --exclude '*.db3' --exclude '*.log' \
   --exclude tox.ini --exclude mypy.ini \
+  --exclude config.yml \
   "$SRC/webserver" "$PKG/crawl-ref/source/"
+# The package ships defaults, not config.yml: start.sh creates config.yml from
+# them once, so unpacking a newer package never overwrites your settings.
+cat > "$PKG/crawl-ref/source/webserver/config.default.yml" <<'EOF'
+# Defaults for this server package. start.sh copies this file to config.yml
+# on the first start; edit config.yml (updates never overwrite it).
+#
+# Single player on this machine: listens on loopback only and logs everyone
+# in as "player" without a password.
+#   - To play from other devices on a network you trust (your home LAN), set
+#     bind_address: "" (all interfaces). Anyone who can reach the port then
+#     plays as "player".
+#   - To host for other people, copy config.public.yml over config.yml
+#     (accounts, loopback) and put an HTTPS reverse proxy in front.
+bind_address: "127.0.0.1"
+bind_port: 8080
+autologin: "player"
+development_mode: false
+game_data_no_cache: true
+EOF
 cp "$HERE/scripts/ensure_user.py" "$PKG/tools/"
 cp "$HERE/LICENSE" "$HERE/NOTICE" "$PKG/"
 
@@ -48,6 +68,7 @@ cat > "$PKG/start.sh" <<'EOF'
 set -euo pipefail
 cd "$(dirname "$0")/crawl-ref/source"
 mkdir -p rcs/running rcs/ttyrecs saves
+[ -f webserver/config.yml ] || cp webserver/config.default.yml webserver/config.yml
 python3 ../../tools/ensure_user.py
 port="$(python3 -c 'import yaml; print((yaml.safe_load(open("webserver/config.yml")) or {}).get("bind_port", 8080))' 2>/dev/null || echo 8080)"
 echo "Super Dungeon Crawl: http://localhost:$port  (Ctrl+C to stop)"
@@ -61,7 +82,7 @@ Super Dungeon Crawl webtiles server (linux-$ARCH)
 
 Dungeon Crawl Stone Soup with the Super Dungeon Crawl client, ready to run.
 
-Requirements: Linux $ARCH with glibc 2.35 or newer (Debian 12+, Ubuntu 22.04+),
+Requirements: Linux $ARCH with glibc 2.34 or newer (Debian 12+, Ubuntu 22.04+),
 Python 3 with Tornado 6 and PyYAML, and ncurses 6. On Debian/Ubuntu:
 
     sudo apt install python3-tornado python3-yaml libncursesw6
@@ -70,19 +91,23 @@ Run:
 
     ./start.sh
 
-then open http://localhost:8080 (or http://<this machine>:8080).
+then open http://localhost:8080 on this machine.
 
-Configuration: crawl-ref/source/webserver/config.yml.
+Configuration: crawl-ref/source/webserver/config.yml, created from
+config.default.yml on the first start.
 
-  The default config is for a personal install: it listens on all interfaces
-  and logs everyone in as "player" without a password. Only run it on a
-  network you trust. To host for other people, copy config.public.yml over
-  config.yml (real accounts, loopback only) and put an HTTPS reverse proxy
-  (Caddy, nginx) in front of it.
+  By default the server is for one player on this machine: it listens on
+  127.0.0.1 only and logs everyone in as "player" without a password.
+  - To play from other devices on a network you trust (your home LAN), set
+    bind_address: "" in config.yml. Anyone who can reach the port then plays
+    as "player", so never do this on a public or shared network.
+  - To host for other people, copy config.public.yml over config.yml (real
+    accounts, loopback only) and put an HTTPS reverse proxy (Caddy, nginx) in
+    front of it.
 
-Saves, morgue files and options live in crawl-ref/source/saves and
-crawl-ref/source/rcs. Keep those folders when you update: unpack the new
-package over the old one.
+To update, unpack a newer package over this one. Your config.yml, saves
+(crawl-ref/source/saves), options and morgue files (crawl-ref/source/rcs) are
+kept.
 
 Saves are compatible with the Windows and Android builds of the same release.
 License: GPL-2.0-or-later, see LICENSE and NOTICE.

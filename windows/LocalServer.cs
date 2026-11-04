@@ -13,9 +13,17 @@ namespace SuperDungeonCrawl;
 /// android/.../LocalServer.java): serves the bundled client over
 /// http://127.0.0.1:port/ and runs crawl, through crawlhost.exe, for the
 /// page's WebSocket. No accounts, lobby, spectators or chat.
+///
+/// Access control: any web page in a browser can reach 127.0.0.1 too. Every
+/// launch makes a random token; the page URL carries it (?k=...), index.html
+/// is only served with it, and the WebSocket needs it plus a loopback Host and
+/// Origin (no DNS rebinding, no cross-site pages). Message sizes are capped.
 /// </summary>
 sealed class LocalServer
 {
+    const int MaxMessage = 8 * 1024 * 1024;   // one WebSocket message
+    public readonly string Token = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
+
     readonly string webDir;      // index.html, game.html, static/, gamedata/
     readonly string hostExe;     // crawlhost.exe (Cygwin)
     readonly string crawlExe;    // crawl.exe (Cygwin)
@@ -170,17 +178,36 @@ sealed class LocalServer
                     string[] parts = request.Split(' ');
                     if (parts.Length < 2)
                         break;
-                    string path = parts[1];
+                    string path = parts[1], query = null;
                     int q = path.IndexOf('?');
                     if (q >= 0)
+                    {
+                        query = path[(q + 1)..];
                         path = path[..q];
+                    }
+                    if (!HostOk(headers.GetValueOrDefault("host")))
+                    {
+                        await Forbidden(stream);
+                        break;
+                    }
                     if (headers.TryGetValue("upgrade", out var up)
                         && up.Equals("websocket", StringComparison.OrdinalIgnoreCase))
                     {
+                        if (path != "/socket" || !TokenOk(query)
+                            || !OriginOk(headers.GetValueOrDefault("origin")))
+                        {
+                            await Forbidden(stream);
+                            break;
+                        }
                         await Socket(stream, headers);
                         return;
                     }
-                    await File_(stream, path, headers.GetValueOrDefault("host"));
+                    if (AssetPath(path) == "index.html" && !TokenOk(query))
+                    {
+                        await Forbidden(stream);
+                        break;
+                    }
+                    await File_(stream, path);
                     if (headers.GetValueOrDefault("connection", "")
                         .Equals("close", StringComparison.OrdinalIgnoreCase))
                         break;
@@ -189,6 +216,30 @@ sealed class LocalServer
             catch (Exception e) when (e is IOException or SocketException or ObjectDisposedException) { }
         }
     }
+
+    bool TokenOk(string query)
+    {
+        if (query == null)
+            return false;
+        var want = Encoding.ASCII.GetBytes(Token);
+        foreach (var kv in query.Split('&'))
+            if (kv.StartsWith("k=")
+                && CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(kv[2..]), want))
+                return true;
+        return false;
+    }
+
+    // Host must name this server by its loopback address (DNS rebinding)
+    bool HostOk(string host) => host == "127.0.0.1:" + Port || host == "localhost:" + Port;
+
+    // browsers send Origin on WebSocket upgrades: only our own page
+    bool OriginOk(string origin) =>
+        origin == "http://127.0.0.1:" + Port || origin == "http://localhost:" + Port;
+
+    static async Task Forbidden(Stream s) =>
+        await s.WriteAsync(Encoding.ASCII.GetBytes(
+            "HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n"
+            + "Content-Length: 9\r\nConnection: close\r\n\r\nforbidden"));
 
     string AssetPath(string path)
     {
@@ -206,7 +257,7 @@ sealed class LocalServer
         return null;
     }
 
-    async Task File_(Stream s, string path, string hostHeader)
+    async Task File_(Stream s, string path)
     {
         string asset = AssetPath(path);
         byte[] body = null;
@@ -229,7 +280,7 @@ sealed class LocalServer
         if (asset == "index.html")
         {
             string html = Encoding.UTF8.GetString(body).Replace("@SOCKET_SERVER@",
-                "ws://" + (hostHeader ?? "127.0.0.1:" + Port) + "/socket");
+                "ws://127.0.0.1:" + Port + "/socket?k=" + Token);
             body = Encoding.UTF8.GetBytes(html);
         }
         string ext = asset[(asset.LastIndexOf('.') + 1)..].ToLowerInvariant();
@@ -291,6 +342,8 @@ sealed class LocalServer
                 if (r.MessageType == WebSocketMessageType.Close)
                     break;
                 message.Write(buf, 0, r.Count);
+                if (message.Length > MaxMessage)
+                    break; // oversized: drop the connection
                 if (r.EndOfMessage)
                 {
                     ClientMessage(Encoding.UTF8.GetString(message.ToArray()));
@@ -360,7 +413,9 @@ sealed class LocalServer
                 var data = new StringBuilder();
                 if (root.TryGetProperty("data", out var codes) && codes.ValueKind == JsonValueKind.Array)
                     foreach (var c in codes.EnumerateArray())
-                        data.Append(char.ConvertFromUtf32(c.GetInt32()));
+                        if (c.ValueKind == JsonValueKind.Number && c.TryGetInt32(out int cp)
+                            && cp >= 0 && cp <= 0x10FFFF && (cp < 0xD800 || cp > 0xDFFF))
+                            data.Append(char.ConvertFromUtf32(cp));
                 if (root.TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String)
                     data.Append(t.GetString());
                 ToHost("I" + Convert.ToHexString(Encoding.UTF8.GetBytes(data.ToString())).ToLowerInvariant());

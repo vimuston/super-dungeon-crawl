@@ -17,9 +17,58 @@
 define(["jquery", "./sdc_api"], function ($, api) {
     "use strict";
 
+    // true = turn count (kept as the old "On" value), "speed" = game time the
+    // last action took
     api.register_option({ key: "turn_counter", label: "Turn counter",
                           default: false,
-                          choices: [[true, "On"], [false, "Off"]] });
+                          choices: [[true, "Turns"], ["speed", "Speed"],
+                                    [false, "Off"]] });
+
+    // last action's game time ---------------------------------------------
+    // player.time is in aut (10 = one normal-speed turn). The card renders
+    // on a debounced HUD update that can span several player messages (key
+    // repeat, travel), so the per-message player.time_delta that stock
+    // player.js computes is used; the render-to-render difference is only a
+    // fallback. A jump of more than MAX_ACTION_AUT is a multi-action update
+    // (rest, travel, explore: the server holds back time while running),
+    // not one move, so it keeps the previous reading.
+
+    var MAX_ACTION_AUT = 30;
+    var speed_prev_time = null;
+    var speed_last = null;       // aut the last single action took
+
+    function track_speed(player)
+    {
+        var t = player.time;
+        if (typeof t !== "number" || !isFinite(t))
+            return;
+        if (speed_prev_time == null || t < speed_prev_time)
+            speed_last = null;   // first update, or a new game
+        else if (t > speed_prev_time)
+        {
+            var d = player.time_delta;
+            if (typeof d !== "number" || !(d > 0) || d > t - speed_prev_time)
+                d = t - speed_prev_time;
+            if (d <= MAX_ACTION_AUT)
+                speed_last = d;
+        }
+        speed_prev_time = t;
+    }
+
+    function speed_chip()
+    {
+        var $el = $("<span class='st-speed'>").append(icon("speed"));
+        if (speed_last == null)
+            return $el.attr("data-rate", "none")
+                .attr("title", "Last action: -").append("-");
+        var turns = speed_last / 10;
+        var rate = speed_last < 10 ? "fast" : speed_last === 10 ? "normal"
+                 : speed_last < 15 ? "slow" : "vslow";
+        return $el.attr("data-rate", rate)
+            .attr("title", "Last action: " + turns.toFixed(1) + " turns ("
+                  + speed_last + " aut)")
+            .append(turns.toFixed(1));
+    }
 
     // value-change tracking ---------------------------------------------------
 
@@ -231,6 +280,10 @@ define(["jquery", "./sdc_api"], function ($, api) {
              + "<path class='sdc-ico-faint' d='M5.2 5.6C6.4 5.6 6.6 7 5.5 7.6"
              + "M3.8 9.2C5 8.8 6.1 9.6 6 10.8M10.8 5.6C9.6 5.6 9.4 7 10.5 7.6"
              + "M12.2 9.2C11 8.8 9.9 9.6 10 10.8'/>",
+        // stopwatch: dial, crown button, hand
+        speed: "<circle cx='8' cy='9.2' r='5.3'/>"
+               + "<path d='M6.4 1.6H9.6M8 1.6V3.9M8 9.2 10.2 6.6'/>"
+               + "<path class='sdc-ico-faint' d='M12.4 3.6 13.6 4.8'/>",
     };
 
     function icon(name)
@@ -295,7 +348,8 @@ define(["jquery", "./sdc_api"], function ($, api) {
             $("<span class='st-noise'>").attr("data-level", noise.level)
                 .attr("title", noise.level === "blank" ? "Silenced" : "Noise")
                 .append(noise_pips(noise, 5, "st-pips")),
-            api.get("turn_counter")
+            api.get("turn_counter") === "speed" ? speed_chip()
+            : api.get("turn_counter")
                 ? $("<span class='st-turns'>").attr("title", "Turn")
                     .text("T" + show(player.turn))
                 : null,
@@ -316,6 +370,7 @@ define(["jquery", "./sdc_api"], function ($, api) {
         try
         {
             track(player);
+            track_speed(player);
         }
         catch (e)
         {

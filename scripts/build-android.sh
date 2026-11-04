@@ -17,17 +17,32 @@ SDK="$TOOLS/sdk"
 GRADLE_VER=8.7
 GRADLE="$TOOLS/gradle-$GRADLE_VER/bin/gradle"
 CMDLINE_ZIP=commandlinetools-linux-11076708_latest.zip
+# pinned downloads (Google's repository2-3.xml lists the SHA-1 d313adb7...;
+# Gradle publishes gradle-<ver>-bin.zip.sha256)
+CMDLINE_SHA256=2d2d50857e4eb553af5a6dc3ad507a17adf43d115264b1afc116f95c92e5e258
+GRADLE_SHA256=544c35d6bd849ae8a5ed0bcea39ba677dc40f49df7d1835561582da2009b961d
 
 export ANDROID_HOME="$SDK"
 export ANDROID_SDK_ROOT="$SDK"
+
+# fetch URL FILE SHA256: download and refuse anything with another checksum
+fetch() {
+    curl -fL -o "$2.part" "$1"
+    if ! echo "$3  $2.part" | sha256sum -c --quiet -; then
+        rm -f "$2.part"
+        echo "checksum mismatch for $1" >&2
+        exit 1
+    fi
+    mv "$2.part" "$2"
+}
 
 init() {
     sudo apt-get update
     sudo apt-get install -y openjdk-17-jdk-headless unzip curl rsync qemu-user-static
     mkdir -p "$TOOLS" "$SDK/cmdline-tools"
     if [ ! -x "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
-        curl -fL -o "$TOOLS/$CMDLINE_ZIP" \
-            "https://dl.google.com/android/repository/$CMDLINE_ZIP"
+        fetch "https://dl.google.com/android/repository/$CMDLINE_ZIP" \
+            "$TOOLS/$CMDLINE_ZIP" "$CMDLINE_SHA256"
         rm -rf "$SDK/cmdline-tools/latest" "$SDK/cmdline-tools/cmdline-tools"
         unzip -q "$TOOLS/$CMDLINE_ZIP" -d "$SDK/cmdline-tools"
         mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
@@ -37,8 +52,8 @@ init() {
     "$SDK/cmdline-tools/latest/bin/sdkmanager" \
         "platform-tools" "platforms;android-34" "build-tools;34.0.0"
     if [ ! -x "$GRADLE" ]; then
-        curl -fL -o "$TOOLS/gradle.zip" \
-            "https://services.gradle.org/distributions/gradle-$GRADLE_VER-bin.zip"
+        fetch "https://services.gradle.org/distributions/gradle-$GRADLE_VER-bin.zip" \
+            "$TOOLS/gradle.zip" "$GRADLE_SHA256"
         unzip -q "$TOOLS/gradle.zip" -d "$TOOLS"
     fi
     echo "android toolchain ready in $TOOLS"

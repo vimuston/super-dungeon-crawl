@@ -34,7 +34,7 @@ DEPLOY_DIR="${SDC_DEPLOY_DIR:-sdc-build/crawl/crawl-ref/source}"
 SSH="${SDC_SSH:-ssh}"
 SCP="${SDC_SCP:-scp}"
 TRIPLE=aarch64-linux-gnu
-PATCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/patches"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cmd_init() {
   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
@@ -67,9 +67,7 @@ cmd_build() {
     cp -a "$ROOT/crawl" "$SRC"
     git -C "$SRC" clean -xfdq || true     # drop native objects, keep sources + submodules
   fi
-  for p in "$PATCH_DIR"/*.patch; do
-    git -C "$SRC" apply -R --check "$p" 2>/dev/null || git -C "$SRC" apply "$p"
-  done
+  bash "$HERE/scripts/apply_patches.sh" "$SRC"
   cd "$SRC/crawl-ref/source"
   # The Makefile's rule for this generated file is racy at high -j; make it first.
   python3 util/status-icon-sizes-gen.py rltiles/icon-sizes.txt

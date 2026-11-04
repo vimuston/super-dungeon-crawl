@@ -69,7 +69,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
             Object.defineProperty(ev, "clientX", { value: x });
             Object.defineProperty(ev, "clientY", { value: y });
         }
-        catch (e) {}
+        catch (e) { api.warn("quickbar mouse remap", e); }
         dock_mouse(ev.type, canvas, x, y);
     }
 
@@ -445,7 +445,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
             if (window.localStorage.getItem(flag)) return;
             window.localStorage.setItem(flag, "1");
         }
-        catch (e) {}
+        catch (e) { /* no storage (private mode): reset again next time */ }
         var cur = options.get("action_panel_scale");
         if (cur !== null && cur !== undefined && cur !== 100)
             options.set("action_panel_scale", 100);
@@ -490,12 +490,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
 
     function reduced_motion()
     {
-        try
-        {
-            return !!(window.matchMedia
-                && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-        }
-        catch (e) { return false; }
+        return api.reduced_motion();
     }
 
     // the stock canvas if the dock can run on it right now, else null

@@ -13,9 +13,9 @@
 // prefers-reduced-motion: no shake/pulse/shockwave, static mild vignette.
 // Debug: window.sdc_berserk_test(seconds = 6)
 define(["jquery", "./sdc_api", "./player", "./dungeon_renderer", "./enums",
-        "./cell_renderer", "./view_data", "./display"],
+        "./cell_renderer", "./view_data", "./display", "./fxkit"],
 function ($, api, player, dungeon_renderer, enums, cell_renderer, view_data,
-          display) {
+          display, kit) {
     "use strict";
 
     var RISE = 0.3, FALL = 1.5, TITLE_MS = 1150, BEAT_HZ = 1.8;
@@ -29,18 +29,7 @@ function ($, api, player, dungeon_renderer, enums, cell_renderer, view_data,
     var impulse = { x: 0, y: 0, t: -1e9, amp: 0 };
     var slump = { t: -1e9 };
     var last_hp = null;
-    var obs = null, obs_el = null;
     var done_timer = 0, title_timer = 0;
-    var reduced = false;
-
-    try
-    {
-        var mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-        reduced = !!mq.matches;
-        if (mq.addListener)
-            mq.addListener(function (e) { reduced = !!e.matches; });
-    }
-    catch (e) { /* ignore */ }
 
     function now()
     {
@@ -155,7 +144,7 @@ function ($, api, player, dungeon_renderer, enums, cell_renderer, view_data,
         flash.classList.remove("bz-go");
         void title.offsetWidth;
         title.classList.add("bz-go");
-        if (!reduced) flash.classList.add("bz-go");
+        if (!api.reduced_motion()) flash.classList.add("bz-go");
         if (title_timer) window.clearTimeout(title_timer);
         title_timer = window.setTimeout(function () {
             title_timer = 0;
@@ -166,7 +155,7 @@ function ($, api, player, dungeon_renderer, enums, cell_renderer, view_data,
 
     function kick(amp)
     {
-        if (reduced) return;
+        if (api.reduced_motion()) return;
         var a = Math.random() * 6.283;
         impulse.x = Math.cos(a);
         impulse.y = Math.sin(a);
@@ -176,33 +165,9 @@ function ($, api, player, dungeon_renderer, enums, cell_renderer, view_data,
 
     // watch the message log for blows landed / received while raging
     var HIT = /\b(hit|hits|bites?|claws?|slash|slices?|crush|pierces?|punche?s?|kicks?|stabs?|smites?|wounds?|bludgeons?|whips?|stings?|gores?|butts?|mauls?)\b/i;
-    function watch_messages()
-    {
-        var el = document.getElementById("messages");
-        if (!el || el === obs_el || !window.MutationObserver) return;
-        if (obs) obs.disconnect();
-        obs_el = el;
-        obs = new MutationObserver(function (muts) {
-            if (!active) return;
-            for (var i = 0; i < muts.length; i++)
-            {
-                var n = muts[i].addedNodes;
-                for (var j = 0; j < n.length; j++)
-                    if (HIT.test(n[j].textContent || ""))
-                    {
-                        kick(2.0 + Math.random() * 1.5);
-                        return;
-                    }
-            }
-        });
-        obs.observe(el, { childList: true, subtree: true });
-    }
-
-    function stop_obs()
-    {
-        if (obs) obs.disconnect();
-        obs = obs_el = null;
-    }
+    kit.on_message(function (text) {
+        if (active && HIT.test(text)) kick(2.0 + Math.random() * 1.5);
+    });
 
     function start()
     {
@@ -216,7 +181,6 @@ function ($, api, player, dungeon_renderer, enums, cell_renderer, view_data,
         document.body.classList.add("sdc-berserk");
         // cells drawn before now carry the game's red flash: repaint them
         display.invalidate();
-        watch_messages();
         if (!was_fading)
         {
             show_title();
@@ -232,7 +196,6 @@ function ($, api, player, dungeon_renderer, enums, cell_renderer, view_data,
         t_off = now();
         slump.t = t_off;
         if (layer) layer.classList.add("bz-off");
-        stop_obs();
         if (done_timer) window.clearTimeout(done_timer);
         done_timer = window.setTimeout(finish, FALL * 1000 + 250);
     }
@@ -274,6 +237,7 @@ function ($, api, player, dungeon_renderer, enums, cell_renderer, view_data,
             rage = 1 - k;
             crash = Math.sin(Math.min(1, k * 1.6) * Math.PI * 0.5) * (1 - k);
         }
+        var reduced = api.reduced_motion();
         var fx = { rage: reduced ? Math.min(rage, 1) * 0.5 : rage,
                    beat: 0, shock_r: 0, shock_a: 0, px: 0.5, py: 0.5,
                    crash: crash, sx: 0, sy: 0 };
@@ -338,7 +302,6 @@ function ($, api, player, dungeon_renderer, enums, cell_renderer, view_data,
         if (title_timer) window.clearTimeout(title_timer);
         done_timer = title_timer = 0;
         active = fading = false;
-        stop_obs();
         api.set_fx(null);
         destroy();
     });

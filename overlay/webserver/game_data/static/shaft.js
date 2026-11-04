@@ -7,10 +7,9 @@
 // child of #normal, so it survives the level change that follows the message.
 // Emits api "shaft" ("start" | "land") for alive's quake.
 // Debug: window.sdc_shaft_test()
-define(["jquery", "./sdc_api"], function ($, api) {
+define(["jquery", "./sdc_api", "./fxkit"], function ($, api, kit) {
     "use strict";
 
-    var MSG_GRACE = 1500;
     var DEDUPE = 2500;
     var TOTAL = 1700;
     // stairs.cc:671 "You fall/are sucked into a shaft and drop N floor(s)!"
@@ -18,10 +17,8 @@ define(["jquery", "./sdc_api"], function ($, api) {
     var MSG_RE = /\bYou (?:fall|are sucked|plunge|drop) (?:down )?(?:into|through) (?:a|the) (?:shaft|trap ?door|hole|pit)\b|\bthe floor (?:gives way|collapses)\b|\bYou fall through\b/i;
     var DROP_RE = /drop (\d+) floors?/i;
 
-    var layer = null, msg_observer = null, init_time = 0, last_fire = -1e9;
+    var layer = null, init_time = 0, last_fire = -1e9;
     var running = [];
-    var reduce_motion = window.matchMedia
-        && window.matchMedia("(prefers-reduced-motion: reduce)");
 
     function now()
     {
@@ -35,7 +32,7 @@ define(["jquery", "./sdc_api"], function ($, api) {
 
     function reduced()
     {
-        return !!(reduce_motion && reduce_motion.matches);
+        return api.reduced_motion();
     }
 
     function ensure_layer()
@@ -273,18 +270,6 @@ define(["jquery", "./sdc_api"], function ($, api) {
         play(floors);
     }
 
-    // Messages (same pattern as blink.js) ---------------------------------
-    var seen_msg = window.WeakMap ? new WeakMap() : null;
-    var in_grace = false;
-
-    function node_text(node)
-    {
-        var c = node.cloneNode(true);
-        var g = c.querySelectorAll(".prefix_glyph");
-        for (var i = 0; i < g.length; i++)
-            g[i].parentNode.removeChild(g[i]);
-        return (c.textContent || "").trim();
-    }
 
     function handle_text(text)
     {
@@ -300,73 +285,8 @@ define(["jquery", "./sdc_api"], function ($, api) {
         }
     }
 
-    function process_msg(el, quiet)
-    {
-        var text = node_text(el);
-        var old = seen_msg ? seen_msg.get(el) : undefined;
-        if (old === text)
-            return;
-        if (seen_msg)
-            seen_msg.set(el, text);
-        if (quiet || in_grace)
-            return;
-        var fresh = (old !== undefined && text.indexOf(old) === 0)
-                    ? text.slice(old.length) : text;
-        handle_text(fresh);
-    }
-
-    function seed_all(root)
-    {
-        var all = root.querySelectorAll
-                  ? root.querySelectorAll(".game_message") : [];
-        for (var i = 0; i < all.length; i++)
-            process_msg(all[i], true);
-    }
-
-    function owner_msg(n)
-    {
-        var el = n.nodeType === 1 ? n : n.parentElement;
-        return el && el.closest ? el.closest(".game_message") : null;
-    }
-
-    function on_nodes(records)
-    {
-        in_grace = now() - init_time < MSG_GRACE;
-        records.forEach(function (r) {
-            var own = owner_msg(r.target);
-            if (own)
-                process_msg(own);
-            Array.prototype.forEach.call(r.addedNodes, function (node) {
-                if (node.nodeType === 1)
-                {
-                    if (node.classList.contains("game_message"))
-                        process_msg(node);
-                    else if (node.id === "messages"
-                             || node.querySelector(".game_message"))
-                        seed_all(node);    // bulk re-insert (stock layout())
-                    else if (own)
-                        process_msg(own);
-                }
-                else if (own)
-                    process_msg(own);
-            });
-        });
-    }
-
-    // Stable ancestor: stock layout() swaps #messages with a clone.
-    function watch()
-    {
-        if (msg_observer)
-            msg_observer.disconnect();
-        var el = document.getElementById("message_pane")
-                 || document.getElementById("messages_container")
-                 || document.getElementById("normal");
-        if (!el || !window.MutationObserver)
-            return;
-        seed_all(el);
-        msg_observer = new MutationObserver(on_nodes);
-        msg_observer.observe(el, { childList: true, subtree: true });
-    }
+    // new message-log text, shared with the other modules (fxkit)
+    kit.on_message(handle_text);
 
     api.on("game_init", function () {
         init_time = now();
@@ -375,14 +295,10 @@ define(["jquery", "./sdc_api"], function ($, api) {
         layer = null;
         clear_running();
         ensure_layer();
-        watch();
     });
 
     api.on("game_cleanup", function () {
         clear_running();
-        if (msg_observer)
-            msg_observer.disconnect();
-        msg_observer = null;
         if (layer && layer.parentNode)
             layer.parentNode.removeChild(layer);
         layer = null;

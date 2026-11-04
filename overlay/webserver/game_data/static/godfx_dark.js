@@ -32,7 +32,6 @@ function (api, kit, statusfx, player) {
     var GREEN = "125,255,176", RED = "200,20,30", HELL = "255,60,20";
     var VIOLET = "90,30,130", BLACK = "10,0,16", CRIMSON = "170,10,40";
     var MAX_LIVE = 40;
-    var live = 0;
     var grades = {};          // name -> {t0, ms, fn(k)} timed screen grades
 
     function safe(fn)
@@ -43,20 +42,10 @@ function (api, kit, statusfx, player) {
 
     function layer() { return kit.layer("godfx_dark"); }
 
-    // Short-lived element: counted against MAX_LIVE, removed when it ends.
+    // short-lived element in our layer, removed when it ends (capped)
     function spawn(css, frames, opts)
     {
-        if (live >= MAX_LIVE) return null;
-        var el = kit.mk(layer(), css);
-        live++;
-        var a = kit.anim(el, frames, opts);
-        var done = function () {
-            if (el.parentNode) el.parentNode.removeChild(el);
-            live--;
-        };
-        a.onfinish = done;
-        a.oncancel = done;
-        return el;
+        return kit.spawn("godfx_dark", css, frames, opts, MAX_LIVE);
     }
 
     // Timed screen grade: fn(k) -> grade object, k 0..1 over ms.
@@ -83,7 +72,6 @@ function (api, kit, statusfx, player) {
     {
         Object.keys(grades).forEach(function (n) { api.grade(n, null); });
         grades = {};
-        live = 0;
     }
     api.on("game_init", clear_grades);
     api.on("game_cleanup", clear_grades);
