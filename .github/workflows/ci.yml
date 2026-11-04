@@ -29,7 +29,7 @@ jobs:
         run: git clone --depth 1 https://github.com/crawl/crawl.git "$RUNNER_TEMP/crawl"
       - name: Patches apply
         run: |
-          for p in patches/*.patch; do
+          for p in "$PWD"/patches/*.patch; do
             git -C "$RUNNER_TEMP/crawl" apply --check "$p"
           done
       - name: Client hooks apply
