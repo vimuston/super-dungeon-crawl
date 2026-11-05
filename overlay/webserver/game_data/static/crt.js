@@ -15,7 +15,7 @@ define(["jquery", "./player", "./util", "./enums", "./dungeon_renderer",
         "./statusfx", "./statusauras", "./summonfx", "./terrainfx", "./wandfx",
         "./beamfx", "./rangedfx", "./barfx", "./itemfx", "./godfx_support", "./godfx_dark",
         "./godfx_martial", "./godfx_odd",
-        "./alive", "./depth", "./mobile"],
+        "./alive", "./depth", "./mobile", "./mobilemenus"],
 function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
     "use strict";
 
@@ -175,7 +175,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
                        "depth_height"]],
         ["Effects", ["alive", "combat_text", "splash"]],
         ["Interface", ["hud_pos", "quickbar_pos", "quickbar_names"]],
-        ["Mobile", ["mobile", "msg_fade", "mobile_pin", "mobile_zoom"]],
+        ["Mobile", ["mobile", "mobile_menus", "msg_fade", "mobile_pin", "mobile_zoom"]],
         ["Other", []]
     ];
     var PANEL_DEPENDS = {

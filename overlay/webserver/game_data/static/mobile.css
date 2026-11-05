@@ -422,3 +422,11 @@ body.sdc-mobile #sdc_panel .sdc-opt button { padding: 6px 9px; }
     grid-column: span 2; align-self: center; text-align: center;
     font-size: 11px; opacity: 0.8;
 }
+
+/* yes/no answer buttons in the message bubble */
+.sdc-m-yn {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+}
+.sdc-m-yn .sdc-m-btn { flex: 1 1 0; min-height: 40px; font-size: 14px; }
