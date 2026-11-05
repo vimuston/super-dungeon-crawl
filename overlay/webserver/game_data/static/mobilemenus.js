@@ -17,7 +17,9 @@
 //   - character selection: a single scrolling list grouped by the stock
 //     column headings. First tap previews (description + Choose button),
 //     a second tap or Choose picks it.
-//   - character overview (%): its side-by-side text columns are stacked.
+//   - character overview (%): a card sheet (XL ring, HP/MP bars, stat grid,
+//     resistance pips, tappable equipment, status chips), parsed from the
+//     text; "Text view" shows the text with its columns stacked.
 //   - text prompts: OK / Cancel / Keyboard buttons; numeric prompts (skill
 //     targets) get an on-screen number pad instead of the keyboard.
 //
@@ -810,6 +812,285 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
         });
         body.appendChild(stack);
         fs.classList.add("sdc-mm-stacked");
+
+        // the card sheet; the stacked text stays one tap away
+        var data = null;
+        try { data = parse_overview(r); }
+        catch (e) { api.warn("mobilemenus overview", e); }
+        if (!data) return;
+        var sheet = render_sheet(data);
+        body.insertBefore(sheet, stack);
+        fs.classList.add("sdc-mm-sheet-on");
+        var tog = btn("Text view", "sdc-mm-texttog", function () {
+            var on = fs.classList.toggle("sdc-mm-sheet-on");
+            tog.textContent = on ? "Text view" : "Card view";
+        });
+        sheet.appendChild(tog);
+    }
+
+    // % overview -> data. The text layout is output.cc's (title, stat
+    // columns, resistances beside the equipment, then the %/@/A lines).
+    var RESIST_NAMES = /^(r[A-Z][a-z]+|SInv|Will|Stlth|HPRegen|MPRegen|Regen|Fly|Clar|Spirit|Faith|Reflect|Harm|Rampage|Archmagi|Infuse|Light|Acrobat|Ponder|Wiz)$/;
+
+    function parse_overview(r)
+    {
+        var text = r.text;
+        function val(re)
+        {
+            var m = re.exec(text);
+            if (!m) return null;
+            var i = m.index + m[0].lastIndexOf(m[1]);
+            return { v: m[1].trim(), fg: r.cols[i] };
+        }
+        var d = {
+            hp: val(/Health:\s+(\d+\/\d+(?: \(\d+\))?)/),
+            mp: val(/Magic:\s+(\d+\/\d+(?: \(\d+\))?)/),
+            gold: val(/Gold:\s+(\d+)/),
+            ac: val(/\bAC:\s+(\d+)/), ev: val(/\bEV:\s+(\d+)/),
+            sh: val(/\bSH:\s+(\d+)/),
+            str: val(/Str:\s+(\d+(?: \(\d+\))?)/),
+            int: val(/Int:\s+(\d+(?: \(\d+\))?)/),
+            dex: val(/Dex:\s+(\d+(?: \(\d+\))?)/),
+            xl: val(/XL:\s+(\d+)/), next: val(/Next:\s+(\d+)%/),
+            god: val(/God:[ \t]*([^\n]*?)(?= {2,}|\n|$)/),
+            spells: val(/Spells:[ \t]*([^\n]*?)(?= {2,}|\n|$)/),
+            turns: val(/Turns:\s+(\d+)/), time: val(/Time:\s+([\d:]+)/),
+            resists: [], equip: [], status: [],
+        };
+        if (!d.hp || !d.ac || !d.str) return null;
+
+        var lines = [], start = 0;
+        for (var i = 0; i <= text.length; i++)
+            if (i === text.length || text[i] === "\n")
+            {
+                lines.push({ a: start, t: text.slice(start, i) });
+                start = i + 1;
+            }
+        var first = lines.filter(function (l) { return l.t.trim(); })[0];
+        // "Turns: ..., Time: ..." may share the title line
+        var title = first ? first.t.replace(/\s*Turns:.*$/, "").trim() : "";
+        var tm = /^(.*?)\s*\(([^)]*)\)\s*$/.exec(title);
+        d.name = tm ? tm[1] : title;
+        d.combo = tm ? tm[2] : "";
+
+        var in_status = null;
+        lines.forEach(function (l) {
+            var t = l.t;
+            // %: / @: / A: lines (continuations are indented)
+            var sm = /^([%@A]): (.*)$/.exec(t);
+            if (sm)
+            {
+                in_status = { key: sm[1], text: sm[2].trim() };
+                d.status.push(in_status);
+                return;
+            }
+            if (in_status && /^\s+\S/.test(t))
+            {
+                in_status.text += " " + t.trim();
+                return;
+            }
+            in_status = null;
+
+            // resistances: "rFire   + . .   (50%)", "HPRegen 0.25/turn"
+            var re = /(?:^|\s)([A-Za-z]{2,9})\s+((?:[+.x∞-](?: (?=[+.x∞-]))?)+|\d+(?:\.\d+)?\/turn)(?:\s+\((\d+%)\))?/g, m;
+            while ((m = re.exec(t)))
+            {
+                if (!RESIST_NAMES.test(m[1])) continue;
+                var p0 = l.a + m.index + m[0].indexOf(m[2], m[1].length);
+                var pips = [];
+                if (!/turn/.test(m[2]))
+                {
+                    for (var k = 0; k < m[2].length; k++)
+                    {
+                        var ch = m[2][k];
+                        if (ch !== " ") pips.push({ c: ch, fg: r.cols[p0 + k] });
+                    }
+                }
+                d.resists.push({ name: m[1], pips: pips,
+                                 value: /turn/.test(m[2]) ? m[2] : "",
+                                 pct: m[3] || "",
+                                 fg: r.cols[l.a + m.index + m[0].indexOf(m[1])] });
+            }
+
+            // equipment: "a - +0 hand axe", "(no helmet)", "- Nothing wielded"
+            var er = /(?:^|\s)(?:([a-zA-Z]) - |- )([^\n]*?)(?= {2,}|$)|\((no [a-z ]+)\)/g;
+            while ((m = er.exec(t)))
+            {
+                if (m[3])
+                {
+                    d.equip.push({ empty: true, label: m[3].slice(3) });
+                    continue;
+                }
+                var pos = l.a + m.index + m[0].indexOf(m[2]);
+                d.equip.push({ key: m[1] || "", name: m[2].trim(),
+                               fg: r.cols[pos] });
+            }
+        });
+        return d;
+    }
+
+    var SLOT_ICON = { weapon: "⚔", offhand: "⛨", "body armour": "☗",
+                      helmet: "∩", cloak: "⌒", gloves: "✋",
+                      boots: "⬇", amulet: "⚘", ring: "○",
+                      gizmo: "⚙", talisman: "✦" };
+    var SLOT_ORDER = ["weapon", "offhand", "body armour", "helmet", "cloak",
+                      "gloves", "boots", "amulet", "ring", "ring"];
+    // U+FE0E: text presentation, so phones don't swap in colour emoji
+    function slot_icon(slot)
+    {
+        return SLOT_ICON[slot] ? SLOT_ICON[slot] + "︎" : "";
+    }
+    var STATUS_LABEL = { "%": "Passive", "@": "Status", "A": "Mutations" };
+
+    function frac(v)
+    {
+        var m = /(\d+)\/(\d+)/.exec(v || "");
+        return m ? Math.max(0, Math.min(1, Number(m[1]) / Math.max(1, Number(m[2])))) : 0;
+    }
+
+    function render_sheet(d)
+    {
+        var root = el("div", "sdc-mm-sheet");
+        function card(cls, head)
+        {
+            var c = el("section", "sdc-mm-card " + (cls || ""));
+            if (head) c.appendChild(el("h3", "", head));
+            root.appendChild(c);
+            return c;
+        }
+        function num(v, cls)
+        {
+            return el("b", (cls || "") + " fg" + (v ? v.fg : 7), v ? v.v : "?");
+        }
+
+        // identity + XL ring
+        var id = card("sdc-mm-id");
+        var ring = el("div", "sdc-mm-xl");
+        var nx = d.next ? Number(d.next.v) : 0;
+        ring.style.setProperty("--p", nx);
+        ring.appendChild(el("b", "", d.xl ? d.xl.v : "?"));
+        ring.appendChild(el("small", "", "XL"));
+        id.appendChild(ring);
+        var who = el("div", "sdc-mm-who");
+        who.appendChild(el("div", "sdc-mm-name", d.name));
+        if (d.combo) who.appendChild(el("div", "sdc-mm-combo", d.combo));
+        var meta = [];
+        if (d.next) meta.push(d.next.v + "% to next level");
+        if (d.turns) meta.push("turn " + d.turns.v);
+        if (d.time) meta.push(d.time.v);
+        who.appendChild(el("div", "sdc-mm-sub", meta.join(" · ")));
+        id.appendChild(who);
+
+        // vitals
+        var vit = card("sdc-mm-vit");
+        [["HP", d.hp, "hp"], ["MP", d.mp, "mp"]].forEach(function (v) {
+            if (!v[1] || /\/0\b/.test(v[1].v)) return;   // no MP pool
+            var row = el("div", "sdc-mm-bar sdc-mm-" + v[2]);
+            row.appendChild(el("span", "sdc-mm-bl", v[0]));
+            var track = el("div", "sdc-mm-track");
+            var fill = el("i");
+            fill.style.width = (frac(v[1].v) * 100).toFixed(1) + "%";
+            track.appendChild(fill);
+            row.appendChild(track);
+            row.appendChild(num(v[1], "sdc-mm-bv"));
+            vit.appendChild(row);
+        });
+
+        // defenses + attributes
+        var grid = card("sdc-mm-stats");
+        [["AC", d.ac], ["EV", d.ev], ["SH", d.sh],
+         ["Str", d.str], ["Int", d.int], ["Dex", d.dex]].forEach(function (s) {
+            var c = el("div", "sdc-mm-stat");
+            c.appendChild(num(s[1]));
+            c.appendChild(el("small", "", s[0]));
+            grid.appendChild(c);
+        });
+
+        // gold / god / spells
+        var info = card("sdc-mm-info");
+        [["Gold", d.gold], ["God", d.god], ["Spells", d.spells]].forEach(function (s) {
+            var c = el("div", "sdc-mm-kv");
+            c.appendChild(el("small", "", s[0]));
+            var v = s[1] && s[1].v ? s[1] : { v: "none", fg: 8 };
+            c.appendChild(num(v));
+            info.appendChild(c);
+        });
+
+        // resistances
+        if (d.resists.length)
+        {
+            var res = card("sdc-mm-res", "Resistances");
+            var list = el("div", "sdc-mm-reslist");
+            d.resists.forEach(function (x) {
+                var row = el("div", "sdc-mm-r");
+                row.appendChild(el("span", "sdc-mm-rn fg" + x.fg, x.name));
+                var pips = el("span", "sdc-mm-pips");
+                if (x.value) pips.appendChild(el("span", "sdc-mm-rv", x.value));
+                x.pips.forEach(function (p) {
+                    var kind = p.c === "+" ? "on" : p.c === "x" || p.c === "-" ? "neg"
+                        : p.c === "∞" ? "inf" : "off";
+                    pips.appendChild(el("i", "sdc-mm-pip " + kind + " fg" + p.fg));
+                });
+                row.appendChild(pips);
+                if (x.pct) row.appendChild(el("span", "sdc-mm-pct", x.pct));
+                list.appendChild(row);
+            });
+            res.appendChild(list);
+        }
+
+        // equipment
+        if (d.equip.length)
+        {
+            var eq = card("sdc-mm-eqc", "Equipment");
+            var plain = d.equip.length === SLOT_ORDER.length;
+            var empties = el("div", "sdc-mm-chips sdc-mm-empties");
+            d.equip.forEach(function (x, i) {
+                var slot = x.empty ? x.label : plain ? SLOT_ORDER[i] : "";
+                if (x.empty)
+                {
+                    // empty slots: one compact row of chips at the end
+                    empties.appendChild(el("span", "sdc-mm-chip2 none",
+                        (slot_icon(slot) ? slot_icon(slot) + " " : "") + slot));
+                    return;
+                }
+                var row = el("div", "sdc-mm-slot" + (x.empty ? " empty" : "")
+                             + (x.key ? " tap" : ""));
+                row.appendChild(el("span", "sdc-mm-si", slot_icon(slot) || "•"));
+                var body = el("div", "sdc-mm-sb");
+                if (slot) body.appendChild(el("small", "", slot));
+                body.appendChild(el("div", "sdc-mm-sn" + (x.fg != null ? " fg" + x.fg : ""),
+                                    x.empty ? "empty" : x.name));
+                row.appendChild(body);
+                if (x.key)
+                {
+                    row.appendChild(el("span", "sdc-mm-sk2", x.key));
+                    row.addEventListener("click", function (ev) {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        buzz();
+                        send_text(x.key);
+                    });
+                }
+                eq.appendChild(row);
+            });
+            if (empties.children.length)
+            {
+                eq.appendChild(el("small", "sdc-mm-emptyl", "Empty slots"));
+                eq.appendChild(empties);
+            }
+        }
+
+        // passive / status / mutations
+        d.status.forEach(function (s) {
+            var c = card("sdc-mm-stt", STATUS_LABEL[s.key] || s.key);
+            var chips = el("div", "sdc-mm-chips");
+            var none = /^no /.test(s.text);
+            (none ? [s.text] : s.text.replace(/\.$/, "").split(/,\s*/)).forEach(function (t) {
+                chips.appendChild(el("span", "sdc-mm-chip2" + (none ? " none" : ""), t));
+            });
+            c.appendChild(chips);
+        });
+        return root;
     }
 
     // Text prompts ----------------------------------------------------------------

@@ -146,8 +146,9 @@ default): full-screen popups with a close button and the key hints as buttons.
 Skills are one tappable list (tap = off / on / focus, ◎ sets a training
 target, i describes), spells are cards (tap = cast, i = details, power /
 range view), character selection is a single grouped list (first tap
-previews, Choose picks), the `%` overview is stacked into one column, and
-number prompts get a keypad.
+previews, Choose picks), the `%` overview is a card sheet (HP/MP bars, stats,
+resistance pips, tappable equipment, status chips; "Text view" for the
+original), and number prompts get a keypad.
 
 ## Building
 
