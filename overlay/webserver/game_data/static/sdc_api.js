@@ -73,6 +73,8 @@ define(["jquery"], function ($) {
     // Declare a setting with a default. If `choices` is given the option is
     // listed in the settings panel ([value, label] pairs; booleans work too);
     // `tab` puts an option crt.js does not place itself on a tab of that name.
+    // `hint` = [mouse, touch]: a small help line under the row (touch text on
+    // the mobile UI).
     function register_option(opt)
     {
         if (!(opt.key in settings))
