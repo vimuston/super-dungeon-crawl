@@ -13,9 +13,9 @@
 //     own panel: a search box, recent searches and one-tap presets.
 //   - tap your own tile = pick up (g); on stairs = take them (< / >).
 //   - messages: the message pane is hidden; new messages show in a small
-//     translucent bubble above the bottom bar that fades out. Tap the bubble
-//     for the recent log (or to answer --more--). Text prompts bring the
-//     pane back automatically. y/n prompts get Yes / No buttons.
+//     translucent bubble bottom-left above the bottom bar that fades out.
+//     Tap the bubble for the recent log (or to answer --more--). Text
+//     prompts bring the pane back automatically. y/n prompts get Yes / No buttons.
 //   - big thumb buttons: Fight (Tab) bottom-left, Explore (o) bottom-right.
 //   - dungeon touch: tap = click a tile (travel / attack), swipe = one step
 //     in 8 directions (a long swipe runs), long-press = describe.
@@ -859,8 +859,9 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         }, 700);
     }
 
-    // Bottom-centre, just above the quick-use bar and the thumb buttons
-    // (whichever is higher), so it never covers the player.
+    // Bottom-left, just above the quick-use bar and the thumb buttons
+    // (whichever is higher), so it never covers the player or the pinned
+    // macros stacked over Explore.
     var last_place = "";
     function place_bubble()
     {
@@ -877,7 +878,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             if (r && r.height > 0 && r.top < floor)
                 floor = r.top;
         });
-        var x = (w - bw) / 2;
+        var x = 12;
         var y = floor - bh - 8;
         x = Math.round(Math.max(6, Math.min(w - bw - 6, x)));
         y = Math.round(Math.max(48, Math.min(h - bh - 6, y)));
