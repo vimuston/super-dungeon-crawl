@@ -12,9 +12,13 @@
 - Touch-first layouts for crawl's menus (skills, spells, character selection,
   the `%` sheet, number keypad) and mobile macros.
 - Loading screen with the title art and a progress bar.
+- Unexplored edge (`fogedge.js`): soft, blurred dark tendrils curl and sway
+  along the border between explored ground and never-seen black.
 - `api.hold`: modules can claim a mobile long-press before the stock describe.
 
 ### Changed
+- HP/MP bars look like Afterglow's terminal bars: 10 glowing block cells with
+  damage trails, poison and drained-max cells, and a low-HP flicker.
 - Stats & HP always sit top-left and the quick-use bar always bottom centre
   with its names; the orb menu is always on. The four settings are gone.
 - The Interface and Mobile settings are one "Interface" tab.
