@@ -1,6 +1,25 @@
 # Changelog
 
-## Unreleased
+## v1.1.0 (2026-11-06)
+
+### Added
+- Orb menu (mobile): long-press your character for a ring of orbs. Spells,
+  Evoke and Abilities fan out your spells, evocable items and abilities (slide
+  or tap, lift to use); the other orbs are your own actions. Long-press an orb
+  in the ring to replace it; the + orb adds, moves and removes them.
+- `webtiles-spells.patch`: the `player` message carries `spells`, `talents`
+  (every ability) and `evokables` for the orb menu.
+- Touch-first layouts for crawl's menus (skills, spells, character selection,
+  the `%` sheet, number keypad) and mobile macros.
+- Loading screen with the title art and a progress bar.
+- `api.hold`: modules can claim a mobile long-press before the stock describe.
+
+### Changed
+- Stats & HP always sit top-left and the quick-use bar always bottom centre
+  with its names; the orb menu is always on. The four settings are gone.
+- The Interface and Mobile settings are one "Interface" tab.
+
+## v1.0.0 (2026-11-05)
 
 ### Added
 - Windows standalone: one self-contained `super-dungeon-crawl.exe` (C# launcher
