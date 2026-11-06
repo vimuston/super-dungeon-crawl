@@ -367,6 +367,25 @@ body.sdc-mm #ui-stack .sdc-mm-cards li canvas { flex: 0 0 auto; }
 .sdc-mm-chiplet { white-space: nowrap; }
 .sdc-mm-chiplet b { font-weight: normal; opacity: 0.6; }
 
+/* innate abilities & mutations (A): rows without a tile keep the column */
+.sdc-mm-noicon { flex: 0 0 32px; }
+body.sdc-mm #ui-stack .sdc-mm-muts li { white-space: normal; }
+body.sdc-mm #ui-stack .sdc-mm-muts li:not(.selectable) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 4px 2px 4px 4px;
+}
+/* descriptions are sentences: wrap them (skill names truncate) */
+.sdc-mm-muts .sdc-mm-nm {
+    line-height: 1.3;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+}
+.sdc-mm-future { opacity: 0.75; }
+
 /* ------------------------------------------- character selection */
 
 body.sdc-mm #ui-stack .sdc-mm-ng {

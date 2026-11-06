@@ -8,9 +8,9 @@
 //     optional emoji shown in place of the label; pinned ones stack
 //     bottom-right above Explore.
 //   - tools (top-right): a grid of commands, most used first (spells,
-//     skills, abilities, character, stairs, pick up, ...), Esc / Enter, the
-//     on-screen keyboard, minimap and settings. Find opens its own panel:
-//     a search box, recent searches and one-tap presets.
+//     skills, abilities, innate, character, stairs, pick up, ...), Esc /
+//     Enter, the on-screen keyboard, minimap and settings. Find opens its
+//     own panel: a search box, recent searches and one-tap presets.
 //   - tap your own tile = pick up (g); on stairs = take them (< / >).
 //   - messages: the message pane is hidden; new messages show in a small
 //     translucent bubble above the bottom bar that fades out. Tap the bubble
@@ -26,7 +26,7 @@
 // Options:
 //   "mobile"         auto / on / off. Auto = touch screen or the wrapper.
 //   "msg_fade"       seconds the message bubble stays up.
-//   "mobile_zoom"    dungeon zoom step (Tools: Zoom +/-, pinch).
+//   "mobile_zoom"    dungeon zoom step (pinch).
 //   "mobile_macros"  [{label, keys, icon, pin}] macros (Tools > Macros).
 //                    Migrated once from the old "mobile_buttons" list.
 //
@@ -62,7 +62,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     // Most used first. A function instead of keys opens a panel.
     var TOOLS = [
         ["Spells", "I"], ["Skills", "m"], ["Abilities", "a"],
-        ["Character", "%"], ["Up <", "<"], ["Down >", ">"],
+        ["Innate", "A"], ["Character", "%"], ["Up <", "<"], ["Down >", ">"],
         ["Pick up", "g"], ["Inventory", "i"], ["Rest", "5"],
         ["Wait", "s"], ["Find", function () { toggle_find(true); }],
         ["Macros", function () { toggle_macros(true); }], ["Map", "X"],
@@ -161,12 +161,6 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         step = Math.max(0, Math.min(ZOOMS.length - 1, step));
         if (step === zoom_step()) return;
         api.set("mobile_zoom", step);
-    }
-
-    function zoom_label()
-    {
-        var k = ZOOMS[zoom_step()];
-        return k === 1 ? "Fit" : k + "x";
     }
 
     // Keys --------------------------------------------------------------------
@@ -493,21 +487,6 @@ function ($, comm, api, renderer, enums, options, player, view_data,
                     fn();
                 }));
         }
-        function zoom_btn(text, d)
-        {
-            grid.append($("<button type='button' class='sdc-m-btn sdc-m-ghost'>")
-                .text(text)
-                .on("click", function (ev) {
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    buzz();
-                    set_zoom(zoom_step() + d);
-                }));
-        }
-        zoom_btn("Zoom +", 1);
-        zoom_btn("Zoom −", -1);
-        grid.append($("<div class='sdc-m-hint sdc-m-zoomnow'>")
-            .text("Zoom: " + zoom_label()));
         action("Keyboard", function () { close_all(); keyboard(); });
         action("Log", function () { close_all(); toggle_log(true); });
         action("Minimap", function () {
@@ -1383,10 +1362,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             api.command("relayout");
         }
         else if (key === "mobile_zoom")
-        {
-            render_tools();
             api.command("relayout");
-        }
         else if (key === "mobile_macros")
         {
             if (document.body.classList.contains("sdc-m-macros"))

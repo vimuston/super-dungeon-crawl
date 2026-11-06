@@ -14,6 +14,8 @@
 //     buttons.
 //   - spells (z / I): one card per spell (name, schools, failure, level or
 //     power / damage / range / noise). Tap = cast, i = spell description.
+//   - innate abilities & mutations (A): wrapped cards, the legend's [] / ()
+//     markers as chips (future XL, transient, suppressed, bane), a Close bar.
 //   - character selection: a single scrolling list grouped by the stock
 //     column headings. First tap previews (description + Choose button),
 //     a second tap or Choose picks it.
@@ -605,6 +607,77 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
         });
     }
 
+    // Innate abilities & mutations (A) -------------------------------------------
+    // A plain untagged Menu (mutation.cc MutationMenu), so it is found by its
+    // title. Rows wrap as cards without the hotkey letter, and the legend's
+    // markers become chips: "[x] XL 7" = gained at a future XL, magenta
+    // "[x]" = transient, "(x)" = suppressed, lightmagenta "x [1.5]" = bane.
+    // Tapping a row still describes it (the menu's examine action).
+
+    function is_mut_menu(menu)
+    {
+        var t = menu.querySelector(".menu_title");
+        return !!t && /^\s*Innate Abilities/.test(t.textContent);
+    }
+
+    function mut_fields(text)
+    {
+        var s = text.replace(/^\s*(?:[a-zA-Z] - )?/, "").trim(), m;
+        if ((m = /^\[(.*)\]\s*XL (\d+)$/.exec(s)))
+            return { name: m[1], chips: [["At", "XL " + m[2]]], cls: "sdc-mm-future" };
+        if ((m = /^\[(.*)\]$/.exec(s)))
+            return { name: m[1], chips: [["", "Transient"]] };
+        if ((m = /^\((.*)\)$/.exec(s)))
+            return { name: m[1], chips: [["", "Suppressed"]], cls: "sdc-mm-future" };
+        if ((m = /^(.*\S) \[(\d+(?:\.\d+)?)\]$/.exec(s)))
+            return { name: m[1], chips: [["Bane, ends in", m[2] + " XL"]] };
+        return { name: s, chips: [] };
+    }
+
+    function dress_muts(popup, menu)
+    {
+        menu.classList.add("sdc-mm-cards", "sdc-mm-muts");
+        menu.querySelectorAll("li").forEach(function (li) {
+            var item = $(li).data("item");
+            var src = item ? item.text : li.textContent;
+            if (!src || li.getAttribute("data-sdc") === src) return;
+            var canvas = li.querySelector("canvas");
+            // the line's own colour (fgN) is the first coloured run's
+            var fg = li.querySelector("[class^='fg'], [class*=' fg']");
+            var f = mut_fields(li.textContent);
+            li.setAttribute("data-sdc", src);
+            li.innerHTML = "";
+            if (canvas) li.appendChild(canvas);
+            else li.appendChild(el("span", "sdc-mm-noicon"));
+            var main = el("div", "sdc-mm-main" + (f.cls ? " " + f.cls : ""));
+            var nm = el("div", "sdc-mm-nm", f.name);
+            var c = fg && /(?:^|\s)(fg\d+)/.exec(fg.className);
+            if (c) nm.classList.add(c[1]);
+            main.appendChild(nm);
+            if (f.chips.length)
+            {
+                var meta = el("div", "sdc-mm-meta");
+                f.chips.forEach(function (ch) {
+                    var chip = el("span", "sdc-mm-chiplet");
+                    if (ch[0]) chip.appendChild(el("b", "", ch[0] + " "));
+                    chip.appendChild(document.createTextNode(ch[1]));
+                    meta.appendChild(chip);
+                });
+                main.appendChild(meta);
+            }
+            li.appendChild(main);
+        });
+        // the footer is only the marker legend, now chips: a Close bar instead
+        var more = menu.querySelector(".menu_more");
+        if (!more) return;
+        more.classList.add("sdc-mm-hidden");
+        var bar = more.nextElementSibling;
+        if (bar && bar.classList.contains("sdc-mm-keys")) return;
+        bar = el("div", "sdc-mm-keys");
+        bar.appendChild(btn("Close", "", function () { send_code(27); }));
+        more.parentNode.insertBefore(bar, more.nextSibling);
+    }
+
     // Character selection (newgame-choice) ---------------------------------------
 
     function dress_newgame(popup)
@@ -1188,6 +1261,7 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
         var menu = popup.querySelector(".menu");
         if (menu)
         {
+            if (is_mut_menu(menu)) { dress_muts(popup, menu); return; }
             if (menu.classList.contains("menu_spell")) dress_rows(popup, "spell");
             else if (menu.classList.contains("menu_ability")) dress_rows(popup, "ability");
             var more = menu.querySelector(".menu_more");
