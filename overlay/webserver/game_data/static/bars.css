@@ -106,12 +106,17 @@ html body.sdc-hud[data-sdc-hud-pos="top-left"][data-sdc-quickbar="top"] #action-
 }
 .sdc-who { color: var(--sdc-accent); }
 
-/* HP/MP bars in #sdc_vitals (markup from bars.js): flat 5px bars with
- * the numbers beside them and a touch of phosphor glow. Glow colours are the
- * --sdc-hp/-mp/-poison theme variables at partial strength (the plain rgba
- * line is the fallback for browsers without color-mix). */
+/* HP/MP bars in #sdc_vitals (markup from bars.js), drawn like the Afterglow
+ * HUD: a row of text cells, a full block per lit cell and a light shade per
+ * empty one, in a bold monospace face, with a bloom in the bar colour.
+ * The cells always fill the track: their font size comes from the track's
+ * width (container query units), so the bar scales with the panel and on the
+ * phone HUD. --c is the bar colour. */
 
-#sdc_vitals .sdc-bars { display: flex; flex-direction: column; gap: 0; }
+#sdc_vitals .sdc-hp { --c: var(--sdc-hp); }
+#sdc_vitals .sdc-mp { --c: var(--sdc-mp); }
+
+#sdc_vitals .sdc-bars { display: flex; flex-direction: column; gap: 3px; }
 #sdc_vitals .sdc-nomp .sdc-mp { display: none; }
 
 #sdc_vitals .sdc-bar {
@@ -119,118 +124,83 @@ html body.sdc-hud[data-sdc-hud-pos="top-left"][data-sdc-quickbar="top"] #action-
     display: flex;
     align-items: center;
     gap: 6px;
-    height: 12px;
+    font: bold 14px/1 "DejaVu Sans Mono", Menlo, Consolas, monospace;
 }
+/* label and numbers in Afterglow's pale terminal green */
 #sdc_vitals .sdc-lbl {
     display: inline-block;
-    width: 18px;
-    opacity: 0.8;
-    letter-spacing: 0.5px;
+    width: 2ch;
+    color: rgb(153, 191, 153);
+    text-shadow: 0 0 4px rgba(153, 191, 153, 0.45);
 }
 
 /* numbers: current / max, unreduced max in brackets */
 #sdc_vitals .sdc-val {
-    min-width: 54px;
+    min-width: 6ch;
     text-align: right;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.2px;
+    color: rgb(204, 217, 191);
+    text-shadow: 0 0 4px rgba(204, 217, 191, 0.4);
 }
-#sdc_vitals .sdc-real { opacity: 0.5; font-size: 9px; margin-left: 1px; }
+#sdc_vitals .sdc-real { opacity: 0.5; font-size: 10px; margin-left: 1px; }
 #sdc_vitals .sdc-hp.poisoned .sdc-cur { color: var(--sdc-poison); }
 body.sdc-hp-warn #sdc_vitals .sdc-hp .sdc-cur { color: #ffd84d; }
 body.sdc-hp-danger #sdc_vitals .sdc-hp .sdc-cur { color: var(--sdc-hp); }
 
-/* track: dark base with a faint inner glow of its own colour. Overflow stays
-   visible so the fill's glow can spill a little past the 5px bar. */
+/* the cell row. Stays positioned for barfx.js's pulse spans. */
 #sdc_vitals .sdc-track {
     position: relative;
     flex: 1;
-    height: 5px;
-    border-radius: 1px;
+    min-width: 0;
+    display: flex;
+    container-type: inline-size;
+    white-space: nowrap;
 }
-#sdc_vitals .sdc-hp .sdc-track {
-    background: var(--sdc-hp-dim);
-    box-shadow: inset 0 0 5px rgba(255, 77, 77, 0.55);
-    box-shadow: inset 0 0 5px color-mix(in srgb, var(--sdc-hp) 55%, transparent);
+#sdc_vitals .sdc-c {
+    flex: 1;
+    text-align: center;
+    overflow: visible;
+    font-size: 16px;
+    /* one cell is a tenth of the track (a block glyph is ~0.6em wide), up
+       to Afterglow's 22px; past that the cells spread with small gaps */
+    font-size: min(calc(10cqw / 0.6), 22px);
+    line-height: 1.3;
+    color: var(--c);
+    /* the bloom: a tight core glow plus two wider soft halos */
+    text-shadow: 0 0 2px var(--c),
+                 0 0 6px color-mix(in srgb, var(--c) 75%, transparent),
+                 0 0 14px color-mix(in srgb, var(--c) 40%, transparent);
 }
-#sdc_vitals .sdc-mp .sdc-track {
-    background: var(--sdc-mp-dim);
-    box-shadow: inset 0 0 5px rgba(77, 166, 255, 0.55);
-    box-shadow: inset 0 0 5px color-mix(in srgb, var(--sdc-mp) 55%, transparent);
+/* empty cells: the shade glyph's own dots dim them; no halo */
+#sdc_vitals .sdc-c.sdc-off {
+    text-shadow: 0 0 3px color-mix(in srgb, var(--c) 45%, transparent);
 }
-
-#sdc_vitals .sdc-track > span {
-    position: absolute;
-    top: 0; bottom: 0; left: 0;
+/* just lost: bright trail that drains back to empty (bars.js) */
+#sdc_vitals .sdc-c.sdc-ghost {
+    color: color-mix(in srgb, var(--c) 45%, #fff);
+    opacity: 0.75;
+    text-shadow: 0 0 3px var(--c);
 }
-#sdc_vitals .sdc-snap { transition: none !important; }
-
-/* fill + the glow */
-#sdc_vitals .sdc-fill {
-    z-index: 2;
-    border-radius: 1px;
-    transition: width 0.25s ease-out;
+/* HP the poison will still take */
+#sdc_vitals .sdc-c.sdc-poison {
+    color: var(--sdc-poison);
+    text-shadow: 0 0 2px var(--sdc-poison),
+                 0 0 8px color-mix(in srgb, var(--sdc-poison) 60%, transparent);
 }
-/* two-layer neon glow: a tight bright halo plus a wider soft bloom, and a
-   1px highlight along the top edge as the bright core line */
-#sdc_vitals .sdc-hp .sdc-fill {
-    background: var(--sdc-hp);
-    box-shadow: 0 0 3px rgba(255, 77, 77, 0.9), 0 0 10px rgba(255, 77, 77, 0.5),
-                inset 0 1px 0 rgba(255, 255, 255, 0.45);
-    box-shadow: 0 0 3px color-mix(in srgb, var(--sdc-hp) 90%, transparent),
-                0 0 10px color-mix(in srgb, var(--sdc-hp) 50%, transparent),
-                inset 0 1px 0 color-mix(in srgb, #fff 45%, transparent);
-    animation: sdc-breathe 3.5s ease-in-out infinite;
-}
-#sdc_vitals .sdc-mp .sdc-fill {
-    background: var(--sdc-mp);
-    box-shadow: 0 0 3px rgba(77, 166, 255, 0.9), 0 0 10px rgba(77, 166, 255, 0.5),
-                inset 0 1px 0 rgba(255, 255, 255, 0.45);
-    box-shadow: 0 0 3px color-mix(in srgb, var(--sdc-mp) 90%, transparent),
-                0 0 10px color-mix(in srgb, var(--sdc-mp) 50%, transparent),
-                inset 0 1px 0 color-mix(in srgb, #fff 45%, transparent);
-    animation: sdc-breathe 3.5s ease-in-out infinite;
-}
-/* low HP: the fill's glow flares wider (the panel heartbeat stays as is) */
-body.sdc-hp-danger #sdc_vitals .sdc-hp .sdc-fill {
-    box-shadow: 0 0 4px rgba(255, 60, 60, 1), 0 0 14px rgba(255, 60, 60, 0.6),
-                inset 0 1px 0 rgba(255, 255, 255, 0.5);
-    box-shadow: 0 0 4px color-mix(in srgb, var(--sdc-hp) 100%, transparent),
-                0 0 14px color-mix(in srgb, var(--sdc-hp) 60%, transparent),
-                inset 0 1px 0 color-mix(in srgb, #fff 50%, transparent);
+/* max reduced below the real max (drain, rot...): dead grey cells */
+#sdc_vitals .sdc-c.sdc-cap {
+    color: rgba(150, 150, 150, 0.45);
+    text-shadow: none;
 }
 
-/* value text picks up a faint glow in the bar colour */
-#sdc_vitals .sdc-hp .sdc-cur {
-    text-shadow: 0 0 4px rgba(255, 77, 77, 0.6);
-    text-shadow: 0 0 4px color-mix(in srgb, var(--sdc-hp) 60%, transparent);
+/* low HP: the HP cells flicker red to orange, Afterglow's pulse */
+body.sdc-hp-danger #sdc_vitals .sdc-hp .sdc-c.sdc-on {
+    animation: sdc-hp-pulse 0.785s ease-in-out infinite;
 }
-#sdc_vitals .sdc-mp .sdc-cur {
-    text-shadow: 0 0 4px rgba(77, 166, 255, 0.6);
-    text-shadow: 0 0 4px color-mix(in srgb, var(--sdc-mp) 60%, transparent);
-}
-
-/* poison: the HP the poison will still take, a green tail on the HP bar */
-#sdc_vitals .sdc-poison {
-    z-index: 3;
-    border-radius: 1px;
-    background: var(--sdc-poison);
-    box-shadow: 0 0 3px rgba(155, 224, 58, 0.9), 0 0 10px rgba(155, 224, 58, 0.5),
-                inset 0 1px 0 rgba(255, 255, 255, 0.4);
-    box-shadow: 0 0 3px color-mix(in srgb, var(--sdc-poison) 90%, transparent),
-                0 0 10px color-mix(in srgb, var(--sdc-poison) 50%, transparent),
-                inset 0 1px 0 color-mix(in srgb, #fff 40%, transparent);
-    animation: sdc-breathe 3.5s ease-in-out infinite;
-    transition: width 0.25s ease-out, left 0.25s ease-out;
-}
-#sdc_vitals .sdc-mp .sdc-poison { display: none; }
-
-/* max reduced below the real max (drain, rot...): hatched dead end cap */
-#sdc_vitals .sdc-cap {
-    z-index: 4;
-    background: repeating-linear-gradient(135deg,
-        rgba(0, 0, 0, 0.85) 0 2px, rgba(255, 255, 255, 0.16) 2px 3px);
+@keyframes sdc-hp-pulse {
+    0%, 100% { color: rgb(255, 46, 64); }
+    50%      { color: rgb(255, 92, 64); }
 }
 
 /* ------------------------------------------------- panel danger glow */
@@ -241,17 +211,12 @@ body.sdc-hp-danger #sdc_vitals { border-color: var(--sdc-hp); }
     position: absolute;
     top: -1px; bottom: -1px; left: -1px; right: -1px;
     border-radius: 3px;
-    box-shadow: 0 0 16px rgba(255, 60, 60, 0.9), inset 0 0 6px rgba(255, 60, 60, 0.4);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--sdc-hp) 90%, transparent),
+                inset 0 0 6px color-mix(in srgb, var(--sdc-hp) 40%, transparent);
     opacity: 0;
     pointer-events: none;
 }
 body.sdc-hp-danger #sdc_vitals::before { animation: sdc-heartbeat 1.1s ease-out infinite; }
-
-/* slow, subtle breathing of the bar glow (brightness only, cheap to animate) */
-@keyframes sdc-breathe {
-    0%, 100% { filter: brightness(1); }
-    50%      { filter: brightness(1.12); }
-}
 
 @keyframes sdc-heartbeat {
     0%   { opacity: 0; }
@@ -265,6 +230,5 @@ body.sdc-hp-danger #sdc_vitals::before { animation: sdc-heartbeat 1.1s ease-out 
 @media (prefers-reduced-motion: reduce) {
     /* steady glow instead of a heartbeat */
     body.sdc-hp-danger #sdc_vitals::before { animation: none !important; opacity: 0.6; }
-    #sdc_vitals .sdc-fill,
-    #sdc_vitals .sdc-poison { transition-duration: 0.01s; animation: none; }
+    body.sdc-hp-danger #sdc_vitals .sdc-hp .sdc-c.sdc-on { animation: none; }
 }

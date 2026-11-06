@@ -9,7 +9,8 @@ SRC="$CRAWL/crawl-ref/source"
 
 git -C "$CRAWL" checkout -- \
   crawl-ref/source/webserver/game_data/static/game.js \
-  crawl-ref/source/webserver/game_data/templates/game.html
+  crawl-ref/source/webserver/game_data/templates/game.html \
+  crawl-ref/source/webserver/templates/client.html
 
 cp -r "$HERE/overlay/." "$SRC/"
 python3 "$HERE/scripts/patch_client.py" "$SRC/webserver/game_data"

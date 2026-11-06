@@ -24,18 +24,20 @@
 @import url("godfx_odd.css");
 @import url("mobile.css");
 @import url("mobilemenus.css");
+@import url("orbmenu.css");
 
 /* Super Dungeon Crawl — phosphor look + floating HUD. Classes are set on <body> by crt.js */
 
 :root {
-    --sdc-accent: #6dffa8;
-    --sdc-accent-dim: rgba(109, 255, 168, 0.35);
-    --sdc-panel: rgba(4, 10, 6, 0.72);
+    --sdc-accent: #ffb627;
+    --sdc-accent-dim: color-mix(in srgb, var(--sdc-accent) 35%, transparent);
+    --sdc-panel: rgba(20, 16, 11, 0.8);
     --sdc-hp: #ff4d4d;
     --sdc-hp-dim: #5a1414;
     --sdc-mp: #4da6ff;
     --sdc-mp-dim: #12305a;
     --sdc-poison: #9be03a;
+    --sdc-xp: var(--sdc-accent);
     --sdc-dungeon-right: 100vw;
     --sdc-dungeon-bottom: 100vh;
 }
@@ -152,7 +154,7 @@ body.sdc-hud.sdc-monsters #monster_list {
 body.sdc-hud #minimap_block {
     position: relative;
     outline: 1px solid var(--sdc-accent-dim);
-    box-shadow: 0 0 12px rgba(109, 255, 168, 0.18);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--sdc-accent) 18%, transparent);
     background: rgba(0, 0, 0, 0.6);
     opacity: 0.9;
 }
@@ -173,7 +175,7 @@ body.sdc-hud.sdc-mapview #sdc_corner { display: none !important; }
 .sdc-panel {
     background: var(--sdc-panel);
     border: 1px solid var(--sdc-accent-dim);
-    box-shadow: 0 0 10px rgba(109, 255, 168, 0.15), inset 0 0 8px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--sdc-accent) 15%, transparent), inset 0 0 8px rgba(0, 0, 0, 0.6);
     border-radius: 3px;
 }
 
@@ -279,20 +281,75 @@ body.sdc-hud #sdc_corner {
 .sdc-opt button.on { opacity: 1; box-shadow: 0 0 6px var(--sdc-accent-dim); }
 .sdc-opt button:hover { opacity: 1; }
 
-/* settings panel sections */
-#sdc_panel { max-height: 86vh; overflow-y: auto; min-width: 360px; }
+/* settings panel tabs: the tab bar stays put, only the rows scroll */
+#sdc_panel {
+    display: flex;
+    flex-direction: column;
+    width: 440px;
+    max-width: calc(100vw - 16px);
+    max-height: 86vh;
+    box-sizing: border-box;
+}
+.sdc-panel-title { display: flex; align-items: center; gap: 8px; }
+.sdc-panel-title > span:first-child { flex: 1 1 auto; text-transform: uppercase; }
+.sdc-panel-hint { font-size: 10px; opacity: 0.5; }
+.sdc-panel-close { float: none; margin: -4px -6px 0 0; }
+.sdc-tabs {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-bottom: 1px solid var(--sdc-accent-dim);
+}
+.sdc-tabs::-webkit-scrollbar { display: none; }
+.sdc-tab {
+    flex: 1 0 auto;
+    padding: 5px 9px 4px;
+    font: 11px/1 var(--stat-font);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--sdc-accent);
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 2px 2px 0 0;
+    opacity: 0.55;
+    cursor: pointer;
+}
+.sdc-tab:hover { opacity: 0.85; }
+.sdc-tab.on {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.6);
+    border-color: var(--sdc-accent-dim);
+    box-shadow: 0 -2px 6px color-mix(in srgb, var(--sdc-accent) 15%, transparent);
+}
+.sdc-tab-bodies {
+    flex: 1 1 auto;
+    min-height: 200px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-top: 4px;
+}
 .sdc-sec-head {
     margin: 10px 0 2px;
     padding: 2px 0;
     color: var(--sdc-accent);
-    border-bottom: 1px solid var(--sdc-accent-dim);
+    opacity: 0.7;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    font-size: 11px;
-    cursor: pointer;
+    font-size: 10px;
+    border-bottom: 1px dotted var(--sdc-accent-dim);
     user-select: none;
 }
-.sdc-sec-head::before { content: "\25BE  "; }
-.sdc-sec-head.shut::before { content: "\25B8  "; }
+.sdc-tab-body > .sdc-sec-head:first-child { margin-top: 4px; }
+.sdc-opt input[type=range] {
+    flex: 1 1 120px;
+    min-width: 120px;
+    accent-color: var(--sdc-accent);
+    cursor: pointer;
+}
+.sdc-opt .sdc-k.sdc-val { flex: 0 0 34px; text-align: right; }
 .sdc-opt.sdc-sub { padding-left: 14px; }
 .sdc-opt.off { opacity: 0.35; }

@@ -46,7 +46,7 @@ body.sdc-nostats #sdc_stats { display: none; }
     gap: 8px;
     padding-bottom: 3px;
     margin-bottom: 3px;
-    border-bottom: 1px solid rgba(109, 255, 168, 0.15);
+    border-bottom: 1px solid color-mix(in srgb, var(--sdc-accent) 15%, transparent);
 }
 #sdc_stats[data-skin="strip"] .st-xl {
     position: relative;
@@ -75,13 +75,13 @@ body.sdc-nostats #sdc_stats { display: none; }
     margin-left: 2px;
     overflow: hidden;
     background: #13221a;
-    box-shadow: 0 0 0 1px rgba(109, 255, 168, 0.18);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--sdc-accent) 18%, transparent);
 }
 #sdc_stats[data-skin="strip"] .st-xp-fill {
     position: absolute;
     top: 0; bottom: 0; left: 0;
-    background: var(--sdc-accent);
-    box-shadow: 0 0 4px var(--sdc-accent);
+    background: var(--sdc-xp, var(--sdc-accent));
+    box-shadow: 0 0 4px var(--sdc-xp, var(--sdc-accent));
 }
 #sdc_stats[data-skin="strip"] .st-place {
     min-width: 0;
@@ -114,11 +114,11 @@ body.sdc-nostats #sdc_stats { display: none; }
 }
 #sdc_stats[data-skin="strip"] .st-speed[data-rate="none"],
 #sdc_stats[data-skin="strip"] .st-speed[data-rate="normal"] { opacity: 0.75; }
-#sdc_stats[data-skin="strip"] .st-speed[data-rate="fast"] { color: #6dffa8; }
+#sdc_stats[data-skin="strip"] .st-speed[data-rate="fast"] { color: var(--sdc-accent); }
 #sdc_stats[data-skin="strip"] .st-speed[data-rate="slow"] { color: #ffc24d; }
 #sdc_stats[data-skin="strip"] .st-speed[data-rate="vslow"] { color: #ff5c5c; }
 #sdc_stats[data-skin="strip"] .st-pips { display: inline-flex; gap: 1px; }
-#sdc_stats[data-skin="strip"] .st-pips i { width: 3px; height: 8px; color: #6dffa8; background: #1b2a20; }
+#sdc_stats[data-skin="strip"] .st-pips i { width: 3px; height: 8px; color: var(--sdc-accent); background: #1b2a20; }
 #sdc_stats[data-skin="strip"] .st-pips i.on { background: currentColor; box-shadow: 0 0 2px currentColor; }
 #sdc_stats[data-skin="strip"] .st-pips[data-level="loud"] i { color: #ffd84d; }
 #sdc_stats[data-skin="strip"] .st-pips[data-level="veryloud"] i { color: #ff8c3a; }

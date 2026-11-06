@@ -26,6 +26,17 @@ define(["./sdc_api", "./fxkit"], function (api, kit) {
     var last = { hp: -1e9, mp: -1e9 };
     var DEFAULT = { hp: "255,77,77", mp: "77,166,255" };
 
+    // the bar's colour in the current theme (--sdc-hp/-mp as #rrggbb), as "r,g,b"
+    function theme_rgb(bar)
+    {
+        var hex = window.getComputedStyle(document.body)
+            .getPropertyValue("--sdc-" + bar).trim();
+        var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+        return m ? [m[1], m[2], m[3]].map(function (h) {
+            return parseInt(h, 16);
+        }).join(",") : DEFAULT[bar];
+    }
+
     function track_of(bar)
     {
         return document.querySelector("#sdc_vitals .sdc-" + bar
@@ -54,7 +65,7 @@ define(["./sdc_api", "./fxkit"], function (api, kit) {
     {
         var track = track_of(bar);
         if (!track || !track.animate) return;
-        color = color || DEFAULT[bar] || "255,255,255";
+        color = color || theme_rgb(bar) || "255,255,255";
         var c = function (a) { return kit.rgba(color, a); };
         var still = kit.reduced();
 
@@ -124,7 +135,7 @@ define(["./sdc_api", "./fxkit"], function (api, kit) {
 
     window.sdc_barfx_test = function (bar, kind, color) {
         api.emit("bar_pulse", bar || "hp", kind || "fill", color || (
-            (bar || "hp") === "hp" ? HEAL : DEFAULT.mp));
+            (bar || "hp") === "hp" ? HEAL : theme_rgb("mp")));
     };
 
     return {};

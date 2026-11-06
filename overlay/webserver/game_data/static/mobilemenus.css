@@ -817,3 +817,66 @@ body.sdc-mm .sdc-mm-stacked:not(.sdc-mm-sheet-on) .sdc-mm-sheet > :not(.sdc-mm-t
     opacity: 0.5;
 }
 .sdc-mm-empties .sdc-mm-chip2 { font-size: 11px; padding: 2px 8px; }
+
+/* ------------------------------------------------- settings panel */
+
+/* full screen like the other popups; finger-sized tabs and rows */
+body.sdc-mm div#sdc_panel {
+    z-index: 3300;          /* over the mobile Tools / zoom buttons */
+    top: 0;
+    left: 0;
+    transform: none;
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    min-width: 0;
+    padding: calc(8px + env(safe-area-inset-top))
+             calc(8px + env(safe-area-inset-right))
+             calc(8px + env(safe-area-inset-bottom))
+             calc(8px + env(safe-area-inset-left));
+    border: none;
+    border-top: 1px solid var(--sdc-accent-dim);
+    background: rgba(2, 8, 4, 0.97);
+    font-size: 14px;
+    touch-action: pan-y;
+}
+body.sdc-mm #sdc_panel .sdc-panel-title { min-height: 40px; margin-bottom: 4px; font-size: 15px; }
+body.sdc-mm #sdc_panel .sdc-panel-hint { display: none; }
+body.sdc-mm #sdc_panel .sdc-panel-close {
+    min-width: 40px;
+    min-height: 40px;
+    margin: 0;
+    padding: 0;
+    font-size: 24px;
+    line-height: 1;
+}
+body.sdc-mm #sdc_panel .sdc-tabs { gap: 4px; touch-action: pan-x; }
+body.sdc-mm #sdc_panel .sdc-tab {
+    min-height: 42px;
+    padding: 0 12px;
+    font-size: 12px;
+    touch-action: manipulation;
+}
+body.sdc-mm #sdc_panel .sdc-tab-bodies { touch-action: pan-y; padding-top: 6px; }
+body.sdc-mm #sdc_panel .sdc-sec-head { margin-top: 14px; font-size: 11px; }
+body.sdc-mm #sdc_panel .sdc-opt {
+    min-height: 44px;
+    gap: 6px;
+    margin: 0;
+    padding: 4px 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--sdc-accent) 8%, transparent);
+}
+body.sdc-mm #sdc_panel .sdc-opt .sdc-k:first-child { flex: 1 0 100%; font-size: 13px; }
+body.sdc-mm #sdc_panel .sdc-opt.sdc-sub { padding-left: 10px; }
+body.sdc-mm #sdc_panel .sdc-opt button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 38px;
+    padding: 4px 6px;
+    font-size: 13px;
+    touch-action: manipulation;
+}
+body.sdc-mm #sdc_panel .sdc-opt input[type=range] { min-height: 38px; min-width: 0; }
+body.sdc-mm #sdc_panel .sdc-opt .sdc-k.sdc-val { font-size: 13px; }

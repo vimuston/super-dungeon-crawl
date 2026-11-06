@@ -10,13 +10,13 @@ body.sdc-hud[data-sdc-quickbar="bottom"] #action-panel {
     bottom: calc(100vh - var(--sdc-dungeon-bottom) + 12px);
     transform: translateX(-50%);
     z-index: 6;
-    border: 2px solid rgba(109, 255, 168, 0.55);
+    border: 2px solid color-mix(in srgb, var(--sdc-accent) 55%, transparent);
     border-radius: 5px;
     background:
         linear-gradient(to bottom, rgba(20, 40, 28, 0.92), rgba(4, 12, 7, 0.95));
     box-shadow:
         0 0 0 1px rgba(0, 0, 0, 0.9),
-        0 0 14px rgba(109, 255, 168, 0.22),
+        0 0 14px color-mix(in srgb, var(--sdc-accent) 22%, transparent),
         0 4px 10px rgba(0, 0, 0, 0.7);
 }
 /* leave room for the caption row under a horizontal bar */
@@ -40,13 +40,75 @@ body.sdc-hud[data-sdc-quickbar="bottom"] #action-panel-placeholder {
     bottom: calc(100vh - var(--sdc-dungeon-bottom) + 12px);
     transform: translateX(-50%);
     z-index: 6;
-    border-color: rgba(109, 255, 168, 0.55);
+    border-color: color-mix(in srgb, var(--sdc-accent) 55%, transparent);
     border-radius: 4px;
     background: rgba(4, 12, 7, 0.92);
-    box-shadow: 0 0 10px rgba(109, 255, 168, 0.2);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--sdc-accent) 20%, transparent);
+}
+body.sdc-hud[data-sdc-quickbar="bottom"] #action-panel-placeholder {
+    /* a real button rather than the stock 1em "+" */
+    width: auto;
+    min-width: 64px;
+    padding: 6px 14px;
+    border-width: 2px;
+    border-radius: 6px;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.9),
+        0 0 14px color-mix(in srgb, var(--sdc-accent) 35%, transparent),
+        0 3px 8px rgba(0, 0, 0, 0.7);
 }
 body.sdc-hud[data-sdc-quickbar="bottom"] #action-panel-placeholder a {
     color: var(--sdc-accent);
+    font-weight: bold;
+}
+body.sdc-hud[data-sdc-quickbar="bottom"] #action-panel-placeholder a::after {
+    content: " QUICK-USE";
+    font-size: 11px;
+    letter-spacing: 0.08em;
+}
+body.sdc-hud[data-sdc-quickbar="bottom"] #action-panel-placeholder:hover {
+    background: color-mix(in srgb, var(--sdc-accent) 18%, rgba(4, 12, 7, 0.92));
+}
+/* phones: a round thumb button like Fight / Explore (mobile.css, 76px),
+   a bit smaller, centred at the very bottom between them */
+html body.sdc-mobile.sdc-hud[data-sdc-quickbar="bottom"] #action-panel-placeholder {
+    left: 50% !important;
+    bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+    transform: translateX(-50%) !important;
+    width: 62px;
+    height: 62px;
+    min-width: 0;
+    padding: 0;
+    box-sizing: border-box;
+    border-radius: 50%;
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    background: rgba(0, 0, 0, 0.65);
+}
+html body.sdc-mobile.sdc-hud[data-sdc-quickbar="bottom"] #action-panel-placeholder.hidden {
+    display: none !important;
+}
+body.sdc-mobile.sdc-hud[data-sdc-quickbar="bottom"] #action-panel-placeholder a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+body.sdc-mobile.sdc-hud[data-sdc-quickbar="bottom"] #action-panel-placeholder a::after {
+    content: "ITEMS";
+    margin-top: 2px;
+    font-size: 10px;
+    font-weight: normal;
+}
+/* the finger drag along the bar runs the dock (quickbar.js), not a pan */
+body.sdc-mobile #action-panel,
+body.sdc-mobile #sdc_qb_ab {
+    touch-action: none;
 }
 
 /* stock position: just inside the top-left corner */
@@ -77,7 +139,7 @@ body.sdc-hud[data-sdc-quickbar="top"] #action-panel-placeholder {
             rgba(0, 0, 0, 0) 0,
             rgba(0, 0, 0, 0) calc(var(--sdc-qb-pitch) - 2px),
             rgba(0, 0, 0, 0.85) calc(var(--sdc-qb-pitch) - 2px),
-            rgba(109, 255, 168, 0.35) calc(var(--sdc-qb-pitch) - 1px),
+            color-mix(in srgb, var(--sdc-accent) 35%, transparent) calc(var(--sdc-qb-pitch) - 1px),
             rgba(0, 0, 0, 0) var(--sdc-qb-pitch));
     box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.8);
 }
@@ -89,7 +151,7 @@ body.sdc-hud[data-sdc-quickbar="top"] #action-panel-placeholder {
             rgba(0, 0, 0, 0) 0,
             rgba(0, 0, 0, 0) calc(var(--sdc-qb-pitch) - 2px),
             rgba(0, 0, 0, 0.85) calc(var(--sdc-qb-pitch) - 2px),
-            rgba(109, 255, 168, 0.35) calc(var(--sdc-qb-pitch) - 1px),
+            color-mix(in srgb, var(--sdc-accent) 35%, transparent) calc(var(--sdc-qb-pitch) - 1px),
             rgba(0, 0, 0, 0) var(--sdc-qb-pitch));
     box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.8);
 }
@@ -103,12 +165,12 @@ body.sdc-hud[data-sdc-quickbar="top"] #action-panel-placeholder {
     box-sizing: border-box;
     overflow: hidden;
     font: 9px/12px var(--stat-font);
-    color: var(--sdc-accent, #6dffa8);
-    text-shadow: 0 0 4px rgba(109, 255, 168, 0.55);
+    color: var(--sdc-accent, var(--sdc-accent));
+    text-shadow: 0 0 4px color-mix(in srgb, var(--sdc-accent) 55%, transparent);
     background: linear-gradient(to bottom, rgba(4, 12, 7, 0.95),
                                 rgba(2, 8, 5, 0.97));
-    border: 2px solid rgba(109, 255, 168, 0.55);
-    box-shadow: 0 0 14px rgba(109, 255, 168, 0.18),
+    border: 2px solid color-mix(in srgb, var(--sdc-accent) 55%, transparent);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--sdc-accent) 18%, transparent),
                 0 4px 10px rgba(0, 0, 0, 0.7);
 }
 #sdc_qb_caps[data-dir="h"] {
@@ -148,13 +210,13 @@ body.sdc-qb-dock #sdc_qb_caps { opacity: 0; }
 #sdc_qb_dock .bg {
     position: absolute;
     box-sizing: border-box;
-    border: 2px solid rgba(109, 255, 168, 0.55);
+    border: 2px solid color-mix(in srgb, var(--sdc-accent) 55%, transparent);
     border-radius: 5px;
     background:
         linear-gradient(to bottom, rgba(20, 40, 28, 0.92), rgba(4, 12, 7, 0.95));
     box-shadow:
         0 0 0 1px rgba(0, 0, 0, 0.9),
-        0 0 14px rgba(109, 255, 168, 0.22),
+        0 0 14px color-mix(in srgb, var(--sdc-accent) 22%, transparent),
         0 4px 10px rgba(0, 0, 0, 0.7);
 }
 #sdc_qb_dock .slot {
@@ -175,12 +237,12 @@ body.sdc-qb-dock #sdc_qb_caps { opacity: 0; }
     position: absolute;
     left: 0; top: 0; right: 0; bottom: 0;
     border-radius: 3px;
-    box-shadow: inset 0 0 0 1px rgba(109, 255, 168, 0.22);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sdc-accent) 22%, transparent);
 }
 #sdc_qb_dock .slot.hot { background: rgba(6, 18, 11, 0.9); }
 #sdc_qb_dock .slot.hot::after {
-    box-shadow: inset 0 0 0 1px rgba(109, 255, 168, 0.75),
-                0 0 8px rgba(109, 255, 168, 0.45);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sdc-accent) 75%, transparent),
+                0 0 8px color-mix(in srgb, var(--sdc-accent) 45%, transparent);
 }
 #sdc_qb_dock .lab {
     display: none;
@@ -189,12 +251,19 @@ body.sdc-qb-dock #sdc_qb_caps { opacity: 0; }
     padding: 0 6px;
     white-space: nowrap;
     font: 10px/14px var(--stat-font);
-    color: var(--sdc-accent, #6dffa8);
-    text-shadow: 0 0 4px rgba(109, 255, 168, 0.55);
+    color: var(--sdc-accent, var(--sdc-accent));
+    text-shadow: 0 0 4px color-mix(in srgb, var(--sdc-accent) 55%, transparent);
     background: rgba(4, 12, 7, 0.96);
-    border: 1px solid rgba(109, 255, 168, 0.55);
+    border: 1px solid color-mix(in srgb, var(--sdc-accent) 55%, transparent);
     border-radius: 0 0 4px 4px;
-    box-shadow: 0 0 10px rgba(109, 255, 168, 0.2);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--sdc-accent) 20%, transparent);
+}
+#sdc_qb_dock .lab.up {
+    transform: translate(-50%, -100%);
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 18px;
+    z-index: 1000;
 }
 
 /* very slow idle breathing of the frame glow (opacity only) */
@@ -203,7 +272,7 @@ body.sdc-qb-dock #sdc_qb_caps { opacity: 0; }
     position: absolute;
     left: -2px; top: -2px; right: -2px; bottom: -2px;
     border-radius: 6px;
-    box-shadow: 0 0 12px rgba(109, 255, 168, 0.28);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--sdc-accent) 28%, transparent);
     opacity: 0.25;
     animation: sdc-qb-breathe 7s ease-in-out infinite;
 }
