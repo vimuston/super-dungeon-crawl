@@ -1052,6 +1052,18 @@ function ($, comm, api, renderer, enums, options, player, view_data) {
         var t = touch;
         cancel_touch();
         if (ev.type === "touchcancel") return;
+        if (map_view())
+        {
+            // ours alone: no synthesized mouse events, no ui.js handlers
+            // (registered after this one, so they never see it)
+            ev.preventDefault();
+            ev.stopImmediatePropagation();
+            if (t.moved)
+                swipe(t.dx, t.dy);
+            else if (!t.long)
+                map_tap(t.target, t.x, t.y);
+            return;
+        }
         if (t.long)
             ev.preventDefault();
         else if (more_pending())
@@ -1095,6 +1107,7 @@ function ($, comm, api, renderer, enums, options, player, view_data) {
         buzz();
         // another module may take the hold (orbmenu.js: on the player)
         if (api.hold(touch.x, touch.y)) return;
+        if (map_view()) return;     // a mousedown would close the map (ui.js)
         var init = { bubbles: true, cancelable: true, view: window,
                      clientX: touch.x, clientY: touch.y,
                      button: 2, buttons: 2 };
@@ -1131,13 +1144,45 @@ function ($, comm, api, renderer, enums, options, player, view_data) {
             && g.get_input_mode() === enums.mouse_mode.COMMAND;
     }
     // Map view (X / Find): webtiles crawl ignores clicks there (only local
-    // tiles handles them), so steer the map cursor with keys instead.
+    // tiles handles them), so steer the map cursor with keys instead. Taps
+    // are handled in on_touchend: from Find the results popup is still open
+    // under the map, and ui.js's click-outside handler would send Esc.
     var MAP_STEP = { "-1,-1": "y", "0,-1": "k", "1,-1": "u", "-1,0": "h",
                      "1,0": "l", "-1,1": "b", "0,1": "j", "1,1": "n" };
-    function map_tap(x, y)
+    function map_view()
     {
+        return renderer.ui_state === enums.ui.VIEW_MAP && !!renderer.view;
+    }
+
+    // dungeon cell under a screen point: through crt.js's curved screen the
+    // same way its mouse forwarding does (depth is off in the map view)
+    function cell_at(target, px, py)
+    {
+        var canvas = document.getElementById("dungeon");
+        if (!canvas) return null;
+        if (target && target.id === "sdc_screen")
+        {
+            var r = target.getBoundingClientRect();
+            var k = api.settings.filter === "curved" ? api.curve_k() : 0;
+            var cx = ((px - r.left) / r.width) * 2 - 1;
+            var cy = ((py - r.top) / r.height) * 2 - 1;
+            var f = (1 + k * (cx * cx + cy * cy)) / (1 + k);
+            var du = api.depth_unmap((cx * f + 1) / 2, (cy * f + 1) / 2);
+            px = r.left + du[0] * r.width;
+            py = r.top + du[1] * r.height;
+        }
+        var s = renderer.scaled_size(px, py);
+        var c = renderer.scaled_size();
+        return { x: Math.floor(s.width / c.width) + renderer.view.x,
+                 y: Math.floor(s.height / c.height) + renderer.view.y };
+    }
+
+    function map_tap(target, px, py)
+    {
+        var cell = cell_at(target, px, py);
         var cur = view_data.cursor_locs[enums.CURSOR_MAP];
-        if (!cur) return false;
+        if (!cell || !cur) return;
+        var x = cell.x, y = cell.y;
         var dx = x - cur.x, dy = y - cur.y;
         buzz();
         // within a cell of the cursor counts as a hit (fingers are fat and
@@ -1145,7 +1190,7 @@ function ($, comm, api, renderer, enums, options, player, view_data) {
         if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1)
         {
             send_keys(".");
-            return true;
+            return;
         }
         var keys = "";
         while (dx || dy)
@@ -1156,20 +1201,10 @@ function ($, comm, api, renderer, enums, options, player, view_data) {
             dy -= sy;
         }
         send_keys(keys);
-        return true;
     }
 
     renderer.handle_mouse = function (ev)
     {
-        if (ev.type === "mousedown" && ev.button === 0 && active()
-            && this.view && this.ui_state === enums.ui.VIEW_MAP)
-        {
-            var s = this.scaled_size(ev.clientX, ev.clientY);
-            var c = this.scaled_size();
-            if (map_tap(Math.floor(s.width / c.width) + this.view.x,
-                        Math.floor(s.height / c.height) + this.view.y))
-                return;
-        }
         if (ev.type === "mousedown" && ev.button === 0 && active()
             && !ev.shiftKey && !ev.ctrlKey && player.pos && this.view
             && this.ui_state !== enums.ui.VIEW_MAP && command_mode()
