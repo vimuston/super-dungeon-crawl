@@ -139,7 +139,16 @@ for one step (a long swipe runs), long-press to describe; any tap continues
 past `--more--`. The HP/MP pill (top-left) opens the character sheet and
 quick buttons; Tools (top-right) has the menus, the on-screen keyboard and
 zoom (or pinch the dungeon). Messages appear in a fading bubble; tap it for
-the log.
+the log, and y/n questions get Yes / No buttons.
+
+Menus get touch layouts too (setting "Mobile menus", on with the mobile UI by
+default): full-screen popups with a close button and the key hints as buttons.
+Skills are one tappable list (tap = off / on / focus, ◎ sets a training
+target, i describes), spells are cards (tap = cast, i = details, power /
+range view), character selection is a single grouped list (first tap
+previews, Choose picks), the `%` overview is a card sheet (HP/MP bars, stats,
+resistance pips, tappable equipment, status chips; "Text view" for the
+original), and number prompts get a keypad.
 
 ## Building
 

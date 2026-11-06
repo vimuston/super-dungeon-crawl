@@ -11,7 +11,7 @@
 //   - messages: the message pane is hidden; new messages show in a small
 //     translucent bubble above the bottom bar that fades out. Tap the bubble
 //     for the recent log (or to answer --more--). Text prompts bring the
-//     pane back automatically.
+//     pane back automatically. y/n prompts get Yes / No buttons.
 //   - big thumb buttons: Fight (Tab) bottom-left, Explore (o) bottom-right.
 //   - dungeon touch: tap = click a tile (travel / attack), swipe = one step
 //     in 8 directions (a long swipe runs), long-press = describe.
@@ -506,11 +506,20 @@ function ($, comm, api, renderer, enums, options) {
         return !!more && window.getComputedStyle(more).display !== "none";
     }
 
+    var YN_RE = /[(\[]\s*y\s*\/\s*n\s*[)\]]|[(\[]y\/n\/q[)\]]/i;
+
+    function last_text()
+    {
+        var last = recent[recent.length - 1];
+        return last ? last.textContent : "";
+    }
+
+    function hide_now() { hide_bubble(true); }
+
     function prompt_pending()
     {
         if (more_pending()) return true;
-        var last = recent[recent.length - 1];
-        var text = last ? last.textContent : "";
+        var text = last_text();
         return /\?\s*(\(y\/n\)|\[[^\]]*\])?\s*_?\s*$/i.test(text)
             || /\(y\/n\)/i.test(text);
     }
@@ -542,6 +551,15 @@ function ($, comm, api, renderer, enums, options) {
             more.className = "sdc-m-more";
             more.textContent = "-- tap for more --";
             bubble.appendChild(more);
+        }
+        else if (pinned && YN_RE.test(last_text()))
+        {
+            // yes/no prompts: answer with a tap, no keyboard needed
+            var yn = document.createElement("div");
+            yn.className = "sdc-m-yn";
+            yn.appendChild(key_button("Yes", "y", hide_now)[0]);
+            yn.appendChild(key_button("No", "n", hide_now)[0]);
+            bubble.appendChild(yn);
         }
         bubble.classList.remove("sdc-m-fade");
         bubble.classList.add("sdc-m-show");
