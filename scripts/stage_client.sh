@@ -20,8 +20,10 @@ s="$SRC/crawl-ref/source"
 # the client: stock files restored, overlay copied, entry points hooked
 git -C "$SRC" checkout -- \
   crawl-ref/source/webserver/game_data/static/game.js \
-  crawl-ref/source/webserver/game_data/templates/game.html
+  crawl-ref/source/webserver/game_data/templates/game.html \
+  crawl-ref/source/webserver/templates/client.html
 cp -r "$HERE/overlay/webserver/game_data/." "$s/webserver/game_data/"
+cp -r "$HERE/overlay/webserver/static/." "$s/webserver/static/"
 python3 "$HERE/scripts/patch_client.py" "$s/webserver/game_data"
 
 # saves/ and rcs/ belong to the player: leave them alone on a re-stage

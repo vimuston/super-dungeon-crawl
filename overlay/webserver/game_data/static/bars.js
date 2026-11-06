@@ -1,46 +1,35 @@
-// HP/MP vitals: slim glowing bars in the #sdc_vitals panel, and where that
-// panel sits. Styles live in bars.css.
+// HP/MP vitals: text-cell bars in the #sdc_vitals panel (drawn like the
+// Afterglow HUD: CELLS glyphs, a full block per lit cell and a shaded block
+// per empty one, glowing in the bar colour), and where that panel sits.
+// Styles live in bars.css.
 //
 // Contract with crt.js:
 //   build()        -> HTML string inserted into #sdc_vitals under the name
 //   update(player) -> called on every HUD update; returns hp/hp_max (0..1)
 //
-// Each bar is a stack of absolutely positioned layers inside .sdc-track:
-//   fill    current safe value
-//   poison  HP that the current poison will still eat (HP only)
-//   cap     max reduced below its real value (drain etc.), hatched end cap
+// Each cell of .sdc-track is one span; its class says what it shows:
+//   sdc-on      current safe value
+//   sdc-poison  HP that the current poison will still eat (HP only)
+//   sdc-ghost   just lost; drains back to off after a beat
+//   sdc-off     empty
+//   sdc-cap     max reduced below its real value (drain etc.)
 //
 // The status badges, the HP/MP panel and the stats card are always one
 // merged unit (#sdc_corner); HP/MP sit at the top of the card.
 //
-// Options:
-//   "hud_pos"  top-left / bottom-left / top-center / bottom-center /
-//              bottom-right. Put on <body data-sdc-hud-pos>;
-//              bars.css anchors #sdc_corner from it (top positions
-//              stack HP bars, card, then badges; bottom ones badges on top).
-//              The unit's height is published as --sdc-corner-h on <body>
-//              so the quick-use bar can sit above it (bottom-center) or below
-//              it (top-left).
+// Position: always top-left (it used to be the "hud_pos" option). It is put
+// on <body data-sdc-hud-pos>; bars.css anchors #sdc_corner from it (HP bars,
+// card, then badges). The unit's height is published as --sdc-corner-h on
+// <body>.
 define(["jquery", "./sdc_api"], function ($, api) {
     "use strict";
 
-    var POSITIONS = [["top-left", "Top left"], ["bottom-left", "Bottom left"],
-                     ["top-center", "Top centre"],
-                     ["bottom-center", "Bottom centre"],
-                     ["bottom-right", "Bottom right"]];
-
-    api.register_option({
-        key: "hud_pos",
-        label: "Stats & HP position",
-        default: "top-left",
-        choices: POSITIONS,
-    });
-
-    function position()
+    var POSITION = "top-left";
+    // a stale stored choice from the old option
+    if ("hud_pos" in api.settings)
     {
-        var v = api.get("hud_pos");
-        var ok = POSITIONS.some(function (c) { return c[0] === v; });
-        return ok ? v : "top-left";
+        delete api.settings.hud_pos;
+        api.save();
     }
 
     // Placement ----------------------------------------------------------------
@@ -84,7 +73,7 @@ define(["jquery", "./sdc_api"], function ($, api) {
 
     function place()
     {
-        document.body.setAttribute("data-sdc-hud-pos", position());
+        document.body.setAttribute("data-sdc-hud-pos", POSITION);
 
         var vitals = document.getElementById("sdc_vitals");
         var corner = document.getElementById("sdc_corner");
@@ -112,28 +101,30 @@ define(["jquery", "./sdc_api"], function ($, api) {
     });
     api.on("hud_update", sync);
     api.on("setting", function (key) {
-        if (key === "hud_pos")
-            place();
-        else if (key === "stats_skin")
+        if (key === "stats_skin")
             window.requestAnimationFrame(sync);
     });
     if (document.body)
-        document.body.setAttribute("data-sdc-hud-pos", position());
+        document.body.setAttribute("data-sdc-hud-pos", POSITION);
 
     // Markup -------------------------------------------------------------------
 
     // Last drawn state per bar ("hp"/"mp"), reset whenever the HUD is rebuilt.
     var state = {};
 
+    var CELLS = 10;
+    var FULL = "█", SHADE = "░";
+    var GHOST_MS = 650;          // how long a lost cell stays lit
+    var ghost_timer = {};
+
     function bar(key, label)
     {
+        var cells = "";
+        for (var i = 0; i < CELLS; i++)
+            cells += '<span class="sdc-c sdc-off">' + SHADE + '</span>';
         return '<div class="sdc-bar sdc-' + key + '">'
             + '<span class="sdc-lbl">' + label + '</span>'
-            + '<span class="sdc-track">'
-            + '<span class="sdc-fill"></span>'
-            + '<span class="sdc-poison"></span>'
-            + '<span class="sdc-cap"></span>'
-            + '</span>'
+            + '<span class="sdc-track">' + cells + '</span>'
             + '<span class="sdc-val"><span class="sdc-cur"></span>'
             + '<span class="sdc-sep">/</span><span class="sdc-max"></span>'
             + '<span class="sdc-real"></span></span>'
@@ -143,6 +134,10 @@ define(["jquery", "./sdc_api"], function ($, api) {
     function build()
     {
         state = {};
+        Object.keys(ghost_timer).forEach(function (k) {
+            clearTimeout(ghost_timer[k]);
+        });
+        ghost_timer = {};
         return '<div class="sdc-bars">'
             + bar("hp", "HP") + bar("mp", "MP")
             + '</div>';
@@ -156,18 +151,27 @@ define(["jquery", "./sdc_api"], function ($, api) {
         return isFinite(x) ? Math.round(x) : 0;
     }
 
-    function pct(x, total)
+    // How many of the CELLS a value fills. Anything above zero lights at
+    // least one cell and anything short of full leaves one dark, so "alive"
+    // and "not full" always read at a glance.
+    function cells(x, total)
     {
-        return (100 * Math.max(0, x) / total).toFixed(3) + "%";
+        if (x <= 0) return 0;
+        if (x >= total) return CELLS;
+        return Math.max(1, Math.min(CELLS - 1, Math.round(x / total * CELLS)));
     }
 
-    // Apply css without transitions (initial draw, rescaled max).
-    function snap($el, css)
+    function paint($cells, kinds)
     {
-        if (!$el.length) return;
-        $el.addClass("sdc-snap").css(css);
-        void $el[0].offsetWidth;
-        $el.removeClass("sdc-snap");
+        $cells.each(function (i) {
+            var k = kinds[i];
+            var cls = "sdc-c sdc-" + k;
+            if (this.className !== cls)
+                this.className = cls;
+            var ch = k === "off" || k === "cap" ? SHADE : FULL;
+            if (this.textContent !== ch)
+                this.textContent = ch;
+        });
     }
 
     // value/max: current and (possibly reduced) maximum; real_max: unreduced
@@ -187,35 +191,43 @@ define(["jquery", "./sdc_api"], function ($, api) {
             return value / max;
 
         var $bar = $("#sdc_vitals .sdc-" + key);
-        var $fill = $bar.find(".sdc-fill");
-        var $poison = $bar.find(".sdc-poison");
-        var fill_css = { width: pct(safe, total) };
-        var poison_css = { left: pct(safe, total),
-                           width: pct(value - safe, total) };
+        var $cells = $bar.find(".sdc-c");
+        var n_safe = cells(safe, total);
+        var n_val = cells(value, total);
+        var n_max = cells(max, total);
+        // a loss on the same scale leaves the lost cells (plus any trail
+        // still showing) lit for a beat; a gain clears the trail
+        var lit_before = !prev ? 0
+            : ghost_timer[key] ? prev.n_ghost : prev.n_lit;
+        var n_ghost = prev && prev.total === total && value < prev.value
+            ? Math.max(n_val, lit_before) : n_val;
 
-        if (!prev || prev.total !== total)
+        function kinds(lit_to)
         {
-            // first draw or rescaled: no animation
-            snap($fill, fill_css);
-            snap($poison, poison_css);
+            var out = [];
+            for (var i = 0; i < CELLS; i++)
+                out.push(i < n_safe ? "on" : i < n_val ? "poison"
+                         : i < lit_to ? "ghost" : i < n_max ? "off" : "cap");
+            return out;
         }
-        else
-        {
-            $fill.css(fill_css);
-            $poison.css(poison_css);
-        }
+        paint($cells, kinds(n_ghost));
+        clearTimeout(ghost_timer[key]);
+        ghost_timer[key] = null;
+        if (n_ghost > n_val)
+            ghost_timer[key] = setTimeout(function () {
+                ghost_timer[key] = null;
+                if (state[key]) state[key].n_ghost = n_val;
+                paint($cells, kinds(n_val));
+            }, GHOST_MS);
 
-        $bar.find(".sdc-cap").css({
-            left: pct(max, total),
-            width: pct(total - max, total),
-        });
         $bar.find(".sdc-cur").text(value);
         $bar.find(".sdc-max").text(max);
         $bar.find(".sdc-real").text(total > max ? "(" + total + ")" : "");
         $bar.attr("class", "sdc-bar sdc-" + key
                   + (classes ? " " + classes : ""));
 
-        state[key] = { sig: sig, value: value, total: total };
+        state[key] = { sig: sig, value: value, total: total,
+                       n_lit: n_val, n_ghost: n_ghost };
         return value / max;
     }
 

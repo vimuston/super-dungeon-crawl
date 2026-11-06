@@ -25,7 +25,7 @@ patches (see [Crawl patches](#crawl-patches)).
   band, and text gets a phosphor glow. When HP is low, red bleeds in from the
   tube edges.
 - **HUD**: the dungeon takes the full width. Status badges, slim HP/MP bars
-  and a compact stats strip form one panel (five positions to choose from).
+  and a compact stats strip form one panel in the top-left corner.
   The quick-use bar becomes an action bar at the bottom; a small minimap and
   monster list sit top-right.
 - **Lighting**: fire, lava, torches, lightning, cold, poison, magic, portals,
@@ -136,10 +136,18 @@ covers the HUD layout, splash text, CRT filter strength, living tiles, the
 
 **Touch** (phones and the Android app): tap a tile to travel or attack, swipe
 for one step (a long swipe runs), long-press to describe; any tap continues
-past `--more--`. The HP/MP pill (top-left) opens the character sheet and
-quick buttons; Tools (top-right) has the menus, the on-screen keyboard and
-zoom (or pinch the dungeon). Messages appear in a fading bubble; tap it for
+past `--more--`. Tap the HP/MP pill (top-left) to enlarge it to the full
+stats card. Tools (top-right) has the menus, the on-screen keyboard and zoom
+(or pinch the dungeon). Tools > Macros defines your own key sequences, each
+with an optional emoji in place of its label; pin a macro to keep it on
+screen above Explore. Messages appear in a fading bubble; tap it for
 the log, and y/n questions get Yes / No buttons.
+
+Long-press your own character for the orb menu: a ring of orbs around you.
+Slide (or tap) onto Spells, Evoke or Abilities to fan out your spells,
+wands and evokers, or abilities, and lift on one to use it; the other orbs
+are your own actions (Pick up, Map, Rest, Look by default). Long-press any
+orb in the ring to replace it, or use the + orb to add, move and remove.
 
 Menus get touch layouts too (setting "Mobile menus", on with the mobile UI by
 default): full-screen popups with a close button and the key hints as buttons.
@@ -311,6 +319,10 @@ stops the build; `SDC_ALLOW_PATCH_FAIL=1` builds without it instead.
 - `webtiles-abilities.patch` (`tileweb.cc/.h`): the webtiles `player` message
   gets an `abilities` field (the god invocations of the `a` menu), which the
   quick-use bar shows as a group in front of the item slots.
+- `webtiles-spells.patch` (`tileweb.cc/.h`): the `player` message also gets
+  `spells` (memorised spells with letter, MP, fail %), `talents` (every
+  ability) and `evokables` (evocable inventory items), for the mobile orb
+  menu. Without it the orb menu falls back to the stock `z` / `a` / `V` menus.
 
 To revert them, `git checkout` those files in `$SDC_BUILD/crawl` and rebuild.
 
@@ -350,6 +362,8 @@ overlay/                      copied over crawl-ref/source/
     light.js, alive.js, depth.js   lighting, living tiles, 2.5D data for the shader
     mobile.js/.css            mobile/touch layout
     (+ bars, stats, toolbar, quickbar, crt_splash and the *fx effect modules)
+  webserver/static/
+    sdc_title.png, sdc_loader.css   loading screen (title art + progress bar)
 patches/                      crawl source patches
 scripts/
   setup.sh, run.sh, apply.sh  local server: build, start, apply the client
@@ -357,7 +371,7 @@ scripts/
   apply_patches.sh            patches/ into a crawl checkout (every build)
   stage_client.sh             client + game data for the Android / Windows builds
   package-server.sh           Linux server tarball
-  patch_client.py             hooks crt.js into game.js / game.html
+  patch_client.py             hooks crt.js into game.js / game.html, loader into client.html
   ensure_user.py              creates the autologin user
   deploy-static.sh            copy changed static files into the checkout
   build-android.sh            Android toolchain + APK

@@ -71,7 +71,8 @@ define(["jquery"], function ($) {
     }
 
     // Declare a setting with a default. If `choices` is given the option is
-    // listed in the settings panel ([value, label] pairs; booleans work too).
+    // listed in the settings panel ([value, label] pairs; booleans work too);
+    // `tab` puts an option crt.js does not place itself on a tab of that name.
     function register_option(opt)
     {
         if (!(opt.key in settings))
@@ -201,6 +202,14 @@ define(["jquery"], function ($) {
         return alive_source;
     }
 
+    // Unexplored-edge mask (fogedge.js): fn(t) -> null or
+    //   {data: Uint8Array (cols*rows*4, row 0 = top, R = 255 never seen),
+    //    cols, rows, dirty (crt.js uploads, then clears it), amt (0..1),
+    //    vx, vy (map coords of the top-left cell), t (seconds)}.
+    var fog_source = null;
+    function set_fog_source(fn) { fog_source = fn; }
+    function get_fog_source() { return fog_source; }
+
     // 2.5D view provider (depth.js): fn(t) -> null or
     //   {data: Uint8Array (cols*rows*4, row 0 = top), cols, rows,
     //    dirty (crt.js uploads, then clears it), amt (0..1 fade), h (wall
@@ -313,6 +322,28 @@ define(["jquery"], function ($) {
         return anchor_source ? anchor_source() : null;
     }
 
+    // Long-press claims (mobile.js asks before its stock describe):
+    // on_hold(fn), fn(x, y) -> true if it took the hold at client px x/y.
+    // hold(x, y) asks each claimant in order; the first taker wins.
+    var hold_fns = [];
+    function on_hold(fn)
+    {
+        hold_fns.push(fn);
+    }
+
+    function hold(x, y)
+    {
+        for (var i = 0; i < hold_fns.length; i++)
+        {
+            try
+            {
+                if (hold_fns[i](x, y)) return true;
+            }
+            catch (e) { warn("hold", e); }
+        }
+        return false;
+    }
+
     // CRT barrel strength per "Curvature" level (shader k). Modules that map
     // screen positions through the curved screen use curve_k().
     var CURVES = { subtle: 0.02, low: 0.04, medium: 0.06, high: 0.08,
@@ -346,6 +377,8 @@ define(["jquery"], function ($) {
         get_alive_source: get_alive_source,
         set_depth_source: set_depth_source,
         get_depth_source: get_depth_source,
+        set_fog_source: set_fog_source,
+        get_fog_source: get_fog_source,
         depth_unmap: depth_unmap_uv,
         depth_map: depth_map_uv,
         set_fx: set_fx,
@@ -354,6 +387,8 @@ define(["jquery"], function ($) {
         get_fx: get_fx,
         set_player_anchor: set_player_anchor,
         player_anchor: player_anchor,
+        on_hold: on_hold,
+        hold: hold,
         warn: warn,
         reduced_motion: reduced_motion,
     };

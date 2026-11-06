@@ -94,7 +94,7 @@ body.sdc-mobile #sdc_m_bubble.sdc-m-show {
     font: 12px/1.3 var(--stat-font);
     color: var(--color-7, #ccc);
     background: rgba(2, 10, 5, 0.55);
-    border: 1px solid rgba(109, 255, 168, 0.2);
+    border: 1px solid color-mix(in srgb, var(--sdc-accent) 20%, transparent);
     border-radius: 4px;
     -webkit-backdrop-filter: blur(1px);
     backdrop-filter: blur(1px);
@@ -124,7 +124,7 @@ body.sdc-hud.sdc-mapview #sdc_m_bubble,
 body.sdc-mobile.sdc-m-log #sdc_m_bubble,
 body.sdc-mobile:has(#message_pane input) #sdc_m_bubble { display: none !important; }
 
-/* ------------------------------------------------ vitals pill + sheet */
+/* ----------------------------------------- vitals pill + enlarged view */
 
 /* the merged stats unit pinned top-left, reduced to the HP/MP bars */
 html body.sdc-mobile #sdc_corner {
@@ -146,9 +146,9 @@ html body.sdc-mobile #sdc_vitals {
     cursor: pointer;
 }
 html body.sdc-mobile #sdc_vitals .sdc-name { display: none; }
-html body.sdc-mobile #sdc_vitals .sdc-bar { height: 10px; gap: 4px; }
-html body.sdc-mobile #sdc_vitals .sdc-lbl { display: none; }
-html body.sdc-mobile #sdc_vitals .sdc-val { min-width: 44px; font-size: 10px; }
+html body.sdc-mobile #sdc_vitals .sdc-bar { gap: 4px; font-size: 10px; }
+html body.sdc-mobile #sdc_vitals .sdc-lbl { font-size: 10px; }
+html body.sdc-mobile #sdc_vitals .sdc-val { font-size: 10px; }
 html body.sdc-mobile #sdc_vitals .sdc-real { display: none; }
 html body.sdc-mobile #sdc_statuses {
     order: 1;
@@ -157,7 +157,6 @@ html body.sdc-mobile #sdc_statuses {
     pointer-events: auto;
 }
 html body.sdc-mobile #sdc_stats { display: none; order: 2; }
-#sdc_m_sheet { display: none; }
 /* AC / EV / SH: a third line in the pill, numbers styled like the HP/MP
    values. Calm at rest; a change pops the chip and floats "+N" / "-N". */
 #sdc_m_def { display: none; }
@@ -199,7 +198,7 @@ html body.sdc-mobile.sdc-m-open #sdc_m_def { display: none; }
 #sdc_m_def .sdc-m-counter[data-rate="none"],
 #sdc_m_def .sdc-m-counter[data-rate="normal"],
 #sdc_m_def .st-turns { opacity: 0.75; }
-#sdc_m_def .sdc-m-counter[data-rate="fast"] { color: #6dffa8; }
+#sdc_m_def .sdc-m-counter[data-rate="fast"] { color: var(--sdc-accent); }
 #sdc_m_def .sdc-m-counter[data-rate="slow"] { color: #ffc24d; }
 #sdc_m_def .sdc-m-counter[data-rate="vslow"] { color: #ff5c5c; }
 #sdc_m_def .sdc-m-counter[data-rate] .sdc-ico { color: inherit; }
@@ -262,17 +261,10 @@ html body.sdc-mobile.sdc-m-open #sdc_m_def { display: none; }
 }
 
 
-/* open: name line, full stats card and the buttons */
+/* open (tap the pill): name line, labels and the full stats card */
 html body.sdc-mobile.sdc-m-open #sdc_vitals { width: auto !important; min-width: 220px; }
 html body.sdc-mobile.sdc-m-open #sdc_vitals .sdc-name { display: block; }
-html body.sdc-mobile.sdc-m-open #sdc_vitals .sdc-lbl { display: inline-block; }
 html body.sdc-mobile.sdc-m-open #sdc_stats { display: block; }
-html body.sdc-mobile.sdc-m-open #sdc_m_sheet {
-    display: block;
-    order: 3;
-    padding: 6px;
-    max-width: 340px;
-}
 
 /* --------------------------------------------------------- buttons */
 
@@ -285,11 +277,11 @@ html body.sdc-mobile.sdc-m-open #sdc_m_sheet {
     background: rgba(0, 0, 0, 0.65);
     border: 1px solid var(--sdc-accent-dim);
     border-radius: 3px;
-    box-shadow: 0 0 6px rgba(109, 255, 168, 0.12);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--sdc-accent) 12%, transparent);
     touch-action: manipulation;
 }
 .sdc-m-btn:active {
-    background: rgba(109, 255, 168, 0.18);
+    background: color-mix(in srgb, var(--sdc-accent) 18%, transparent);
     box-shadow: 0 0 10px var(--sdc-accent-dim);
 }
 .sdc-m-ghost { opacity: 0.7; }
@@ -368,8 +360,8 @@ body.sdc-mobile .sdc-m-big {
     letter-spacing: 0.04em;
     background: rgba(2, 10, 5, 0.55);
     border-width: 2px;
-    box-shadow: 0 0 12px rgba(109, 255, 168, 0.25),
-                inset 0 0 10px rgba(109, 255, 168, 0.12);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--sdc-accent) 25%, transparent),
+                inset 0 0 10px color-mix(in srgb, var(--sdc-accent) 12%, transparent);
     opacity: 0.85;
 }
 body.sdc-mobile #sdc_m_fight {
@@ -385,21 +377,60 @@ body.sdc-mobile #sdc_m_explore {
 body.sdc-mobile .sdc-m-big:active { opacity: 1; transform: scale(0.95); }
 body.sdc-hud.sdc-mapview .sdc-m-big { display: none; }
 
-/* pinned quick buttons, bottom-right above Explore */
-body.sdc-mobile.sdc-m-pinned #sdc_m_pin {
+/* map view exit, bottom-centre (only while the X map is up) */
+#sdc_m_mapclose { display: none; }
+body.sdc-mobile.sdc-mapview #sdc_m_mapclose {
+    display: block;
+    position: fixed;
+    left: 50%;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 3200;
+    padding: 10px 22px;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    background: rgba(2, 10, 5, 0.75);
+    border-width: 2px;
+    box-shadow: 0 0 12px color-mix(in srgb, var(--sdc-accent) 25%, transparent);
+}
+body.sdc-mobile.sdc-mapview #sdc_m_mapclose:active {
+    transform: translateX(-50%) scale(0.95);
+}
+
+/* pinned macros, bottom-right above Explore */
+/* same round glowing look as the thumb buttons, a size smaller and centred
+   over Explore (76px wide at right 12px) */
+body.sdc-mobile #sdc_m_pin:not(:empty) {
     display: flex;
     flex-direction: column-reverse;
-    gap: 6px;
+    align-items: center;
+    gap: 8px;
     position: fixed;
     right: calc(12px + env(safe-area-inset-right));
-    bottom: calc(100px + env(safe-area-inset-bottom));
+    bottom: calc(110px + env(safe-area-inset-bottom));
+    width: 76px;
     z-index: 7;
 }
-body.sdc-mobile.sdc-m-pinned #sdc_m_pin .sdc-m-btn {
-    min-width: 56px;
-    min-height: 44px;
-    opacity: 0.8;
+body.sdc-mobile #sdc_m_pin .sdc-m-btn {
+    width: 58px;
+    height: 58px;
+    min-width: 0;
+    min-height: 0;
+    padding: 0 4px;
+    border-radius: 50%;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: rgba(2, 10, 5, 0.55);
+    border-width: 2px;
+    box-shadow: 0 0 12px color-mix(in srgb, var(--sdc-accent) 25%, transparent),
+                inset 0 0 10px color-mix(in srgb, var(--sdc-accent) 12%, transparent);
+    opacity: 0.85;
 }
+body.sdc-mobile #sdc_m_pin .sdc-m-btn.sdc-m-emoji { font-size: 24px; padding: 0; }
+body.sdc-mobile #sdc_m_pin .sdc-m-btn:active { opacity: 1; transform: scale(0.95); }
 
 /* settings panel fits the phone */
 body.sdc-mobile #sdc_panel {
@@ -417,6 +448,103 @@ body.sdc-mobile #sdc_panel .sdc-opt button { padding: 6px 9px; }
     .sdc-m-more { animation: none; }
 }
 
+/* find panel (Tools > Find), top-right like the tools menu */
+#sdc_m_find { display: none; }
+body.sdc-mobile.sdc-m-find #sdc_m_find {
+    display: block;
+    position: fixed;
+    top: calc(52px + env(safe-area-inset-top));
+    right: calc(6px + env(safe-area-inset-right));
+    z-index: 3200;
+    width: min(360px, calc(100vw - 12px));
+    max-height: calc(100vh - 64px);
+    overflow-y: auto;
+    padding: 8px;
+    box-sizing: border-box;
+    background: rgba(2, 10, 5, 0.94);
+    touch-action: pan-y;
+}
+#sdc_m_find .sdc-m-findform { margin-top: 0; flex-wrap: nowrap; }
+#sdc_m_find .sdc-m-findform input { min-height: 36px; box-sizing: border-box; }
+#sdc_m_find .sdc-m-findhead {
+    margin: 8px 0 4px;
+    font: 10px/1 var(--stat-font);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sdc-accent);
+    opacity: 0.6;
+}
+#sdc_m_find .sdc-m-findchips { display: flex; flex-wrap: wrap; gap: 5px; }
+#sdc_m_find .sdc-m-findgrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+}
+#sdc_m_find .sdc-m-findgrid .sdc-m-btn { padding: 4px 2px; font-size: 11px; }
+#sdc_m_find > .sdc-m-hint { margin-top: 8px; }
+
+/* macros panel (Tools > Macros), same place as find */
+#sdc_m_macros { display: none; }
+body.sdc-mobile.sdc-m-macros #sdc_m_macros {
+    display: block;
+    position: fixed;
+    top: calc(52px + env(safe-area-inset-top));
+    right: calc(6px + env(safe-area-inset-right));
+    z-index: 3200;
+    width: min(360px, calc(100vw - 12px));
+    max-height: calc(100vh - 64px);
+    overflow-y: auto;
+    padding: 8px;
+    box-sizing: border-box;
+    background: rgba(2, 10, 5, 0.94);
+    touch-action: pan-y;
+}
+#sdc_m_macros .sdc-m-mhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font: 11px/1 var(--stat-font);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sdc-accent);
+}
+#sdc_m_macros .sdc-m-mhead .sdc-m-btn { min-height: 30px; }
+#sdc_m_macros > .sdc-m-hint { margin: 2px 0 6px; }
+.sdc-m-mrow { display: flex; gap: 5px; margin-bottom: 5px; }
+.sdc-m-mrow .sdc-m-mrun {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-align: left;
+    font-size: 13px;
+}
+.sdc-m-mrow .sdc-m-ghost { flex: none; min-width: 40px; padding: 4px 6px; }
+.sdc-m-mrow .sdc-m-del::after { content: none; }
+.sdc-m-mkeys {
+    margin-left: auto;
+    font-size: 10px;
+    opacity: 0.55;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sdc-m-micon, .sdc-m-emoji {
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji",
+                 var(--stat-font);
+}
+.sdc-m-micon { font-size: 18px; line-height: 1; }
+.sdc-m-on { opacity: 1; border-color: var(--sdc-accent);
+            background: color-mix(in srgb, var(--sdc-accent) 18%, transparent); }
+.sdc-m-btn.sdc-m-emoji { font-size: 22px; line-height: 1; padding: 4px 6px; }
+#sdc_m_macros .sdc-m-form input.sdc-m-iconin {
+    flex: 0 0 64px;
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji",
+                 var(--stat-font);
+}
+
 /* zoom readout in the tools grid */
 .sdc-m-grid .sdc-m-zoomnow {
     grid-column: span 2; align-self: center; text-align: center;
@@ -430,3 +558,29 @@ body.sdc-mobile #sdc_panel .sdc-opt button { padding: 6px 9px; }
     margin-top: 6px;
 }
 .sdc-m-yn .sdc-m-btn { flex: 1 1 0; min-height: 40px; font-size: 14px; }
+
+/* level-up stat picker in the message bubble: Str / Int / Dex cards */
+.sdc-m-statpick {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+.sdc-m-statpick .sdc-m-stat {
+    flex: 1 1 0;
+    min-height: 76px;
+    padding: 6px 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+.sdc-m-stat-name {
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.sdc-m-stat-cur { font-size: 12px; opacity: 0.7; }
+.sdc-m-stat-new { font-size: 18px; text-shadow: 0 0 6px var(--sdc-accent-dim); }
+.sdc-m-stat-max { font-size: 10px; opacity: 0.6; }

@@ -14,6 +14,8 @@
 //   mindburst   "<mon> mind(s) blasted" / "is blasted smooth" / "Your mind
 //               is blasted!" (Wand of Mindburst)
 //   lightning   "Lightning arcs from your <hand>!" (Lightning Rod, thunderbolt)
+//   freeze      "You freeze <mon>!" (Freeze spell, spl-damage.cc; no damage
+//               number): the target ices over fast, Ozo's Armour style
 // Not in this crawl version (dropped): Fan of Gales, Lamp of Fire, Stone of
 // Tartarus (all removed or only a rune).
 //
@@ -25,7 +27,7 @@
 //
 // Layer: #sdc_wandfx (fxkit.layer). prefers-reduced-motion: no shake, no
 // glitch/spiral motion; marks fade in and out statically, no screen flashes.
-// Debug: window.sdc_wandfx_test("polymorph" | "charm" | "paralyse" |
+// Debug: window.sdc_wandfx_test("polymorph" | "charm" | "freeze" | "paralyse" |
 //        "petrify" | "slow" | "confuse" | "sleep" | "mindburst" |
 //        "lightning")
 define(["./sdc_api", "./fxkit"], function (api, kit) {
@@ -277,6 +279,65 @@ define(["./sdc_api", "./fxkit"], function (api, kit) {
         }
     }
 
+    // Freeze: the target ices over fast (frost closes in, Ozo-style icy
+    // glow + core + twinkles), holds briefly, then thaws off in a puff
+    function mark_chill(a)
+    {
+        var s = Math.max(a.cw, a.ch), red = kit.reduced();
+        var DUR = 1500;
+        var g = s * 1.9;                          // outer glow size
+        spawn("left:" + (a.x - g / 2) + "px;top:" + (a.y - g / 2) + "px;"
+              + "width:" + g + "px;height:" + g + "px;border-radius:50%;"
+              + "background:radial-gradient(circle,rgba(150,225,255,.75) 0,"
+              + "rgba(80,190,255,.55) 30%,rgba(50,140,255,.24) 55%,"
+              + "rgba(50,140,255,0) 75%);mix-blend-mode:screen",
+              red ? [{ opacity: 0 }, { opacity: 0.9, offset: 0.15 },
+                     { opacity: 0.9, offset: 0.75 }, { opacity: 0 }]
+                  : [{ transform: "scale(.5)", opacity: 0 },
+                     { transform: "scale(1.06)", opacity: 1, offset: 0.12 },
+                     { transform: "scale(.95)", opacity: 0.75, offset: 0.4 },
+                     { transform: "scale(1.04)", opacity: 0.95, offset: 0.65 },
+                     { transform: "scale(1.3)", opacity: 0 }],
+              { duration: DUR, easing: "ease-out" });
+        var c = s * 1.2;                          // bright frosted core
+        spawn("left:" + (a.x - c / 2) + "px;top:" + (a.y - c / 2) + "px;"
+              + "width:" + c + "px;height:" + c + "px;border-radius:50%;"
+              + "background:radial-gradient(circle,rgba(230,250,255,.7) 0,"
+              + "rgba(120,215,255,.4) 45%,rgba(110,205,255,0) 72%);"
+              + "mix-blend-mode:screen",
+              [{ opacity: 0 }, { opacity: 1, offset: 0.1 },
+               { opacity: 0.7, offset: 0.7 }, { opacity: 0 }],
+              { duration: DUR, easing: "linear" });
+        if (red) return;
+        // frost closing in on the target
+        ring(a.x, a.y, C_ICE, s * 1.1, s * 0.35, 220, 2);
+        // twinkles around the tile
+        var tw = [[-0.38, -0.32], [0.36, -0.2], [-0.22, 0.38],
+                  [0.24, 0.32], [0.02, -0.58]];
+        tw.forEach(function (p, i) {
+            spawn("left:" + (a.x + p[0] * s - 5) + "px;top:"
+                  + (a.y + p[1] * s - 5) + "px;width:11px;height:11px;"
+                  + "background:linear-gradient(#e8f8ff,#e8f8ff) center/1px 100% no-repeat,"
+                  + "linear-gradient(#e8f8ff,#e8f8ff) center/100% 1px no-repeat;"
+                  + "filter:drop-shadow(0 0 3px #bfe8ff)",
+                  [{ transform: "scale(.3) rotate(0deg)", opacity: 0 },
+                   { transform: "scale(1) rotate(45deg)", opacity: 1, offset: 0.45 },
+                   { transform: "scale(.3) rotate(90deg)", opacity: 0 }],
+                  { duration: 700, delay: 80 + i * 110, easing: "ease-in-out" });
+        });
+        // thaw puff at the end
+        var r = s * 1.4;
+        spawn("left:" + (a.x - r) + "px;top:" + (a.y - r) + "px;width:"
+              + r * 2 + "px;height:" + r * 2 + "px;border-radius:50%;"
+              + "background:radial-gradient(circle,rgba(220,245,255,.5) 0,"
+              + "rgba(140,210,255,.28) 40%,rgba(120,190,255,0) 70%);"
+              + "mix-blend-mode:screen",
+              [{ opacity: 0, transform: "scale(.7)" },
+               { opacity: 0.9, transform: "translateY(0) scale(.9)", offset: 0.2 },
+               { opacity: 0, transform: "translateY(" + (-s * 0.25) + "px) scale(1.5)" }],
+              { duration: 650, delay: DUR - 450, easing: "ease-out" });
+    }
+
     function mark_at(m, fn, a2)
     {
         var a = tile_of(m);
@@ -362,6 +423,8 @@ define(["./sdc_api", "./fxkit"], function (api, kit) {
     // Dispatch ------------------------------------------------------------------
 
     var TILE = [
+        [/^You freeze (?!yourself)/,
+         function (m) { mark_at(m, mark_chill); }],
         [/evaporates and reforms as|changes into|grows a second head|liquefies into/i,
          function (m) { mark_at(m, mark_polymorph); }, /(?:into|as) an? ([a-z' -]+)/],
         [/\bis charmed/i,
@@ -435,6 +498,7 @@ define(["./sdc_api", "./fxkit"], function (api, kit) {
         var fake = nearest ? { x: nearest.x, y: nearest.y }
                            : (p ? { x: p.x + 2, y: p.y } : null);
         var tiles = { polymorph: mark_polymorph, charm: mark_charm,
+                      freeze: mark_chill,
                       slow: mark_slow, confuse: mark_confuse,
                       sleep: mark_sleep };
         try

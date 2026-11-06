@@ -173,7 +173,9 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
     // not a hint (e.g. "Select a spell to cast") stays as a caption.
     var HINT_RE = /\[([^\]\n]{1,8})\]((?:\/\[[^\]\n]{1,8}\])*)\s*([^\[\n]*)/g;
 
-    function hint_bar(src, cls)
+    // keep(keys): optional filter; hints it rejects are dropped (no button,
+    // no caption), e.g. ones the dressed menu already offers elsewhere
+    function hint_bar(src, cls, keep)
     {
         var text = src.textContent.replace(/\s+/g, " ").trim();
         var bar = src.nextElementSibling;
@@ -191,6 +193,12 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
         {
             var keys = [m[1]].concat((m[2].match(/\[([^\]]+)\]/g) || [])
                 .map(function (s) { return s.slice(1, -1); }));
+            if (keep && !keep(keys))
+            {
+                caption = caption.replace(m[0].trim(), "");
+                found = true;
+                continue;
+            }
             var fn = null;
             for (var i = 0; i < keys.length && !fn; i++) fn = key_action(keys[i]);
             if (!fn) continue;
@@ -1175,7 +1183,20 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
             if (menu.classList.contains("menu_spell")) dress_rows(popup, "spell");
             else if (menu.classList.contains("menu_ability")) dress_rows(popup, "ability");
             var more = menu.querySelector(".menu_more");
-            if (more) hint_bar(more);
+            var spell = menu.classList.contains("menu_spell");
+            // spell menu: the header has the power/failure toggle and each
+            // row an (i) describe, so the footer keeps only Exit
+            if (more) hint_bar(more, "", spell
+                ? function (keys) { return keys.some(function (k) {
+                      return /esc/i.test(k); }); }
+                : null);
+            var bar = more && more.nextElementSibling;
+            if (spell && bar && bar.classList.contains("sdc-mm-keys")
+                && !bar.querySelector("button"))
+            {
+                bar.appendChild(btn("Exit", "", function () { send_code(27); }));
+                more.classList.add("sdc-mm-hidden");
+            }
             category_button(menu);
             return;
         }

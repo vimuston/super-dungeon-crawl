@@ -3,11 +3,15 @@
 // scoped to body.sdc-mobile, so desktop is untouched.
 //
 //   - vitals: the HP/MP panel shrinks to a small pill (top-left). Tapping
-//     it opens the character sheet: stats card, a "%" button and the
-//     customizable quick buttons (default: o explore, Tab fight).
-//   - tools (top-right): a grid of commands that are awkward without a
-//     keyboard (find, god, known items, lookup, ...), Esc / Enter, the
-//     on-screen keyboard, minimap and settings.
+//     it toggles the enlarged layout (name line + full stats card).
+//   - macros (Tools > Macros): user-defined key sequences, each with an
+//     optional emoji shown in place of the label; pinned ones stack
+//     bottom-right above Explore.
+//   - tools (top-right): a grid of commands, most used first (spells,
+//     skills, abilities, character, stairs, pick up, ...), Esc / Enter, the
+//     on-screen keyboard, minimap and settings. Find opens its own panel:
+//     a search box, recent searches and one-tap presets.
+//   - tap your own tile = pick up (g).
 //   - messages: the message pane is hidden; new messages show in a small
 //     translucent bubble above the bottom bar that fades out. Tap the bubble
 //     for the recent log (or to answer --more--). Text prompts bring the
@@ -15,22 +19,25 @@
 //   - big thumb buttons: Fight (Tab) bottom-left, Explore (o) bottom-right.
 //   - dungeon touch: tap = click a tile (travel / attack), swipe = one step
 //     in 8 directions (a long swipe runs), long-press = describe.
+//   - map view (X, or a Find result): tap the cursor = travel there; tap
+//     elsewhere = move the cursor there (tap it again to travel).
 //
 // Options:
 //   "mobile"         auto / on / off. Auto = touch screen or the wrapper.
 //   "msg_fade"       seconds the message bubble stays up.
 //   "mobile_zoom"    dungeon zoom step (Tools: Zoom +/-, pinch).
-//   "mobile_pin"     also pin the quick buttons on screen (bottom-right).
-//   "mobile_buttons" [{label, keys}] quick buttons (edited in the sheet).
+//   "mobile_macros"  [{label, keys, icon, pin}] macros (Tools > Macros).
+//                    Migrated once from the old "mobile_buttons" list.
 //
-// Key specs (quick buttons, tools): space-separated tokens. Named keys Tab,
+// Key specs (macros, tools): space-separated tokens. Named keys Tab,
 // Esc, Enter, Space, Bksp; Ctrl+X for control keys; anything else is typed
 // as characters ("za" = z then a).
 //
 // The wrapper (android/) calls window.sdcBack() for the back button and
 // exposes window.SdcNative ({isLocal(), manageSaves()}).
-define(["jquery", "comm", "./sdc_api", "./dungeon_renderer", "./enums", "./options"],
-function ($, comm, api, renderer, enums, options) {
+define(["jquery", "comm", "./sdc_api", "./dungeon_renderer", "./enums", "./options",
+        "./player", "./view_data"],
+function ($, comm, api, renderer, enums, options, player, view_data) {
     "use strict";
 
     api.register_option({ key: "mobile", label: "Mobile UI", default: "on",
@@ -38,9 +45,6 @@ function ($, comm, api, renderer, enums, options) {
                                     ["off", "Off"]] });
     api.register_option({ key: "msg_fade", label: "Message fade (s)",
                           default: 5, range: { min: 2, max: 15, step: 1 } });
-    api.register_option({ key: "mobile_pin", label: "Pin quick buttons",
-                          default: false,
-                          choices: [[true, "On"], [false, "Off"]] });
     // Stock webtiles shrinks tiles until a 17-cell diameter fits, which is
     // ~20px on a landscape phone. Zoom k shows 17/k cells across the short
     // side instead (fit_to is wrapped below; click mapping stays stock).
@@ -49,19 +53,34 @@ function ($, comm, api, renderer, enums, options) {
                           default: 0,
                           choices: [[0, "Fit"], [1, "1.5x"], [2, "2x"],
                                     [3, "3x"], [4, "4x"]] });
-    var DEFAULT_BUTTONS = [{ label: "Explore", keys: "o" },
-                           { label: "Fight", keys: "Tab" }];
-    api.register_option({ key: "mobile_buttons", default: DEFAULT_BUTTONS });
+    // Macros: no defaults (Fight / Explore have their own thumb buttons).
+    api.register_option({ key: "mobile_macros", default: null });
+    migrate_macros();
 
+    // Most used first. A function instead of keys opens a panel.
     var TOOLS = [
-        ["Find", "Ctrl+F"], ["God", "^"], ["Known items", "\\"],
-        ["Lookup", "?/"], ["In view", "Ctrl+X"], ["Look", "x"],
-        ["Map", "X"], ["Travel", "G"], ["History", "Ctrl+P"],
-        ["Inventory", "i"], ["Spells", "I"], ["Abilities", "a"],
-        ["Skills", "m"], ["Character", "%"], ["Rest", "5"],
-        ["Wait", "s"], ["Pick up", "g"], ["Up <", "<"], ["Down >", ">"],
-        ["Esc", "Esc"], ["Enter", "Enter"],
+        ["Spells", "I"], ["Skills", "m"], ["Abilities", "a"],
+        ["Character", "%"], ["Up <", "<"], ["Down >", ">"],
+        ["Pick up", "g"], ["Inventory", "i"], ["Rest", "5"],
+        ["Wait", "s"], ["Find", function () { toggle_find(true); }],
+        ["Macros", function () { toggle_macros(true); }], ["Map", "X"],
+        ["Travel", "G"], ["Look", "x"], ["In view", "Ctrl+X"],
+        ["God", "^"], ["Known items", "\\"], ["Lookup", "?/"],
+        ["History", "Ctrl+P"], ["Esc", "Esc"], ["Enter", "Enter"],
     ];
+
+    // Find (Ctrl+F) presets: crawl matches item names plus class prefixes
+    // ("weapon", "artefact", ...) and dungeon features.
+    var FIND_PRESETS = [
+        ["Stairs", "stair"], ["Altars", "altar"], ["Shops", "shop"],
+        ["Portals", "portal"], ["Runes", "rune"], ["Artefacts", "artefact"],
+        ["Potions", "potion"], ["Scrolls", "scroll"], ["Wands", "wand"],
+        ["Jewellery", "jewellery"], ["Armour", "armour"],
+        ["Weapons", "weapon"], ["Books", "book"], ["Staves", "staff"],
+        ["Everything", "."],
+    ];
+    var FIND_RECENT_MAX = 6;
+    api.register_option({ key: "mobile_find_recent", default: [] });
 
     var NAMED = { tab: 9, esc: 27, escape: 27, enter: 13, ret: 13,
                   space: 32, bksp: 8, backspace: 8 };
@@ -169,10 +188,43 @@ function ($, comm, api, renderer, enums, options) {
         });
     }
 
-    function buttons()
+    function macros()
     {
-        var b = api.get("mobile_buttons");
-        return Array.isArray(b) ? b : DEFAULT_BUTTONS.slice();
+        var m = api.get("mobile_macros");
+        return Array.isArray(m) ? m : [];
+    }
+
+    function set_macros(list)
+    {
+        api.set("mobile_macros", list);
+    }
+
+    // One-time: the old sheet quick buttons become macros, minus the stock
+    // Explore / Fight pair; the old global "pin" setting becomes per macro.
+    function migrate_macros()
+    {
+        if (Array.isArray(api.get("mobile_macros"))) return;
+        var old = api.get("mobile_buttons"), pin = !!api.get("mobile_pin");
+        var list = (Array.isArray(old) ? old : []).filter(function (b) {
+            return b && b.keys
+                && !(b.label === "Explore" && b.keys === "o")
+                && !(b.label === "Fight" && b.keys === "Tab");
+        }).map(function (b) {
+            return { label: b.label || b.keys, keys: b.keys, icon: "",
+                     pin: pin };
+        });
+        api.set("mobile_macros", list);
+    }
+
+    // what a macro button shows: its emoji if it has one, else the label
+    function macro_button(m, after)
+    {
+        var btn = key_button(m.icon || m.label, m.keys, after);
+        if (m.icon)
+            btn.addClass("sdc-m-emoji")
+                .attr({ title: m.label + " (" + m.keys + ")",
+                        "aria-label": m.label });
+        return btn;
     }
 
     function buzz()
@@ -186,7 +238,7 @@ function ($, comm, api, renderer, enums, options) {
 
     // DOM ---------------------------------------------------------------------
 
-    var editing = false;
+    var editing = -1;       // index of the macro in the edit form, or -1
 
     function key_button(label, keys, after)
     {
@@ -204,8 +256,9 @@ function ($, comm, api, renderer, enums, options) {
 
     function build()
     {
-        $("#sdc_m_sheet, #sdc_m_toolbtn, #sdc_m_tools, #sdc_m_bubble,"
-          + " #sdc_m_pin, #sdc_m_logclose, .sdc-m-big").remove();
+        $("#sdc_m_toolbtn, #sdc_m_tools, #sdc_m_bubble, #sdc_m_macros,"
+          + " #sdc_m_pin, #sdc_m_logclose, #sdc_m_find, #sdc_m_mapclose,"
+          + " .sdc-m-big").remove();
         var normal = $("#normal");
 
         // the two thumb buttons: fight bottom-left, explore bottom-right
@@ -215,10 +268,9 @@ function ($, comm, api, renderer, enums, options) {
         key_button("Explore", "o", close_all)
             .attr("id", "sdc_m_explore").addClass("sdc-m-big")
             .appendTo(normal);
-
-        $("<div id='sdc_m_sheet' class='sdc-panel'>")
-            .appendTo($("#sdc_corner"));
-        render_sheet();
+        // map view (X) hides the thumb buttons; this is its way out
+        key_button("Close map", "Esc", close_all)
+            .attr("id", "sdc_m_mapclose").appendTo(normal);
 
         $("<button type='button' id='sdc_m_toolbtn' aria-label='Tools'>")
             .html("&#9776;")
@@ -230,6 +282,8 @@ function ($, comm, api, renderer, enums, options) {
             .appendTo(normal);
         $("<div id='sdc_m_tools' class='sdc-panel'>").appendTo(normal);
         render_tools();
+        $("<div id='sdc_m_find' class='sdc-panel'>").appendTo(normal);
+        $("<div id='sdc_m_macros' class='sdc-panel'>").appendTo(normal);
 
         $("<div id='sdc_m_bubble'>")
             .on("click", function (ev) {
@@ -253,64 +307,103 @@ function ($, comm, api, renderer, enums, options) {
             })
             .appendTo(normal);
 
-        // tap the pill / statuses: open or close the sheet
+        // tap the pill / statuses: toggle the enlarged vitals + stats card
         normal.off("click.sdcm")
             .on("click.sdcm", "#sdc_vitals, #sdc_statuses", function (ev) {
                 if (!active()) return;
                 ev.preventDefault();
-                toggle_sheet();
+                toggle_vitals();
             });
 
         watch_messages();
     }
 
-    function render_sheet()
+    // Macros panel -----------------------------------------------------------
+    // A list of macros (run / pin / edit / delete) and a form to add or edit
+    // one. Opened from Tools > Macros; pinned macros stack bottom-right.
+
+    function small_button(html, label, fn, cls)
     {
-        var sheet = $("#sdc_m_sheet").empty();
-        if (!sheet.length) return;
-        var row = $("<div class='sdc-m-row'>").appendTo(sheet);
-        row.append(key_button("% Character", "%", close_all));
-        buttons().forEach(function (b, i) {
-            var btn = key_button(b.label, b.keys, close_all);
-            if (editing)
-            {
-                btn.addClass("sdc-m-del").off("click")
-                    .on("click", function (ev) {
-                        ev.preventDefault();
-                        ev.stopPropagation();
-                        var list = buttons().slice();
-                        list.splice(i, 1);
-                        api.set("mobile_buttons", list);
-                        render_sheet();
-                        render_pin();
-                    });
-            }
-            row.append(btn);
-        });
-        $("<button type='button' class='sdc-m-btn sdc-m-ghost'>")
-            .text(editing ? "Done" : "Edit")
+        return $("<button type='button' class='sdc-m-btn sdc-m-ghost'>")
+            .addClass(cls || "")
+            .html(html)
+            .attr({ title: label, "aria-label": label })
             .on("click", function (ev) {
                 ev.preventDefault();
                 ev.stopPropagation();
-                editing = !editing;
-                render_sheet();
-            })
-            .appendTo(row);
-        if (editing)
-            sheet.append(add_form());
+                buzz();
+                fn();
+            });
     }
 
-    // label + keys inputs; typing here must not reach the game
-    function add_form()
+    function render_macros()
     {
+        var panel = $("#sdc_m_macros").empty();
+        if (!panel.length) return;
+        var head = $("<div class='sdc-m-mhead'>").appendTo(panel);
+        head.append($("<span>").text("Macros"),
+                    small_button("&times;", "Close",
+                                 function () { toggle_macros(false); }));
+        var list = macros();
+        if (!list.length)
+            panel.append($("<div class='sdc-m-hint'>").text(
+                "No macros yet. Add one below."));
+        list.forEach(function (m, i) {
+            var row = $("<div class='sdc-m-mrow'>").appendTo(panel);
+            var run = macro_button(m, close_all).addClass("sdc-m-mrun");
+            if (m.icon)
+                run.text("").append($("<span class='sdc-m-micon'>").text(m.icon),
+                                    $("<span>").text(m.label));
+            run.append($("<span class='sdc-m-mkeys'>").text(m.keys));
+            row.append(run,
+                small_button("&#128204;", m.pin ? "Unpin" : "Pin", function () {
+                    var l = macros().slice();
+                    l[i] = $.extend({}, l[i], { pin: !l[i].pin });
+                    set_macros(l);
+                }, m.pin ? "sdc-m-on" : ""),
+                small_button("&#9998;", "Edit", function () {
+                    editing = i;
+                    render_macros();
+                }, editing === i ? "sdc-m-on" : ""),
+                small_button("&times;", "Delete", function () {
+                    var l = macros().slice();
+                    l.splice(i, 1);
+                    if (editing === i) editing = -1;
+                    else if (editing > i) editing--;
+                    set_macros(l);
+                }, "sdc-m-del"));
+        });
+        panel.append(macro_form());
+    }
+
+    // icon + label + keys inputs; typing here must not reach the game
+    function macro_form()
+    {
+        var cur = editing >= 0 ? macros()[editing] : null;
+        if (!cur) editing = -1;
         var form = $("<form class='sdc-m-form'>");
+        var icon = $("<input type='text' class='sdc-m-iconin'"
+                     + " placeholder='Emoji' maxlength='16'>");
         var label = $("<input type='text' placeholder='Label' maxlength='12'>");
         var keys = $("<input type='text' placeholder='Keys, e.g. za or Ctrl+F'>");
-        form.append(label, keys,
-                    $("<button type='submit' class='sdc-m-btn'>").text("Add"),
-                    $("<div class='sdc-m-hint'>").text(
-                        "Tap a button to remove it. Keys: Tab Esc Enter"
-                        + " Space, Ctrl+X, or characters."));
+        if (cur)
+        {
+            icon.val(cur.icon || "");
+            label.val(cur.label);
+            keys.val(cur.keys);
+        }
+        form.append(icon, label, keys,
+                    $("<button type='submit' class='sdc-m-btn'>")
+                        .text(cur ? "Save" : "Add"));
+        if (cur)
+            form.append(small_button("Cancel", "Cancel editing", function () {
+                editing = -1;
+                render_macros();
+            }));
+        form.append($("<div class='sdc-m-hint'>").text(
+            "Emoji (optional) replaces the label on the button. Keys: Tab Esc"
+            + " Enter Space Bksp, Ctrl+X, or characters. 📌 pins a"
+            + " macro on screen."));
         form.find("input").attr({ autocomplete: "off", autocapitalize: "off",
                                   autocorrect: "off", spellcheck: "false" })
             .on("keydown keypress keyup input", function (ev) {
@@ -318,13 +411,16 @@ function ($, comm, api, renderer, enums, options) {
             });
         form.on("submit", function (ev) {
             ev.preventDefault();
-            var l = label.val().trim(), k = keys.val().trim();
+            ev.stopPropagation();
+            var k = keys.val().trim();
             if (!k) return;
-            var list = buttons().slice();
-            list.push({ label: l || k, keys: k });
-            api.set("mobile_buttons", list);
-            render_sheet();
-            render_pin();
+            var m = { label: label.val().trim() || k, keys: k,
+                      icon: icon.val().trim(), pin: cur ? !!cur.pin : false };
+            var l = macros().slice();
+            if (cur) l[editing] = m;
+            else l.push(m);
+            editing = -1;
+            set_macros(l);
         });
         return form;
     }
@@ -332,9 +428,30 @@ function ($, comm, api, renderer, enums, options) {
     function render_pin()
     {
         var pin = $("#sdc_m_pin").empty();
-        buttons().forEach(function (b) {
-            pin.append(key_button(b.label, b.keys));
+        macros().forEach(function (m) {
+            if (m.pin) pin.append(macro_button(m));
         });
+    }
+
+    function toggle_macros(open)
+    {
+        var b = document.body.classList;
+        if (open)
+        {
+            toggle_vitals(false);
+            toggle_find(false);
+            b.remove("sdc-m-tools");
+            editing = -1;
+            render_macros();
+            b.add("sdc-m-macros");
+        }
+        else if (b.contains("sdc-m-macros"))
+        {
+            b.remove("sdc-m-macros");
+            editing = -1;
+            var el = document.activeElement;
+            if (el && $(el).closest("#sdc_m_macros").length) el.blur();
+        }
     }
 
     function render_tools()
@@ -342,7 +459,17 @@ function ($, comm, api, renderer, enums, options) {
         var tools = $("#sdc_m_tools").empty();
         var grid = $("<div class='sdc-m-grid'>").appendTo(tools);
         TOOLS.forEach(function (t) {
-            grid.append(key_button(t[0], t[1], close_all));
+            if (typeof t[1] === "function")
+                grid.append($("<button type='button' class='sdc-m-btn'>")
+                    .text(t[0])
+                    .on("click", function (ev) {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        buzz();
+                        t[1]();
+                    }));
+            else
+                grid.append(key_button(t[0], t[1], close_all));
         });
         function action(label, fn)
         {
@@ -386,17 +513,121 @@ function ($, comm, api, renderer, enums, options) {
             action("Saves", function () { window.SdcNative.manageSaves(); });
     }
 
-    function toggle_sheet(force)
+    // Find panel ---------------------------------------------------------------
+    // A text box plus search history and presets as one-tap chips. Sends
+    // Ctrl+F, the text and Enter, so there is no on-screen keyboard dance.
+
+    function find_recent()
+    {
+        var r = api.get("mobile_find_recent");
+        return Array.isArray(r) ? r : [];
+    }
+
+    function run_find(text)
+    {
+        text = String(text || "").trim();
+        if (!text) return;
+        var list = find_recent().filter(function (t) { return t !== text; });
+        list.unshift(text);
+        api.set("mobile_find_recent", list.slice(0, FIND_RECENT_MAX));
+        close_all();
+        send_keys("Ctrl+F");
+        for (var i = 0; i < text.length; i++)
+            comm.send_message("input", { text: text.charAt(i) });
+        send_keys("Enter");
+    }
+
+    function find_chip(label, text)
+    {
+        return $("<button type='button' class='sdc-m-btn'>")
+            .text(label)
+            .attr("title", text)
+            .on("click", function (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                buzz();
+                run_find(text);
+            });
+    }
+
+    function render_find()
+    {
+        var panel = $("#sdc_m_find").empty();
+        if (!panel.length) return null;
+        var form = $("<form class='sdc-m-form sdc-m-findform'>");
+        var input = $("<input type='search' enterkeyhint='search'"
+                      + " placeholder='Item or feature'>");
+        input.attr({ autocomplete: "off", autocapitalize: "off",
+                     autocorrect: "off", spellcheck: "false" })
+            .on("keydown keypress keyup input", function (ev) {
+                ev.stopPropagation();
+                if (ev.type === "keydown" && ev.key === "Escape")
+                    toggle_find(false);
+            });
+        var close = $("<button type='button' class='sdc-m-btn sdc-m-ghost'>")
+            .html("&times;")
+            .attr("aria-label", "Close")
+            .on("click", function (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                toggle_find(false);
+            });
+        form.append(input,
+                    $("<button type='submit' class='sdc-m-btn'>").text("Find"),
+                    close);
+        form.on("submit", function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            input.blur();
+            run_find(input.val());
+        });
+        panel.append(form);
+        var recent_list = find_recent();
+        if (recent_list.length)
+        {
+            panel.append($("<div class='sdc-m-findhead'>").text("Recent"));
+            var row = $("<div class='sdc-m-findchips'>").appendTo(panel);
+            recent_list.forEach(function (t) { row.append(find_chip(t, t)); });
+        }
+        panel.append($("<div class='sdc-m-findhead'>").text("Quick"));
+        var grid = $("<div class='sdc-m-findgrid'>").appendTo(panel);
+        FIND_PRESETS.forEach(function (p) {
+            grid.append(find_chip(p[0], p[1]));
+        });
+        panel.append($("<div class='sdc-m-hint'>").text(
+            "Lists everything you have seen; tap a result to travel there."
+            + " Combine terms with && or ||, exclude with !"));
+        return input;
+    }
+
+    function toggle_find(open)
+    {
+        var b = document.body.classList;
+        if (open)
+        {
+            toggle_vitals(false);
+            toggle_macros(false);
+            b.remove("sdc-m-tools");
+            var input = render_find();
+            b.add("sdc-m-find");
+            // still inside the tap, so phones raise the keyboard
+            if (input) input.trigger("focus");
+        }
+        else if (b.contains("sdc-m-find"))
+        {
+            b.remove("sdc-m-find");
+            var el = document.activeElement;
+            if (el && $(el).closest("#sdc_m_find").length) el.blur();
+        }
+    }
+
+    // enlarged vitals: name line, labels and the full stats card
+    function toggle_vitals(force)
     {
         var b = document.body.classList;
         var open = force === undefined ? !b.contains("sdc-m-open") : force;
         if (open)
             b.remove("sdc-m-tools");
-        else if (editing)
-        {
-            editing = false;
-            render_sheet();
-        }
         b.toggle("sdc-m-open", open);
     }
 
@@ -405,7 +636,7 @@ function ($, comm, api, renderer, enums, options) {
         var b = document.body.classList;
         var open = force === undefined ? !b.contains("sdc-m-tools") : force;
         if (open)
-            toggle_sheet(false);
+            toggle_vitals(false);
         b.toggle("sdc-m-tools", open);
     }
 
@@ -423,8 +654,10 @@ function ($, comm, api, renderer, enums, options) {
     function close_all()
     {
         if (!document.body) return;
-        toggle_sheet(false);
+        toggle_vitals(false);
         toggle_tools(false);
+        toggle_find(false);
+        toggle_macros(false);
         $("#sdc_panel").remove();
     }
 
@@ -447,6 +680,7 @@ function ($, comm, api, renderer, enums, options) {
         if (b.contains("sdc-m-log"))
             toggle_log(false);
         else if (b.contains("sdc-m-open") || b.contains("sdc-m-tools")
+                 || b.contains("sdc-m-find") || b.contains("sdc-m-macros")
                  || $("#sdc_panel").length)
             close_all();
         else
@@ -516,6 +750,46 @@ function ($, comm, api, renderer, enums, options) {
 
     function hide_now() { hide_bubble(true); }
 
+    // Level-up stat gain ("Increase (S)trength, (I)ntelligence, or
+    // (D)exterity?"): three big cards, current value -> value after the
+    // gain. Crawl has no cancel here and wants capitals unless
+    // easy_confirm = all, so the cards always send S / I / D.
+    var STAT_RE = /Increase \(s\)trength, \(i\)ntelligence, or \(d\)exterity\?/i;
+    var STATS = [["str", "Str", "Strength", "S"],
+                 ["int", "Int", "Intelligence", "I"],
+                 ["dex", "Dex", "Dexterity", "D"]];
+
+    function stat_picker()
+    {
+        // "a dramatic increase" = Divine attributes (+4), otherwise +2
+        var gain = recent.some(function (n) {
+            return /dramatic increase in your attributes/i.test(n.textContent);
+        }) ? 4 : 2;
+        var box = document.createElement("div");
+        box.className = "sdc-m-statpick";
+        STATS.forEach(function (s) {
+            var cur = Number(player[s[0]]);
+            var max = Number(player[s[0] + "_max"]);
+            var b = key_button("", s[3], hide_now);
+            b.addClass("sdc-m-stat").attr("aria-label", "Increase " + s[2]);
+            b.append($("<span class='sdc-m-stat-name'>").text(s[1]));
+            if (isFinite(cur))
+            {
+                b.append($("<span class='sdc-m-stat-cur'>").text(cur));
+                b.append($("<span class='sdc-m-stat-new'>")
+                    .text("→ " + (cur + gain)));
+                // drained: show the base value it restores to
+                if (isFinite(max) && max > cur)
+                    b.append($("<span class='sdc-m-stat-max'>")
+                        .text("max " + max + " → " + (max + gain)));
+            }
+            else
+                b.append($("<span class='sdc-m-stat-new'>").text("+" + gain));
+            box.appendChild(b[0]);
+        });
+        return box;
+    }
+
     function prompt_pending()
     {
         if (more_pending()) return true;
@@ -561,6 +835,8 @@ function ($, comm, api, renderer, enums, options) {
             yn.appendChild(key_button("No", "n", hide_now)[0]);
             bubble.appendChild(yn);
         }
+        else if (pinned && STAT_RE.test(last_text()))
+            bubble.appendChild(stat_picker());
         bubble.classList.remove("sdc-m-fade");
         bubble.classList.add("sdc-m-show");
         bubble.classList.toggle("sdc-m-prompt", pinned);
@@ -634,12 +910,69 @@ function ($, comm, api, renderer, enums, options) {
         return el && (el.id === "sdc_screen" || el.id === "dungeon");
     }
 
-    // two-finger pinch on the dungeon steps the zoom
+    // Two fingers on the dungeon. With the 2.5D view on they drive its camera
+    // (like the middle mouse drag in depth.js): pinch = zoom, twist = rotate;
+    // both fingers swiping together up/down = perspective (sideways =
+    // rotate). The first clear motion picks the mode for that gesture.
+    // With 2.5D off, a pinch steps the tile zoom instead.
     var pinch = null;
+    var CAM_PERSP = 0.3, CAM_DEG = 0.25;    // % / deg per px of parallel swipe
     function span(ev)
     {
         var a = ev.touches[0], b = ev.touches[1];
         return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    }
+    function twist(ev)
+    {
+        var a = ev.touches[0], b = ev.touches[1];
+        return Math.atan2(b.clientY - a.clientY, b.clientX - a.clientX);
+    }
+    function mid(ev)
+    {
+        var a = ev.touches[0], b = ev.touches[1];
+        return [(a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2];
+    }
+    function setting_num(key, dflt)
+    {
+        var v = Number(api.settings[key]);
+        return isFinite(v) ? v : dflt;
+    }
+    function clamp(v, lo, hi)
+    {
+        return Math.max(lo, Math.min(hi, Math.round(v * 10) / 10));
+    }
+
+    function camera_move(ev)
+    {
+        var p = pinch;
+        if (p.mode === "lifted") return;
+        var m = mid(ev);
+        var mx = m[0] - p.m0[0], my = m[1] - p.m0[1];
+        var r = span(ev) / p.d0;
+        var tw = twist(ev) - p.a0;
+        tw = Math.atan2(Math.sin(tw), Math.cos(tw));    // wrap to -pi..pi
+        if (!p.mode)
+        {
+            var spread = Math.abs(r - 1) * p.d0;        // px of pinch
+            var turn = Math.abs(tw) * p.d0 / 2;         // px of finger arc
+            var slide = Math.hypot(mx, my);
+            if (Math.max(spread, turn, slide) < SLOP) return;
+            p.mode = slide > spread && slide > turn ? "pan" : "pinch";
+        }
+        if (p.mode === "pan")
+        {
+            api.settings.depth_persp = clamp(p.persp - my * CAM_PERSP, 0, 100);
+            api.settings.depth_rot = clamp(p.rot + mx * CAM_DEG, -45, 45);
+        }
+        else
+        {
+            api.settings.depth_zoom = clamp(p.zoom * r, 50, 200);
+            // positive rotation turns the view counter-clockwise on screen,
+            // so the map follows the fingers
+            api.settings.depth_rot = clamp(p.rot - tw * 180 / Math.PI,
+                                           -45, 45);
+        }
+        p.changed = true;
     }
 
     function on_touchstart(ev)
@@ -647,7 +980,12 @@ function ($, comm, api, renderer, enums, options) {
         if (active() && ev.touches.length === 2 && dungeon_target(ev.target))
         {
             cancel_touch();
-            pinch = { d0: span(ev), done: false };
+            pinch = { d0: Math.max(1, span(ev)), done: false,
+                      camera: api.settings.depth !== false,
+                      a0: twist(ev), m0: mid(ev), mode: null, changed: false,
+                      rot: setting_num("depth_rot", 0),
+                      zoom: setting_num("depth_zoom", 100),
+                      persp: setting_num("depth_persp", 90) };
             return;
         }
         if (pinch) return;
@@ -669,7 +1007,9 @@ function ($, comm, api, renderer, enums, options) {
         if (pinch)
         {
             ev.preventDefault();
-            if (ev.touches.length === 2 && !pinch.done)
+            if (ev.touches.length === 2 && pinch.camera)
+                camera_move(ev);
+            else if (ev.touches.length === 2 && !pinch.done)
             {
                 var r = span(ev) / pinch.d0;
                 if (r > 1.3 || r < 0.77)
@@ -698,7 +1038,13 @@ function ($, comm, api, renderer, enums, options) {
         if (pinch)
         {
             // swallow the lifted fingers; ignore until all are up
-            if (ev.touches.length === 0) pinch = null;
+            if (ev.touches.length === 0)
+            {
+                if (pinch.changed) api.save();
+                pinch = null;
+            }
+            else if (ev.touches.length === 1 && pinch.camera)
+                pinch.mode = "lifted";   // one finger up: stop moving
             ev.preventDefault();
             return;
         }
@@ -747,6 +1093,8 @@ function ($, comm, api, renderer, enums, options) {
         if (!touch) return;
         touch.long = true;
         buzz();
+        // another module may take the hold (orbmenu.js: on the player)
+        if (api.hold(touch.x, touch.y)) return;
         var init = { bubbles: true, cancelable: true, view: window,
                      clientX: touch.x, clientY: touch.y,
                      button: 2, buttons: 2 };
@@ -772,6 +1120,74 @@ function ($, comm, api, renderer, enums, options) {
     document.addEventListener("touchend", on_touchend, opts);
     document.addEventListener("touchcancel", on_touchend, opts);
     document.addEventListener("contextmenu", on_contextmenu, true);
+
+    // Tap your own tile = pick up (g). Wraps the stock mouse handler: the
+    // event is already unwarped by crt.js, so the same cell maths apply.
+    var stock_mouse = renderer.handle_mouse;
+    function command_mode()
+    {
+        var g = window.game;    // global set by game.js (circular import)
+        return !!g && typeof g.get_input_mode === "function"
+            && g.get_input_mode() === enums.mouse_mode.COMMAND;
+    }
+    // Map view (X / Find): webtiles crawl ignores clicks there (only local
+    // tiles handles them), so steer the map cursor with keys instead.
+    var MAP_STEP = { "-1,-1": "y", "0,-1": "k", "1,-1": "u", "-1,0": "h",
+                     "1,0": "l", "-1,1": "b", "0,1": "j", "1,1": "n" };
+    function map_tap(x, y)
+    {
+        var cur = view_data.cursor_locs[enums.CURSOR_MAP];
+        if (!cur) return false;
+        var dx = x - cur.x, dy = y - cur.y;
+        buzz();
+        // within a cell of the cursor counts as a hit (fingers are fat and
+        // map cells small): travel to the cursor
+        if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1)
+        {
+            send_keys(".");
+            return true;
+        }
+        var keys = "";
+        while (dx || dy)
+        {
+            var sx = Math.sign(dx), sy = Math.sign(dy);
+            keys += MAP_STEP[sx + "," + sy];
+            dx -= sx;
+            dy -= sy;
+        }
+        send_keys(keys);
+        return true;
+    }
+
+    renderer.handle_mouse = function (ev)
+    {
+        if (ev.type === "mousedown" && ev.button === 0 && active()
+            && this.view && this.ui_state === enums.ui.VIEW_MAP)
+        {
+            var s = this.scaled_size(ev.clientX, ev.clientY);
+            var c = this.scaled_size();
+            if (map_tap(Math.floor(s.width / c.width) + this.view.x,
+                        Math.floor(s.height / c.height) + this.view.y))
+                return;
+        }
+        if (ev.type === "mousedown" && ev.button === 0 && active()
+            && !ev.shiftKey && !ev.ctrlKey && player.pos && this.view
+            && this.ui_state !== enums.ui.VIEW_MAP && command_mode()
+            && options.get("tile_web_mouse_control"))
+        {
+            var scaled = this.scaled_size(ev.clientX, ev.clientY);
+            var cell = this.scaled_size();
+            var x = Math.floor(scaled.width / cell.width) + this.view.x;
+            var y = Math.floor(scaled.height / cell.height) + this.view.y;
+            if (x === player.pos.x && y === player.pos.y)
+            {
+                buzz();
+                send_keys("g");
+                return;
+            }
+        }
+        return stock_mouse.apply(this, arguments);
+    };
 
     // Defenses in the pill -----------------------------------------------------
     // AC / EV / SH as a third line inside #sdc_vitals (closed sheet only; CSS
@@ -865,8 +1281,6 @@ function ($, comm, api, renderer, enums, options) {
     api.on("game_init", function () {
         apply_mode();
         build();
-        document.body.classList.toggle("sdc-m-pinned",
-                                       !!api.get("mobile_pin"));
         if (zoom_step())
             api.command("relayout");
     });
@@ -875,7 +1289,8 @@ function ($, comm, api, renderer, enums, options) {
             msg_observer.disconnect();
         clearTimeout(fade_timer);
         cancel_touch();
-        $(document.body).removeClass("sdc-m-open sdc-m-tools sdc-m-log");
+        $(document.body).removeClass("sdc-m-open sdc-m-tools sdc-m-log"
+                                     + " sdc-m-find sdc-m-macros");
     });
     api.on("frame", place_bubble);
     api.on("setting", function (key) {
@@ -889,13 +1304,12 @@ function ($, comm, api, renderer, enums, options) {
             render_tools();
             api.command("relayout");
         }
-        else if (key === "mobile_buttons")
+        else if (key === "mobile_macros")
         {
-            render_sheet();
+            if (document.body.classList.contains("sdc-m-macros"))
+                render_macros();
             render_pin();
         }
-        else if (key === "mobile_pin")
-            document.body.classList.toggle("sdc-m-pinned", !!api.get(key));
     });
     if (document.body)
         apply_mode();

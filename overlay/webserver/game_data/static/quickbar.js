@@ -28,14 +28,15 @@ define(["jquery", "comm", "client", "./sdc_api", "./options", "./player",
 function ($, comm, client, api, options, player, cr, enums, gui, util) {
     "use strict";
 
-    api.register_option({
-        key: "quickbar_pos", label: "Quick-use bar", default: "bottom",
-        choices: [["bottom", "bottom centre"], ["top", "top left"]],
-    });
-    api.register_option({
-        key: "quickbar_names", label: "Quick-use names", default: true,
-        choices: [[true, "On"], [false, "Off"]],
-    });
+    // The bar always sits at the bottom centre with its names shown (these
+    // used to be the "quickbar_pos" / "quickbar_names" options); drop stale
+    // stored choices.
+    if ("quickbar_pos" in api.settings || "quickbar_names" in api.settings)
+    {
+        delete api.settings.quickbar_pos;
+        delete api.settings.quickbar_names;
+        api.save();
+    }
 
     var NUM_RESERVED = 2;       // stock: close + game menu
     var CAP_ROW = 14;           // caption row height (horizontal bar)
@@ -54,7 +55,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
 
     function moved()
     {
-        return hud_on() && api.get("quickbar_pos") === "bottom";
+        return hud_on();
     }
 
     function remap(ev)
@@ -76,6 +77,98 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
     MOUSE_EVENTS.forEach(function (type) {
         document.addEventListener(type, remap, true);
     });
+
+    // touch: dragging a finger along the bar runs the dock bell under it
+    // (like hovering with a mouse); lifting it settles the bar and picks
+    // nothing. A plain tap still clicks through the browser's synthesized
+    // mouse events, which are kept out of the dock (no mouseleave would ever
+    // follow them, leaving the bar magnified).
+    var TOUCH_SLOP = 8;         // px before a touch on the bar is a drag
+    var qb_touch = null;
+    var touch_until = 0;        // synthesized mouse events end by then (ms)
+
+    function bar_target(el)
+    {
+        return el && (el.id === "action-panel"
+                      || (ab.el && ab.el.contains(el)));
+    }
+
+    // finger x -> slot units over the whole bar (god abilities first)
+    function touch_u(x)
+    {
+        var canvas = document.getElementById("action-panel");
+        if (!canvas) return null;
+        var pitch = canvas.clientHeight;
+        if (pitch <= 0 || canvas.clientWidth < pitch) return null;
+        var r = canvas.getBoundingClientRect();
+        var na = ab.pitch === pitch ? ab_dock_n() : 0;
+        var n = Math.round(canvas.clientWidth / pitch);
+        if (na && ab.el && x < r.left)
+        {
+            var ar = ab.el.getBoundingClientRect();
+            var ax = x - ar.left - ab.el.clientLeft;
+            return Math.max(0, Math.min(na - 0.001, ax / ab.pitch));
+        }
+        var u = (x - r.left - canvas.clientLeft) / pitch;
+        return na + Math.max(0, Math.min(n - 0.001, u));
+    }
+
+    function on_qb_touchstart(ev)
+    {
+        if (ev.touches.length !== 1 || !moved() || !bar_target(ev.target))
+        {
+            qb_touch = null;
+            return;
+        }
+        touch_until = Date.now() + 1000;
+        var t = ev.touches[0];
+        qb_touch = { x: t.clientX, y: t.clientY, drag: false };
+    }
+
+    function on_qb_touchmove(ev)
+    {
+        if (!qb_touch) return;
+        if (ev.touches.length !== 1)
+        {
+            qb_touch = null;
+            dock_cursor_set("mouseleave", null);
+            return;
+        }
+        var t = ev.touches[0];
+        var dx = t.clientX - qb_touch.x, dy = t.clientY - qb_touch.y;
+        if (!qb_touch.drag && dx * dx + dy * dy < TOUCH_SLOP * TOUCH_SLOP)
+            return;
+        qb_touch.drag = true;
+        ev.preventDefault();
+        touch_until = Date.now() + 1000;
+        var u = touch_u(t.clientX);
+        if (u !== null) dock_cursor_set("mousemove", u);
+    }
+
+    function on_qb_touchend(ev)
+    {
+        if (!qb_touch) return;
+        var drag = qb_touch.drag;
+        qb_touch = null;
+        touch_until = Date.now() + 1000;
+        if (drag)
+        {
+            // no click after a scrub
+            if (ev.cancelable) ev.preventDefault();
+            dock_cursor_set("mouseleave", null);
+        }
+    }
+
+    var touch_opts = { capture: true, passive: false };
+    document.addEventListener("touchstart", on_qb_touchstart, touch_opts);
+    document.addEventListener("touchmove", on_qb_touchmove, touch_opts);
+    document.addEventListener("touchend", on_qb_touchend, touch_opts);
+    document.addEventListener("touchcancel", on_qb_touchend, touch_opts);
+
+    function from_touch()
+    {
+        return Date.now() < touch_until;
+    }
 
     // god abilities --------------------------------------------------------
     //
@@ -252,6 +345,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
     function ab_mouse(ev)
     {
         if (!ab.el || !ab.horizontal || !ab.n || !ab.pitch) return;
+        if (from_touch()) return;
         if (ev.type === "mouseleave")
         {
             dock_cursor_set("mouseleave", null);
@@ -466,6 +560,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
     // Hit-testing stays on the unscaled stock canvas. Horizontal bar only.
 
     var DOCK_MAX = 0.75;        // peak magnification - 1
+    var DOCK_MAX_TOUCH = 1.4;   // same under a finger (it hides the icon)
     var DOCK_SIGMA = 1.1;       // bell width in slots
     var DOCK_TAU = 0.045;       // lerp time constant (s)
     var QUIVER_AMP = 2.5;       // degrees
@@ -721,14 +816,19 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
         var text = "";
         var caps = document.getElementById("sdc_qb_caps");
         if (hover_cx !== null && caps && caps.style.display !== "none"
-            && api.get("quickbar_names") && caps.children[dk_hover])
+            && caps.children[dk_hover])
             text = caps.children[dk_hover].textContent;
         if (text)
         {
             if (dk.label.textContent !== text) dk.label.textContent = text;
             dk.label.style.display = "block";
             dk.label.style.left = hover_cx + "px";
-            dk.label.style.top = (pitch + 4) + "px";
+            // under a finger: above the magnified icon, not below the bar
+            var up = from_touch();
+            if (up !== dk.label.classList.contains("up"))
+                dk.label.classList.toggle("up", up);
+            dk.label.style.top = (up ? pitch * (1 - (dk_cur[dk_hover] || 1)) - 6
+                                     : pitch + 4) + "px";
         }
         else
             dk.label.style.display = "none";
@@ -793,12 +893,13 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
                 var target = 1;
                 if (dk_cursor !== null)
                 {
+                    var tmax = from_touch() ? DOCK_MAX_TOUCH : DOCK_MAX;
                     if (reduce)
-                        target = (i === hov) ? 1.25 : 1;
+                        target = (i === hov) ? 1 + tmax / 3 : 1;
                     else
                     {
                         var d = dk_cursor - (i + 0.5);
-                        target = 1 + DOCK_MAX * Math.exp(-d * d
+                        target = 1 + tmax * Math.exp(-d * d
                                  / (2 * DOCK_SIGMA * DOCK_SIGMA));
                     }
                 }
@@ -843,7 +944,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
 
     function dock_mouse(type, canvas, x, y)
     {
-        if (dk_broken) return;
+        if (dk_broken || from_touch()) return;
         if (type === "mouseleave")
         {
             dk_cursor = null;
@@ -937,7 +1038,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
 
     function sync_caps(canvas, r, horizontal, pitch)
     {
-        if (!api.get("quickbar_names") || pitch <= 0)
+        if (pitch <= 0)
         {
             hide_caps();
             return;
@@ -1012,8 +1113,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
 
     function apply()
     {
-        document.body.setAttribute("data-sdc-quickbar",
-                                   api.get("quickbar_pos"));
+        document.body.setAttribute("data-sdc-quickbar", "bottom");
         sync_frame();
     }
 
@@ -1076,8 +1176,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
         apply();
     });
     api.on("setting", function (key) {
-        if (key === "quickbar_pos" || key === "hud"
-            || key === "quickbar_names")
+        if (key === "hud")
         {
             caps_key = "";
             apply();

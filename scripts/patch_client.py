@@ -4,6 +4,7 @@ Small, asserted string edits so an upstream change fails loudly instead of
 silently producing a broken client. Run on pristine files (apply.sh restores
 them from git first).
 """
+import re
 import sys
 from pathlib import Path
 
@@ -18,6 +19,30 @@ def patch(path, edits):
         text = text.replace(old, new)
     path.write_text(text, encoding="utf-8")
 
+
+# loading screen: our title + a progress bar instead of the random stock art
+# (client.js shows one random "#loader img"; with a single one it is ours)
+client_html = game_data.parent / "templates" / "client.html"
+text = client_html.read_text(encoding="utf-8")
+loader_re = re.compile(
+    r'<span id="loader_text">Loading\.\.\.</span><br>\n'
+    r'(?:\s*<img [^>]*static_url\("title_[^"]+\.png"\) \}\}">\n)+')
+if len(loader_re.findall(text)) != 1:
+    sys.exit("patch_client: expected exactly one loader image list in client.html")
+text = loader_re.sub(
+    '<div class="sdc-loader">\n'
+    '          <img class="sdc-loader-title" alt="Super Dungeon Crawl: Stone Soup"\n'
+    '               src="{{ static_url("sdc_title.png") }}">\n'
+    '          <div class="sdc-loader-bar" role="progressbar" aria-label="Loading">'
+    + "<i></i>" * 12 + '</div>\n'
+    '          <span id="loader_text">Loading...</span>\n'
+    '        </div>\n', text)
+client_html.write_text(text, encoding="utf-8")
+patch(client_html, [
+    ('<link rel="stylesheet" type="text/css" href="{{ static_url("style.css") }}">',
+     '<link rel="stylesheet" type="text/css" href="{{ static_url("style.css") }}">\n'
+     '    <link rel="stylesheet" type="text/css" href="{{ static_url("sdc_loader.css") }}">'),
+])
 
 patch(game_data / "templates" / "game.html", [
     ('href="/gamedata/{{ version }}/simplebar.css"\n/>',

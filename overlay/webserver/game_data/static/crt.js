@@ -15,9 +15,14 @@ define(["jquery", "./player", "./util", "./enums", "./dungeon_renderer",
         "./statusfx", "./statusauras", "./summonfx", "./terrainfx", "./wandfx",
         "./beamfx", "./rangedfx", "./barfx", "./itemfx", "./godfx_support", "./godfx_dark",
         "./godfx_martial", "./godfx_odd",
-        "./alive", "./depth", "./mobile", "./mobilemenus"],
+        "./alive", "./depth", "./fogedge", "./mobile", "./mobilemenus", "./orbmenu", "require"],
 function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
     "use strict";
+
+    // Optional machine-local modules: sdc_local.js is never committed; when it
+    // is absent the load fails quietly (one 404) and nothing else changes.
+    arguments[arguments.length - 1](["./sdc_local"], function () {},
+                                    function () {});
 
     var FILTER_MODES = ["curved", "flat", "off"];
     api.register_option({ key: "hud", default: true });
@@ -165,17 +170,19 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
             toggle(hotkeys[k]);
     }
 
-    // Settings panel: one row per option registered with a label, grouped by
-    // PANEL_SECTIONS (unlisted keys land in "Other"). PANEL_DEPENDS greys a
-    // row out while its parent setting has the given value.
-    var PANEL_SECTIONS = [
-        ["CRT screen", ["filter", "curve_amount", "chroma_bleed", "bleed_amount",
-                        "scan_sweep"]],
-        ["2.5D view", ["depth", "depth_persp", "depth_rot", "depth_zoom",
-                       "depth_height"]],
-        ["Effects", ["alive", "combat_text", "splash"]],
-        ["Interface", ["hud_pos", "quickbar_pos", "quickbar_names"]],
-        ["Mobile", ["mobile", "mobile_menus", "msg_fade", "mobile_pin", "mobile_zoom"]],
+    // Settings panel: one tab per PANEL_TABS entry, rows in the listed order
+    // ("#Text" entries are sub-headings; unlisted keys land in "Other").
+    // PANEL_DEPENDS greys a row out while its parent setting has the given
+    // value. The open tab is remembered in settings.panel_tab.
+    var PANEL_TABS = [
+        ["Screen", ["#CRT", "filter", "curve_amount", "chroma_bleed",
+                    "bleed_amount", "scan_sweep"]],
+        ["2.5D", ["depth", "depth_persp", "depth_rot", "depth_zoom",
+                  "depth_height"]],
+        ["Effects", ["alive", "combat_text", "ranged_feel", "splash",
+                     "fogedge_amount"]],
+        ["Interface", ["turn_counter", "#Mobile", "mobile", "mobile_menus",
+                       "msg_fade", "mobile_zoom"]],
         ["Other", []]
     ];
     var PANEL_DEPENDS = {
@@ -184,9 +191,8 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         depth_persp: ["depth", false], depth_rot: ["depth", false],
         depth_zoom: ["depth", false], depth_height: ["depth", false],
         msg_fade: ["mobile", "off"],
-        mobile_pin: ["mobile", "off"], mobile_zoom: ["mobile", "off"]
+        mobile_zoom: ["mobile", "off"]
     };
-    var collapsed_sections = settings.panel_collapsed || {};
 
     function refresh_deps(panel, key)
     {
@@ -195,6 +201,51 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
             var dep = PANEL_DEPENDS[opt_key];
             $(this).toggleClass("off", settings[key] === dep[1]);
         });
+    }
+
+    function option_row(panel, opt)
+    {
+        var row = $("<div class='sdc-opt'>")
+            .append($("<span class='sdc-k'>").text(opt.label));
+        var dep = PANEL_DEPENDS[opt.key];
+        if (dep)
+        {
+            row.addClass("sdc-sub").attr("data-dep", dep[0]).data("opt", opt.key);
+            row.toggleClass("off", settings[dep[0]] === dep[1]);
+        }
+        if (opt.range)
+        {
+            var val = $("<span class='sdc-k sdc-val'>").text(settings[opt.key]);
+            $("<input type='range'>")
+                .attr({ min: opt.range.min, max: opt.range.max,
+                        step: opt.range.step || 1, "aria-label": opt.label })
+                .val(settings[opt.key])
+                .on("input change", function () {
+                    settings[opt.key] = Number(this.value);
+                    val.text(this.value);
+                    save_settings();
+                    setting_changed(opt.key);
+                })
+                // keep keyboard focus on the game after dragging
+                .on("mouseup touchend", function () { this.blur(); })
+                .appendTo(row);
+            return row.append(val);
+        }
+        opt.choices.forEach(function (c) {
+            $("<button type='button'>").text(c[1])
+                .toggleClass("on", settings[opt.key] === c[0])
+                .on("mousedown", function (ev) {
+                    ev.preventDefault();
+                    settings[opt.key] = c[0];
+                    save_settings();
+                    row.find("button").removeClass("on");
+                    $(this).addClass("on");
+                    refresh_deps(panel, opt.key);
+                    setting_changed(opt.key);
+                })
+                .appendTo(row);
+        });
+        return row;
     }
 
     function toggle_panel()
@@ -207,93 +258,115 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         }
         panel = $("<div id='sdc_panel' class='sdc-panel'>")
             .append($("<div class='sdc-panel-title'>")
-                .text("CRT settings  (Alt+O to close)")
+                .append($("<span>").text("Settings"))
+                .append($("<span class='sdc-panel-hint'>").text("Alt+O"))
                 .append($("<button type='button' class='sdc-panel-close'>")
                     .attr("aria-label", "Close").text("×")
                     .on("mousedown", function (ev) { ev.preventDefault(); })
                     .on("click", function () { panel.remove(); })));
-        var bodies = {};
-        PANEL_SECTIONS.forEach(function (sec) {
-            var collapsed = !!collapsed_sections[sec[0]];
-            var body = $("<div class='sdc-sec-body'>").toggle(!collapsed);
-            var head = $("<div class='sdc-sec-head'>")
-                .toggleClass("shut", collapsed)
-                .text(sec[0])
-                .on("mousedown", function (ev) {
-                    ev.preventDefault();
-                    var shut = body.is(":visible");
-                    body.toggle(!shut);
-                    head.toggleClass("shut", shut);
-                    collapsed_sections[sec[0]] = shut;
-                    settings.panel_collapsed = collapsed_sections;
-                    save_settings();
-                });
-            bodies[sec[0]] = body;
-            panel.append(head, body);
+
+        // rows by key, then laid out tab by tab in PANEL_TABS order
+        // An unlisted option may name a tab (opt.tab): it joins the end of
+        // the PANEL_TABS tab of that name, else a new tab before "Other";
+        // a label starting with the tab name drops it.
+        var rows = {}, order = [], placed = {}, extra = {};
+        var layout = PANEL_TABS.slice(0, -1).map(function (t) {
+            return [t[0], extra[t[0]] = t[1].slice()];
         });
-        function add(opt, row)
-        {
-            var name = "Other";
-            PANEL_SECTIONS.forEach(function (sec) {
-                if (sec[1].indexOf(opt.key) >= 0) name = sec[0];
-            });
-            var dep = PANEL_DEPENDS[opt.key];
-            if (dep)
-            {
-                row.addClass("sdc-sub").attr("data-dep", dep[0]).data("opt", opt.key);
-                row.toggleClass("off", settings[dep[0]] === dep[1]);
-            }
-            bodies[name].append(row);
-        }
+        PANEL_TABS.forEach(function (t) {
+            t[1].forEach(function (k) { placed[k] = true; });
+        });
         api.options().forEach(function (opt) {
-            if (!opt.label) return;
-            var row = $("<div class='sdc-opt'>")
-                .append($("<span class='sdc-k'>").text(opt.label));
-            if (opt.range)
+            if (!opt.label || rows[opt.key]) return;
+            if (opt.tab && !placed[opt.key])
             {
-                var val = $("<span class='sdc-k'>")
-                    .css({ flex: "0 0 34px", textAlign: "right" })
-                    .text(settings[opt.key]);
-                $("<input type='range'>")
-                    .attr({ min: opt.range.min, max: opt.range.max,
-                            step: opt.range.step || 1 })
-                    .val(settings[opt.key])
-                    .css({ flex: "1 1 120px", minWidth: "120px",
-                           accentColor: "#6dffa8", cursor: "pointer" })
-                    .on("input change", function () {
-                        settings[opt.key] = Number(this.value);
-                        val.text(this.value);
-                        save_settings();
-                        setting_changed(opt.key);
-                    })
-                    // keep keyboard focus on the game after dragging
-                    .on("mouseup", function () { this.blur(); })
-                    .appendTo(row);
-                row.append(val);
-                add(opt, row);
-                return;
+                if (!extra[opt.tab])
+                    layout.push([opt.tab, extra[opt.tab] = []]);
+                extra[opt.tab].push(opt.key);
+                placed[opt.key] = true;
+                if (opt.label.indexOf(opt.tab + " ") === 0)
+                    opt = $.extend({}, opt, {
+                        label: opt.label.charAt(opt.tab.length + 1)
+                               .toUpperCase()
+                               + opt.label.slice(opt.tab.length + 2) });
             }
-            opt.choices.forEach(function (c) {
-                $("<button>").text(c[1])
-                    .toggleClass("on", settings[opt.key] === c[0])
-                    .on("mousedown", function (ev) {
-                        ev.preventDefault();
-                        settings[opt.key] = c[0];
-                        save_settings();
-                        row.find("button").removeClass("on");
-                        $(this).addClass("on");
-                        refresh_deps(panel, opt.key);
-                        setting_changed(opt.key);
-                    })
-                    .appendTo(row);
+            rows[opt.key] = option_row(panel, opt);
+            order.push(opt.key);
+        });
+        layout.push(PANEL_TABS[PANEL_TABS.length - 1]);
+        var tabs = [];
+        layout.forEach(function (t) {
+            var keys = t[0] === "Other"
+                ? order.filter(function (k) { return !placed[k]; }) : t[1];
+            var body = $("<div class='sdc-tab-body' role='tabpanel'>");
+            var head = null;
+            keys.forEach(function (k) {
+                if (k.charAt(0) === "#")
+                    head = k.slice(1);
+                else if (rows[k])
+                {
+                    if (head)
+                        body.append($("<div class='sdc-sec-head'>").text(head));
+                    head = null;
+                    body.append(rows[k]);
+                }
             });
-            add(opt, row);
+            if (body.children(".sdc-opt").length)
+                tabs.push({ name: t[0], body: body });
         });
-        PANEL_SECTIONS.forEach(function (sec) {
-            if (!bodies[sec[0]].children().length)
-                bodies[sec[0]].prev().add(bodies[sec[0]]).remove();
+
+        var bar = $("<div class='sdc-tabs' role='tablist'>");
+        var holder = $("<div class='sdc-tab-bodies'>");
+        function show(i)
+        {
+            i = (i + tabs.length) % tabs.length;
+            tabs.forEach(function (t, j) {
+                t.button.toggleClass("on", i === j)
+                    .attr("aria-selected", i === j ? "true" : "false");
+                t.body.toggle(i === j);
+            });
+            holder.scrollTop(0);
+            var b = tabs[i].button[0], r = bar[0];
+            // keep the active tab in view when the bar scrolls (phones)
+            if (b.offsetLeft < r.scrollLeft)
+                r.scrollLeft = b.offsetLeft;
+            else if (b.offsetLeft + b.offsetWidth > r.scrollLeft + r.clientWidth)
+                r.scrollLeft = b.offsetLeft + b.offsetWidth - r.clientWidth;
+            panel.data("tab", i);
+            if (settings.panel_tab !== tabs[i].name)
+            {
+                settings.panel_tab = tabs[i].name;
+                save_settings();
+            }
+        }
+        var start = 0;
+        tabs.forEach(function (t, i) {
+            if (t.name === settings.panel_tab) start = i;
+            t.button = $("<button type='button' class='sdc-tab' role='tab'>")
+                .text(t.name)
+                .on("mousedown", function (ev) { ev.preventDefault(); show(i); })
+                .appendTo(bar);
+            holder.append(t.body);
         });
+        panel.append(bar, holder);
+
+        // touch: swipe sideways over the rows to flip tabs (not on sliders)
+        var sw = null;
+        holder.on("touchstart", function (ev) {
+            var t = ev.originalEvent.touches;
+            sw = t.length === 1 && !$(ev.target).is("input")
+                ? { x: t[0].clientX, y: t[0].clientY } : null;
+        }).on("touchend touchcancel", function (ev) {
+            var t = ev.originalEvent.changedTouches, s = sw;
+            sw = null;
+            if (!s || ev.type === "touchcancel" || !t || !t.length) return;
+            var dx = t[0].clientX - s.x, dy = t[0].clientY - s.y;
+            if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(dy))
+                show(panel.data("tab") + (dx < 0 ? 1 : -1));
+        });
+
         $("#normal").append(panel);
+        if (tabs.length) show(start);
     }
 
     function in_game_view()
@@ -771,6 +844,18 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "uniform float u_depth_zoom;", // view zoom, 1 = none
         "uniform float u_depth_hl;",  // liquid height, cells
         "uniform vec2 u_depth_cells;",
+        "uniform sampler2D u_fog;",   // unexplored mask (fogedge.js), R = never seen
+        "uniform float u_fog_amt;",   // 0 = off, 1 = default, 2 = max reach
+        "uniform vec2 u_fog_cells;",  // cols, rows
+        // fogedge runs in highp where the GPU has it: phone GPUs really do
+        // mediump as 16-bit floats, which wrecks world-coord + time noise
+        "#ifdef GL_FRAGMENT_PRECISION_HIGH",
+        "#define FHP highp",
+        "#else",
+        "#define FHP mediump",
+        "#endif",
+        "uniform FHP vec2 u_fog_view;",   // map coords of the top-left cell
+        "uniform FHP float u_fog_t;",     // seconds (wraps hourly)
         "varying vec2 v_uv;",
         "vec2 warp(vec2 uv) {",
         "  vec2 c = uv * 2.0 - 1.0;",
@@ -796,6 +881,57 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "bool ishi(vec4 c) { return c.r > 0.45 && c.r < 0.7; }",   // shallow water, lava
         "float dsh(vec2 f, vec2 ctr, vec2 rad) {",
         "  return 1.0 - smoothstep(0.45, 1.0, length((f - ctr) / rad));",
+        "}",
+        // unexplored edge: blurred black tentacles curling out of the
+        // never-seen dark onto the known map. c = cell coords (y down);
+        // noise runs in world cells so it holds still while the view scrolls
+        "float fogm(FHP vec2 c) { return texture2D(u_fog, c / u_fog_cells).r; }",
+        // sin-free hash (stays well-behaved at low precision too)
+        "FHP float fhash(FHP vec2 p) {",
+        "  FHP vec3 p3 = fract(vec3(p.xyx) * 0.1031);",
+        "  p3 += dot(p3, p3.yzx + 33.33);",
+        "  return fract((p3.x + p3.y) * p3.z);",
+        "}",
+        "FHP float fnoise(FHP vec2 p) {",
+        "  FHP vec2 i = floor(p);",
+        "  FHP vec2 f = fract(p);",
+        "  f = f * f * (3.0 - 2.0 * f);",
+        "  return mix(mix(fhash(i), fhash(i + vec2(1.0, 0.0)), f.x),",
+        "             mix(fhash(i + vec2(0.0, 1.0)), fhash(i + vec2(1.0, 1.0)), f.x), f.y);",
+        "}",
+        "float fogedge(FHP vec2 uv) {",
+        "  FHP vec2 c = vec2(uv.x, 1.0 - uv.y) * u_fog_cells;",
+        "  FHP vec2 w = c + u_fog_view;",
+        "  FHP float t = u_fog_t;",
+        "  float more = max(u_fog_amt - 1.0, 0.0);",
+        // swirling domain warp: two octaves drifting against each other, so
+        // the edge curls and swooshes instead of following the cell grid
+        "  FHP vec2 q = vec2(fnoise(w * 0.7 + vec2(t * 0.21, -t * 0.15)),",
+        "                fnoise(w * 0.7 + vec2(5.2 - t * 0.17, 1.3 + t * 0.19))) - 0.5;",
+        "  FHP vec2 q2 = vec2(fnoise(w * 1.9 + q * 2.0 - vec2(t * 0.37, t * 0.29) + 9.1),",
+        "                 fnoise(w * 1.9 + q * 2.0 + vec2(t * 0.33, -t * 0.26) + 3.7)) - 0.5;",
+        "  FHP vec2 cw = c + q * (0.5 + 0.7 * more) + q2 * (0.2 + 0.25 * more);",
+        // wide blur (centre + two rings): ~1 deep in the dark, ~0.5 at the
+        // border, fading to 0 about 3/4 of a cell out onto the known map
+        "  float R = 0.38 + 0.55 * more;",
+        "  float m = fogm(cw) * 0.16;",
+        "  m += (fogm(cw + vec2(0.7, 0.0) * R) + fogm(cw - vec2(0.7, 0.0) * R)",
+        "      + fogm(cw + vec2(0.0, 0.7) * R) + fogm(cw - vec2(0.0, 0.7) * R)) * 0.09;",
+        "  m += (fogm(cw + vec2(1.1, 1.1) * R) + fogm(cw - vec2(1.1, 1.1) * R)",
+        "      + fogm(cw + vec2(1.1, -1.1) * R) + fogm(cw + vec2(-1.1, 1.1) * R)",
+        "      + fogm(cw + vec2(1.6, 0.0) * R) + fogm(cw - vec2(1.6, 0.0) * R)",
+        "      + fogm(cw + vec2(0.0, 1.6) * R) + fogm(cw - vec2(0.0, 1.6) * R)) * 0.06;",
+        "  if (m < 0.004) return 0.0;",
+        // tentacles: soft ridged filaments curled by the warp; they carry the
+        // dark further out along their length and leave gaps between them
+        "  FHP vec2 tp = w * 1.3 + q * 3.2 + q2 * 1.5 + vec2(t * 0.09, -t * 0.07);",
+        "  float a = fnoise(tp) * 0.65 + fnoise(tp * 2.3 + 4.0) * 0.35;",
+        "  float ridge = 1.0 - abs(a * 2.0 - 1.0);",
+        "  ridge *= ridge;",
+        "  float f = m * (0.55 + 0.9 * ridge) * (1.0 + 0.5 * more);",
+        // full black from the border inward, a long soft fade outward
+        "  float d = smoothstep(0.1, 0.5, f);",
+        "  return d * d * (3.0 - 2.0 * d) * min(u_fog_amt, 1.0);",
         "}",
         "void main() {",
         "  vec2 uv = warp(v_uv);",
@@ -987,6 +1123,8 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "    col += col * L * 2.6 + L * 0.32;",
         "  }",
         // --- end environmental lighting ---
+        // unexplored edge darkness (after light, so lights do not lift it)
+        "  if (u_fog_amt > 0.0) col *= 1.0 - fogedge(uv);",
         // aperture-grille phosphor mask
         "  vec2 gfc = floor(gl_FragCoord.xy / u_pxs);",
         "  float m = mod(gfc.x, 3.0);",
@@ -1048,6 +1186,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
     var gl = null, prog = null, tex = null, light_tex = null, los_tex = null;
     var alive_tex = null, alive_size = "", alive_err = false;
     var depth_tex = null, depth_size = "", depth_err = false;
+    var fog_tex = null, fog_size = "", fog_err = false;
     var screen = null;
     var uni = {};
     var gl_failed = false, raf = null, last_frame = 0;
@@ -1108,7 +1247,8 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
          "u_light", "u_light_on", "u_los", "u_los_amt", "u_player", "u_aspect",
          "u_alive", "u_alive_amt", "u_fx", "u_fxp", "u_shake",
          "u_g1", "u_gtint", "u_gvig", "u_ghue",
-         "u_depth", "u_depth_amt", "u_depth_h", "u_depth_p", "u_depth_rot", "u_depth_zoom", "u_depth_hl", "u_depth_cells"]
+         "u_depth", "u_depth_amt", "u_depth_h", "u_depth_p", "u_depth_rot", "u_depth_zoom", "u_depth_hl", "u_depth_cells",
+         "u_fog", "u_fog_amt", "u_fog_cells", "u_fog_view", "u_fog_t"]
             .forEach(function (n) { uni[n] = gl.getUniformLocation(prog, n); });
 
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
@@ -1130,6 +1270,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         depth_tex = make_tex();
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        fog_tex = make_tex();       // LINEAR: the mask is meant to blur
         tex = make_tex();
 
         bind_mouse_forwarding();
@@ -1236,6 +1377,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
 
         update_alive(t);
         update_depth(t);
+        update_fog(t);
 
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -1374,6 +1516,51 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         gl.uniform1f(uni.u_depth_zoom, a.zoom);
         gl.uniform1f(uni.u_depth_hl, a.hl);
         gl.uniform2f(uni.u_depth_cells, a.cols, a.rows);
+    }
+
+    // unexplored edge mask (fogedge.js) on texture unit 5.
+    function update_fog(t)
+    {
+        var a = null;
+        var fn = api.get_fog_source();
+        if (fn)
+        {
+            try { a = fn(t); }
+            catch (e)
+            {
+                a = null;
+                if (!fog_err) console.error("sdc: fog source failed", e);
+                fog_err = true;
+            }
+        }
+        gl.activeTexture(gl.TEXTURE5);
+        gl.bindTexture(gl.TEXTURE_2D, fog_tex);
+        gl.uniform1i(uni.u_fog, 5);
+        if (a && a.data && a.cols > 0 && a.rows > 0
+            && a.data.length === a.cols * a.rows * 4)
+        {
+            var size = a.cols + "x" + a.rows;
+            if (a.dirty || size !== fog_size)
+            {
+                try
+                {
+                    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, a.cols, a.rows, 0,
+                                  gl.RGBA, gl.UNSIGNED_BYTE, a.data);
+                    fog_size = size;
+                    a.dirty = false;
+                }
+                catch (e) { a = null; fog_size = ""; }
+                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+            }
+        }
+        else
+            a = null;
+        gl.uniform1f(uni.u_fog_amt, a ? a.amt : 0);
+        if (!a) return;
+        gl.uniform2f(uni.u_fog_cells, a.cols, a.rows);
+        gl.uniform2f(uni.u_fog_view, a.vx, a.vy);
+        gl.uniform1f(uni.u_fog_t, a.t);
     }
 
     // The curved screen sits over the (invisible) dungeon canvas. Mouse events
