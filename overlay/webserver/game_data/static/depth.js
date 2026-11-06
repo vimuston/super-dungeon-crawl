@@ -10,9 +10,9 @@
 // "Rotation" turns the view (yaw, degrees) about the screen centre; walls
 // still rise toward the top of the screen. Creatures share the map canvas,
 // so they turn with it (they cannot be billboarded).
-// The "Perspective" slider scales the camera tilt: a keystone (far rows
-// narrower), how much things stand up, and shadow strength. "Wall height"
-// is separate.
+// The "Perspective" slider scales the camera tilt: a ground-plane projection
+// (far rows narrower and shorter), how much things stand up, and shadow
+// strength. "Wall height" is separate.
 //
 //   walls      rise toward the camera: each wall cell is drawn `height`
 //              (a fraction of a tile) higher, so its top covers a thin strip
@@ -27,7 +27,7 @@
 //   clouds     fog, poison, fire... float a little above the floor; all but
 //              fire cast a faint shadow.
 //
-// Needs the CRT filter (the effect lives in the shader). Off = shader skips
+// Lives in the crt.js shader (runs with the CRT filter on or off). Off = shader skips
 // the whole block (u_depth_amt = 0). To remove the feature entirely, delete
 // this file, its "./depth" entry in crt.js, the "2.5D" blocks marked
 // "// depth:" in crt.js, and set_depth_source in sdc_api.js.
@@ -46,15 +46,22 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
 
     var REBUILD_MS = 2000;      // safety rebuild interval
     var FADE_S = 0.35;          // seconds to ease in / out
+    var PERSP = 0.7;            // ground tilt at 100% perspective (crt.js shader)
 
     api.register_option({ key: "depth", label: "2.5D view", default: true,
                           choices: [[true, "On"], [false, "Off"]] });
     api.register_option({ key: "depth_persp", label: "Perspective",
-                          default: 90, range: { min: 0, max: 100, step: 5 } });
+                          default: 90, range: { min: 0, max: 100, step: 5 },
+                          hint: ["Shift + middle mouse drag up/down",
+                                 "Three-finger swipe up/down"] });
     api.register_option({ key: "depth_rot", label: "Rotation",
-                          default: -1, range: { min: -45, max: 45, step: 1 } });
+                          default: -1, range: { min: -45, max: 45, step: 1 },
+                          hint: ["Middle mouse drag sideways",
+                                 "Two-finger twist or sideways swipe"] });
     api.register_option({ key: "depth_zoom", label: "Zoom",
-                          default: 139, range: { min: 50, max: 200, step: 5 } });
+                          default: 139, range: { min: 50, max: 200, step: 5 },
+                          hint: ["Middle mouse drag up/down",
+                                 "Two-finger pinch"] });
     api.register_option({ key: "depth_height", label: "Wall height",
                           default: 36, range: { min: 4, max: 40, step: 1 } });
 
@@ -234,12 +241,14 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
     function unmap(u, v)
     {
         if (!amt || !cols || !rows) return [u, v];
-        // same chain as the shader (v is y down): zoom, keystone, yaw about
+        // same chain as the shader (v is y down): zoom, perspective, yaw about
         // the view centre, then the wall top's extrusion toward screen-up
         var z = 1 + (zoom() - 1) * amt;
         u = 0.5 + (u - 0.5) / z;
         v = 0.5 + (v - 0.5) / z;
-        u = 0.5 + (u - 0.5) * (1 + 0.24 * persp() * amt * (0.5 - v));
+        var d = 1 + PERSP * persp() * amt * (v - 0.5);
+        u = 0.5 + (u - 0.5) / d;
+        v = 0.5 + (v - 0.5) / d;
         var ph = rot() * amt, c = Math.cos(ph), s = Math.sin(ph);
         var dx = u * cols - cols / 2, dy = v * rows - rows / 2;
         var gx = cols / 2 + c * dx - s * dy, gy = rows / 2 + s * dx + c * dy;
@@ -267,7 +276,7 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
 
     // Inverse of unmap for a flat floor point: the screen uv (y down) where
     // texture uv (u, v) is shown, plus the cell width / height scale there
-    // (zoom, keystone), so overlays can sit on tiles in the 2.5D view.
+    // (zoom, perspective), so overlays can sit on tiles in the 2.5D view.
     // Wall extrusion is ignored (it only moves wall tops).
     function map(u, v)
     {
@@ -277,9 +286,9 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
         var ex = u * cols - cols / 2, ey = v * rows - rows / 2;
         var dx = c * ex + s * ey, dy = -s * ex + c * ey;
         var u1 = (dx + cols / 2) / cols, v1 = (dy + rows / 2) / rows;
-        var k = 1 + 0.24 * persp() * amt * (0.5 - v1);
-        var u2 = 0.5 + (u1 - 0.5) / k;
-        return [0.5 + (u2 - 0.5) * z, 0.5 + (v1 - 0.5) * z, z / k, z];
+        var k = 1 - PERSP * persp() * amt * (v1 - 0.5);
+        var u2 = 0.5 + (u1 - 0.5) / k, v2 = 0.5 + (v1 - 0.5) / k;
+        return [0.5 + (u2 - 0.5) * z, 0.5 + (v2 - 0.5) * z, z / k, z / (k * k)];
     }
 
     function height()

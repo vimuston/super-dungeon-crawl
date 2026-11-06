@@ -56,7 +56,9 @@ body.sdc-filter {
     pointer-events: none;
 }
 body.sdc-gl #sdc_screen { display: block; }
-body.sdc-gl.sdc-curved #sdc_screen { pointer-events: auto; }
+/* takes the mouse whenever drawn: crt.js forwards events through the curve
+   and the 2.5D unmap, and depth.js rotates/zooms on it */
+body.sdc-gl #sdc_screen { pointer-events: auto; }
 body.sdc-gl #dungeon { opacity: 0; }
 
 /* Stock elements that must stay above the CRT screen and HUD. #ui-stack sets
@@ -351,5 +353,13 @@ body.sdc-hud #sdc_corner {
     cursor: pointer;
 }
 .sdc-opt .sdc-k.sdc-val { flex: 0 0 34px; text-align: right; }
+.sdc-opt-hint {
+    flex: 1 0 100%;
+    padding-left: 100px;    /* under the control, past the label */
+    box-sizing: border-box;
+    margin-top: -3px;
+    font-size: 10px;
+    opacity: 0.5;
+}
 .sdc-opt.sdc-sub { padding-left: 14px; }
 .sdc-opt.off { opacity: 0.35; }

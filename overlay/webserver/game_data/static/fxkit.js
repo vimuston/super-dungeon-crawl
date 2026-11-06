@@ -112,7 +112,7 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge) {
         if (!(fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1)) return null;
         var cw = r.width / dr.cols, ch = r.height / dr.rows;
 
-        // 2.5D view (depth.js): rotation / keystone / zoom move the tiles
+        // 2.5D view (depth.js): rotation / perspective / zoom move the tiles
         var dm = api.depth_map(fx, fy);
         fx = dm[0]; fy = dm[1];
         cw *= dm[2]; ch *= dm[3];

@@ -903,9 +903,10 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     }
 
     // Two fingers on the dungeon. With the 2.5D view on they drive its camera
-    // (like the middle mouse drag in depth.js): pinch = zoom, twist = rotate;
-    // both fingers swiping together up/down = perspective (sideways =
-    // rotate). The first clear motion picks the mode for that gesture.
+    // (like the middle mouse drag in depth.js): pinch = zoom, twist = rotate,
+    // both fingers swiping sideways = rotate. The first clear motion picks
+    // the mode for that gesture. A third finger switches to perspective
+    // (three fingers swiping up/down), undoing what the two did so far.
     // With 2.5D off, a pinch steps the tile zoom instead.
     var pinch = null;
     var CAM_PERSP = 0.3, CAM_DEG = 0.25;    // % / deg per px of parallel swipe
@@ -921,8 +922,13 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     }
     function mid(ev)
     {
-        var a = ev.touches[0], b = ev.touches[1];
-        return [(a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2];
+        var n = Math.min(3, ev.touches.length), x = 0, y = 0;
+        for (var i = 0; i < n; i++)
+        {
+            x += ev.touches[i].clientX;
+            y += ev.touches[i].clientY;
+        }
+        return [x / n, y / n];
     }
     function setting_num(key, dflt)
     {
@@ -939,6 +945,15 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         var p = pinch;
         if (p.mode === "lifted") return;
         var m = mid(ev);
+        if (p.mode === "persp")
+        {
+            if (ev.touches.length !== 3) return;
+            api.settings.depth_persp = clamp(p.persp - (m[1] - p.m0[1])
+                                             * CAM_PERSP, 0, 100);
+            p.changed = true;
+            return;
+        }
+        if (ev.touches.length !== 2) return;
         var mx = m[0] - p.m0[0], my = m[1] - p.m0[1];
         var r = span(ev) / p.d0;
         var tw = twist(ev) - p.a0;
@@ -953,7 +968,6 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         }
         if (p.mode === "pan")
         {
-            api.settings.depth_persp = clamp(p.persp - my * CAM_PERSP, 0, 100);
             api.settings.depth_rot = clamp(p.rot + mx * CAM_DEG, -45, 45);
         }
         else
@@ -967,9 +981,24 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         p.changed = true;
     }
 
+    function start_persp(ev)
+    {
+        if (pinch.mode === "lifted") return;
+        api.settings.depth_rot = pinch.rot;
+        api.settings.depth_zoom = pinch.zoom;
+        pinch.mode = "persp";
+        pinch.m0 = mid(ev);
+    }
+
     function on_touchstart(ev)
     {
-        if (active() && ev.touches.length === 2 && dungeon_target(ev.target))
+        if (pinch && pinch.camera && ev.touches.length === 3)
+        {
+            start_persp(ev);
+            return;
+        }
+        if (active() && dungeon_target(ev.target)
+            && (ev.touches.length === 2 || (ev.touches.length === 3 && !pinch)))
         {
             cancel_touch();
             pinch = { d0: Math.max(1, span(ev)), done: false,
@@ -978,6 +1007,8 @@ function ($, comm, api, renderer, enums, options, player, view_data,
                       rot: setting_num("depth_rot", 0),
                       zoom: setting_num("depth_zoom", 100),
                       persp: setting_num("depth_persp", 90) };
+            if (pinch.camera && ev.touches.length === 3)
+                start_persp(ev);
             return;
         }
         if (pinch) return;
@@ -999,7 +1030,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         if (pinch)
         {
             ev.preventDefault();
-            if (ev.touches.length === 2 && pinch.camera)
+            if (pinch.camera)
                 camera_move(ev);
             else if (ev.touches.length === 2 && !pinch.done)
             {
@@ -1047,8 +1078,9 @@ function ($, comm, api, renderer, enums, options, player, view_data,
                 if (pinch.changed) api.save();
                 pinch = null;
             }
-            else if (ev.touches.length === 1 && pinch.camera)
-                pinch.mode = "lifted";   // one finger up: stop moving
+            else if (pinch.camera && (ev.touches.length === 1
+                                      || pinch.mode === "persp"))
+                pinch.mode = "lifted";   // a finger up: stop moving
             ev.preventDefault();
             return;
         }

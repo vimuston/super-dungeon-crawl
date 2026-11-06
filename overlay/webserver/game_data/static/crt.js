@@ -229,7 +229,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
                 // keep keyboard focus on the game after dragging
                 .on("mouseup touchend", function () { this.blur(); })
                 .appendTo(row);
-            return row.append(val);
+            return option_hint(row.append(val), opt);
         }
         opt.choices.forEach(function (c) {
             $("<button type='button'>").text(c[1])
@@ -245,6 +245,14 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
                 })
                 .appendTo(row);
         });
+        return option_hint(row, opt);
+    }
+
+    function option_hint(row, opt)
+    {
+        var h = opt.hint && opt.hint[mobile() ? 1 : 0];
+        if (h)
+            row.append($("<span class='sdc-opt-hint'>").text(h));
         return row;
     }
 
@@ -811,6 +819,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "uniform vec4 u_gvig;",       // vignette rgb, strength
         "uniform float u_ghue;",      // hue rotation, turns
         "uniform float u_bleed;",     // chroma bleed strength 0..1
+        "uniform float u_crt;",       // CRT look (mask, scanlines, bloom, tube) 0/1
         "uniform sampler2D u_light;", // environmental light map (light.js)
         "uniform float u_light_on;",
         "uniform sampler2D u_los;",   // line-of-sight mask (light.js)
@@ -963,8 +972,10 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "  if (u_depth_amt > 0.0) {",
         "    uv = 0.5 + (uv - 0.5) / mix(1.0, u_depth_zoom, u_depth_amt);",
         "    float kp = u_depth_p * u_depth_amt;",
-        // keystone: the far (top) rows show more of the map, the near rows less
-        "    uv.x = 0.5 + (uv.x - 0.5) * (1.0 + 0.24 * kp * (uv.y - 0.5));",
+        // perspective: the ground plane tilts away; far (top) rows are drawn
+        // narrower and shorter, near rows wider and taller (keep the 0.7 in
+        // sync with PERSP in depth.js)
+        "    uv = 0.5 + (uv - 0.5) / (1.0 + 0.7 * kp * (0.5 - uv.y));",
         // yaw: the ground is rotated about the view centre (cell coords, y down)
         "    vec2 S = vec2(uv.x, 1.0 - uv.y) * u_depth_cells;",
         "    float ph = u_depth_rot * u_depth_amt;",
@@ -1050,7 +1061,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "    uv += vec2(ad.x, -ad.y) / u_alive_cells;",
         "  }",
         // chromatic aberration grows towards the edges
-        "  vec2 d = (uv - 0.5) * u_texel * (2.2 + 1.5 * u_fx.x + 10.0 * u_gtint.w);",
+        "  vec2 d = (uv - 0.5) * u_texel * (2.2 * u_crt + 1.5 * u_fx.x + 10.0 * u_gtint.w);",
         "  vec3 col;",
         "  col.r = tap(uv + d).r;",
         "  col.g = tap(uv).g;",
@@ -1081,7 +1092,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "  glow += tap(uv + o) + tap(uv - o);",
         "  glow += tap(uv + vec2(o.x, -o.y)) + tap(uv + vec2(-o.x, o.y));",
         "  glow /= 8.0;",
-        "  col += glow * glow * 0.55;",
+        "  col += glow * glow * 0.55 * u_crt;",
         // --- line of sight: lantern-lit view vs. cold remembered map ---
         "  if (u_los_amt > 0.0) {",
         "    float los = texture2D(u_los, uv).r;",
@@ -1129,16 +1140,16 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "  vec2 gfc = floor(gl_FragCoord.xy / u_pxs);",
         "  float m = mod(gfc.x, 3.0);",
         "  vec3 mask = vec3(m < 1.0 ? 1.0 : 0.78, (m >= 1.0 && m < 2.0) ? 1.0 : 0.78, m >= 2.0 ? 1.0 : 0.78);",
-        "  col *= mask * 1.18;",
+        "  col *= mix(vec3(1.0), mask * 1.18, u_crt);",
         // scanlines in source-pixel-ish space so they stay crisp
         "  float scan = 0.84 + 0.16 * sin(gfc.y * 3.14159 * 0.66);",
-        "  col *= scan;",
+        "  col *= mix(1.0, scan, u_crt);",
         // vignette + rounded tube corners
         "  vec2 e = v_uv * (1.0 - v_uv.yx);",
         "  float vig = pow(clamp(e.x * e.y * 18.0, 0.0, 1.0), 0.28);",
         "  vec2 q = abs(warp(v_uv) - 0.5) * 2.0;",
         "  float corner = 1.0 - smoothstep(0.96, 1.0, max(q.x, q.y));",
-        "  col *= vig * corner;",
+        "  col *= mix(1.0, vig * corner, u_crt);",
         // low-HP red bleed at the tube edge
         "  col.r += u_danger * (1.0 - vig) * 0.35 * (0.6 + 0.4 * sin(u_time * 5.0));",
         // berserk: blood-vein vignette on the heartbeat, red-orange midtones,
@@ -1243,7 +1254,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         gl.enableVertexAttribArray(loc);
         gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
 
-        ["u_tex", "u_pxs", "u_res", "u_texel", "u_curve", "u_time", "u_danger", "u_bleed",
+        ["u_tex", "u_pxs", "u_res", "u_texel", "u_curve", "u_time", "u_danger", "u_bleed", "u_crt",
          "u_light", "u_light_on", "u_los", "u_los_amt", "u_player", "u_aspect",
          "u_alive", "u_alive_amt", "u_fx", "u_fxp", "u_shake",
          "u_g1", "u_gtint", "u_gvig", "u_ghue",
@@ -1296,8 +1307,10 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
             update_anchor(dungeon.getBoundingClientRect());
             api.emit("frame", t);
         }
-        var active = settings.filter !== "off" && visible
-                     && dungeon.width > 0 && dungeon.height > 0;
+        // The GL pass also renders 2.5D, rotation, lighting and status fx,
+        // so it runs whatever the CRT filter setting; "off" only drops the
+        // CRT look (u_crt, curve, bleed; glass/sweep via body.sdc-filter).
+        var active = visible && dungeon.width > 0 && dungeon.height > 0;
         document.body.classList.toggle("sdc-mapview",
             dungeon_renderer.ui_state == enums.ui.VIEW_MAP);
         if (!active || !init_gl())
@@ -1372,7 +1385,9 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         gl.uniform1f(uni.u_los_amt, los ? los.amount : 0);
         gl.uniform2f(uni.u_player, los ? los.px : 0.5, los ? los.py : 0.5);
         gl.uniform1f(uni.u_aspect, dungeon.width / Math.max(1, dungeon.height));
-        gl.uniform1f(uni.u_bleed, settings.chroma_bleed === false ? 0
+        var crt_on = settings.filter !== "off";
+        gl.uniform1f(uni.u_crt, crt_on ? 1 : 0);
+        gl.uniform1f(uni.u_bleed, !crt_on || settings.chroma_bleed === false ? 0
                      : Math.max(0, Math.min(1, (settings.bleed_amount || 0) / 100)));
 
         update_alive(t);
