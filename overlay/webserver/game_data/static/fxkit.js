@@ -10,7 +10,8 @@
 //                                (curved-screen corrected) or null off view
 //   fxkit.pin(el, pos, a0, ms)   keep container `el` (children laid out around
 //                                anchor a0) on map tile `pos` as the view
-//                                scrolls, for ms; use for effects that last
+//                                scrolls or zooms (scaled by cw), for ms;
+//                                use for effects that last
 //                                longer than a player move
 //   fxkit.player_pos()           {x, y} map coords or null
 //   fxkit.monsters()             [{name, x, y}] visible monsters (lower case)
@@ -158,9 +159,14 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge) {
                 p.el.style.visibility = "hidden";
             else
             {
+                // tile zoom / 2.5D zoom change the cell size: scale the
+                // effect about a0 so it keeps its size relative to the tile
+                var s = p.a0.cw ? a.cw / p.a0.cw : 1;
+                if (!(s > 0.05 && s < 20)) s = 1;
                 p.el.style.visibility = "";
-                p.el.style.transform = "translate(" + (a.x - p.a0.x) + "px,"
-                                       + (a.y - p.a0.y) + "px)";
+                p.el.style.transform = "translate(" + (a.x - s * p.a0.x) + "px,"
+                                       + (a.y - s * p.a0.y) + "px) scale("
+                                       + s.toFixed(4) + ")";
             }
             return true;
         });
@@ -169,6 +175,7 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge) {
 
     function pin(el, pos, a0, ms)
     {
+        el.style.transformOrigin = "0 0";
         pins.push({ el: el, pos: { x: pos.x, y: pos.y }, a0: a0,
                     end: now() + ms });
         if (!pin_raf) pin_raf = window.requestAnimationFrame(pin_tick);

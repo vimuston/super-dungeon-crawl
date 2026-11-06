@@ -5,8 +5,9 @@
 // Trigger: the "Conf" status light (hud_update) while it is active.
 // Layer: #sdc_dizzy, fixed, z-index 4 (above the dungeon, below the HUD).
 // Debug: window.sdc_dizzy_test(seconds = 4)
-define(["jquery", "./sdc_api", "./player", "./dungeon_renderer", "./enums"],
-function ($, api, player, dungeon_renderer, enums) {
+define(["jquery", "./sdc_api", "./player", "./dungeon_renderer", "./enums",
+        "./fxkit"],
+function ($, api, player, dungeon_renderer, enums, kit) {
     "use strict";
 
     var POS_INTERVAL = 90;     // ms between repositioning checks
@@ -62,41 +63,8 @@ function ($, api, player, dungeon_renderer, enums) {
 
     // Geometry (same mapping as blink.js) ---------------------------------
 
-    function anchor_of(pos)
-    {
-        var c = document.getElementById("dungeon");
-        var dr = dungeon_renderer;
-        if (!c || !dr || !dr.cols || !dr.rows || !dr.view || !pos)
-            return null;
-        if (dr.ui_state == enums.ui.VIEW_MAP)
-            return null;
-        var r = c.getBoundingClientRect();
-        if (r.width < 50 || r.height < 50) return null;
-        var fx = (pos.x - dr.view.x + 0.5) / dr.cols;
-        var fy = (pos.y - dr.view.y + 0.5) / dr.rows;
-        if (!(fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1)) return null;
-        var cw = r.width / dr.cols, ch = r.height / dr.rows;
-
-        var b = document.body.classList;
-        if (b.contains("sdc-gl") && b.contains("sdc-curved"))
-        {
-            var k = api.curve_k();
-            var tx = fx * 2 - 1, ty = fy * 2 - 1;
-            var sx = tx, sy = ty, g = 1;
-            for (var i = 0; i < 6; i++)
-            {
-                g = (1 + k * (sx * sx + sy * sy)) / (1 + k);
-                sx = tx / g;
-                sy = ty / g;
-            }
-            fx = (sx + 1) / 2;
-            fy = (sy + 1) / 2;
-            cw /= g;
-            ch /= g;
-        }
-        return { x: r.left + fx * r.width, y: r.top + fy * r.height,
-                 cw: cw, ch: ch };
-    }
+    // shared tile -> screen mapping (CRT curve and the 2.5D camera)
+    function anchor_of(pos) { return kit.anchor_of(pos); }
 
     // DOM ---------------------------------------------------------------------
 
