@@ -565,12 +565,6 @@ body.sdc-mobile.sdc-m-macros #sdc_m_macros {
                  var(--stat-font);
 }
 
-/* zoom readout in the tools grid */
-.sdc-m-grid .sdc-m-zoomnow {
-    grid-column: span 2; align-self: center; text-align: center;
-    font-size: 11px; opacity: 0.8;
-}
-
 /* yes/no answer buttons in the message bubble */
 .sdc-m-yn {
     display: flex;
