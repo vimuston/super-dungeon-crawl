@@ -1,0 +1,292 @@
+/* Orb menu (orbmenu.js): a ring of glass orbs around the player. Orbs sit at
+ * the menu centre (left/top) and are pushed out by --dx/--dy; sub-orbs grow
+ * out of their category orb (--ox/--oy). --i staggers the fly-out. */
+
+#sdc_orb {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    background: radial-gradient(circle at center, rgba(0, 0, 0, 0.1),
+                                rgba(0, 0, 0, 0.45));
+    transition: background 0.2s;
+}
+
+#sdc_orb.sdc-orb-dim .sdc-orb { opacity: 0.25; }
+
+.sdc-orb {
+    position: absolute;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 2px solid var(--sdc-accent);
+    background:
+        radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.55) 0,
+                        rgba(255, 255, 255, 0) 32%),
+        radial-gradient(circle at 50% 60%, rgba(0, 0, 0, 0) 40%,
+                        rgba(0, 0, 0, 0.55) 100%),
+        var(--sdc-panel, rgba(0, 12, 4, 0.82));
+    box-shadow: 0 0 10px var(--sdc-accent-dim),
+                inset 0 0 12px var(--sdc-accent-dim);
+    color: var(--sdc-accent);
+    font-family: var(--stat-font, monospace);
+    transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(1);
+    transition: transform 0.22s cubic-bezier(0.2, 1.5, 0.4, 1),
+                opacity 0.18s, box-shadow 0.15s, border-color 0.15s;
+    transition-delay: calc(var(--i, 0) * 16ms);
+    pointer-events: none;
+}
+
+/* fly-out start: everything at the centre (sub-orbs: at their category) */
+#sdc_orb.sdc-orb-in .sdc-orb-root {
+    transform: translate(-50%, -50%) scale(0.2);
+    opacity: 0;
+}
+.sdc-orb-sub.sdc-orb-in {
+    transform: translate(-50%, -50%)
+               translate(calc(var(--dx) + var(--ox, 0px)),
+                         calc(var(--dy) + var(--oy, 0px))) scale(0.3);
+    opacity: 0;
+}
+
+.sdc-orb-face {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    overflow: hidden;
+}
+.sdc-orb-gl {
+    font-weight: bold;
+    text-shadow: 0 0 6px var(--sdc-accent-dim);
+    line-height: 1;
+}
+.sdc-orb-ic {
+    width: 72%;
+    height: 72%;
+    image-rendering: pixelated;
+}
+
+.sdc-orb-lbl {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translate(-50%, 2px);
+    font-size: 11px;
+    white-space: nowrap;
+    color: #fff;
+    text-shadow: 0 0 3px #000, 0 0 3px #000, 0 1px 2px #000;
+}
+.sdc-orb-key {
+    position: absolute;
+    right: -3px;
+    bottom: -3px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 2px;
+    box-sizing: border-box;
+    border-radius: 8px;
+    background: #000;
+    border: 1px solid var(--sdc-accent);
+    font-size: 10px;
+    line-height: 13px;
+    text-align: center;
+}
+.sdc-orb-fail {
+    position: absolute;
+    left: 50%;
+    top: -7px;
+    transform: translateX(-50%);
+    font-size: 9px;
+    color: #ffb0a0;
+    text-shadow: 0 0 2px #000, 0 0 2px #000;
+}
+
+/* category / kind accents */
+.sdc-orb-cat { border-width: 3px; }
+.sdc-orb-root.sdc-orb-cat.sdc-orb-open {
+    box-shadow: 0 0 18px var(--sdc-accent), inset 0 0 14px var(--sdc-accent-dim);
+}
+.sdc-orb[style*="--sdc-orb-god"] {
+    border-color: var(--sdc-orb-god);
+    color: var(--sdc-orb-god);
+}
+.sdc-orb-spell { border-color: var(--sdc-mp, #6ab0ff); color: #d8ecff; }
+.sdc-orb-menu, .sdc-orb-edit {
+    border-style: dashed;
+    opacity: 0.85;
+}
+
+/* hover: grow and glow */
+.sdc-orb.sdc-orb-hot {
+    transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(1.22);
+    box-shadow: 0 0 22px var(--sdc-accent), inset 0 0 16px var(--sdc-accent);
+    border-color: #fff;
+    transition-delay: 0s;
+    z-index: 2;
+}
+.sdc-orb-spell.sdc-orb-hot {
+    box-shadow: 0 0 22px var(--sdc-mp, #6ab0ff), inset 0 0 16px var(--sdc-mp, #6ab0ff);
+}
+
+/* holding a ring orb to replace it: a ring fills around it */
+.sdc-orb-hold::after {
+    content: "";
+    position: absolute;
+    inset: -7px;
+    border-radius: 50%;
+    background: conic-gradient(#fff calc(var(--sdc-orb-p, 0) * 1turn),
+                               transparent 0);
+    -webkit-mask: radial-gradient(circle, transparent 62%, #000 64%);
+    mask: radial-gradient(circle, transparent 62%, #000 64%);
+    animation: sdc-orb-fill 0.55s linear forwards;
+}
+@property --sdc-orb-p {
+    syntax: "<number>";
+    inherits: false;
+    initial-value: 0;
+}
+@keyframes sdc-orb-fill { to { --sdc-orb-p: 1; } }
+
+.sdc-orb.sdc-orb-off {
+    filter: grayscale(0.85) brightness(0.7);
+    border-style: dotted;
+}
+.sdc-orb-nope .sdc-orb-face { animation: sdc-orb-shake 0.3s; }
+@keyframes sdc-orb-shake {
+    20%, 60% { transform: translateX(-4px); }
+    40%, 80% { transform: translateX(4px); }
+}
+
+/* the player: a pulse ring where the menu came from */
+.sdc-orb-core {
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid var(--sdc-accent);
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 14px var(--sdc-accent), inset 0 0 10px var(--sdc-accent-dim);
+    animation: sdc-orb-pulse 1.6s ease-in-out infinite;
+    pointer-events: none;
+}
+@keyframes sdc-orb-pulse {
+    0%, 100% { opacity: 0.9; transform: translate(-50%, -50%) scale(1); }
+    50% { opacity: 0.45; transform: translate(-50%, -50%) scale(1.15); }
+}
+
+.sdc-orb-cap {
+    position: absolute;
+    transform: translate(-50%, -100%);
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid var(--sdc-accent);
+    background: rgba(0, 0, 0, 0.82);
+    color: #fff;
+    font-family: var(--stat-font, monospace);
+    font-size: 13px;
+    white-space: nowrap;
+    text-align: center;
+    pointer-events: none;
+    z-index: 3;
+}
+.sdc-orb-cap.sdc-orb-cap-below { transform: translate(-50%, 0); }
+.sdc-orb-cap b { color: var(--sdc-accent); }
+.sdc-orb-cap span { margin-left: 8px; opacity: 0.8; font-size: 11px; }
+
+/* editor */
+#sdc_orb_edit {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2001;
+    width: min(440px, 92vw);
+    max-height: 82vh;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1px solid var(--sdc-accent-dim);
+    border-radius: 10px;
+    background: var(--sdc-panel, rgba(0, 12, 4, 0.92));
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.8);
+    font-family: var(--stat-font, monospace);
+    font-size: 13px;
+    color: var(--sdc-accent);
+    pointer-events: auto;
+}
+.sdc-orb-ed-h {
+    margin: 4px 0 6px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.75;
+}
+.sdc-orb-ed-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.sdc-orb-ed-foot { justify-content: flex-end; margin: 10px 0 0; }
+.sdc-orb-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 16px;
+    border: 1px solid var(--sdc-accent);
+    background: rgba(0, 0, 0, 0.5);
+    color: var(--sdc-accent);
+    font: inherit;
+    cursor: pointer;
+}
+.sdc-orb-chip i { font-style: normal; opacity: 0.6; font-size: 11px; }
+.sdc-orb-ed-cur { cursor: default; padding: 4px 6px; gap: 2px; }
+.sdc-orb-ed-name {
+    padding: 2px 4px;
+    border: none;
+    background: none;
+}
+.sdc-orb-ed-cat { border-width: 2px; }
+.sdc-orb-ed-sel {
+    background: var(--sdc-accent-dim);
+    box-shadow: 0 0 10px var(--sdc-accent);
+}
+.sdc-orb-ed-sel .sdc-orb-ed-name { color: #fff; }
+.sdc-orb-evoke { border-color: #e0b0ff; color: #f2e0ff; }
+.sdc-orb-evoke.sdc-orb-hot {
+    box-shadow: 0 0 22px #e0b0ff, inset 0 0 16px #e0b0ff;
+}
+.sdc-orb-ed-x { color: #ff8a80; }
+.sdc-orb-ed-pre { border-style: dashed; }
+.sdc-orb-ed-ghost { opacity: 0.7; }
+.sdc-orb-ed-mv {
+    padding: 0 4px;
+    border: none;
+    background: none;
+    font-size: 15px;
+}
+.sdc-orb-ed-none { opacity: 0.5; }
+.sdc-orb-ed-hint { margin-top: 8px; font-size: 11px; opacity: 0.65; }
+.sdc-orb-ed-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.sdc-orb-ed-form input {
+    flex: 1 1 120px;
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid var(--sdc-accent-dim);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sdc-orb, .sdc-orb-core { transition: none; animation: none; }
+}

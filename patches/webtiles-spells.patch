@@ -1,0 +1,225 @@
+diff --git a/crawl-ref/source/tileweb.cc b/crawl-ref/source/tileweb.cc
+index d8c4e74..b645d5e 100644
+--- a/crawl-ref/source/tileweb.cc
++++ b/crawl-ref/source/tileweb.cc
+@@ -49,6 +49,11 @@
+ #include "scroller.h"
+ #include "showsymb.h"
+ #include "skills.h"
++#include "spl-cast.h"
++#include "spl-util.h"
++#include "ability.h"
++#include "evoke.h"
++#include "prompt.h"
+ #include "state.h"
+ #include "status.h"
+ #include "stringutil.h"
+@@ -1057,6 +1062,142 @@ template<class T> static bool _update_int(bool force, T& current, T next,
+         return false;
+ }
+ 
++// Super Dungeon Crawl local patch: the player's memorised spells, in the cast
++// menu's (letter) order, for the client's mobile orb menu.
++struct sdc_spell_info
++{
++    string key;
++    string name;
++    int fail;
++    int mp;
++    bool usable;
++    int tile;
++    int tex;
++};
++
++static vector<sdc_spell_info> _sdc_spells()
++{
++    vector<sdc_spell_info> out;
++    for (const spell_type spell : you.spells)
++    {
++        if (spell == SPELL_NO_SPELL)
++            continue;
++        sdc_spell_info s;
++        const int letter = get_spell_letter(spell);
++        s.key = letter > 0 ? string(1, (char) letter) : string();
++        s.name = spell_title(spell);
++        s.fail = failure_rate_to_int(raw_spell_fail(spell));
++        s.mp = spell_mana(spell);
++        s.usable = you.magic_points >= s.mp
++                   && !spell_is_useless(spell, true, false);
++        const tileidx_t tile = tileidx_spell(spell);
++        s.tile = (int) tile;
++        s.tex = (int) get_tile_texture(tile);
++        out.push_back(s);
++    }
++    sort(out.begin(), out.end(),
++         [](const sdc_spell_info &a, const sdc_spell_info &b)
++         { return a.key < b.key; });
++    return out;
++}
++
++static string _sdc_spells_sig(const vector<sdc_spell_info> &spells)
++{
++    string sig;
++    for (const sdc_spell_info &s : spells)
++    {
++        sig += s.key + "|" + s.name + "|" + to_string(s.fail) + "|"
++               + to_string(s.mp) + "|" + (s.usable ? "1" : "0") + "|"
++               + to_string(s.tile) + ";";
++    }
++    return sig;
++}
++
++// Every ability in the `a` menu's order (god invocations flagged), and the
++// evocable inventory items (V + letter), for the same menu.
++struct sdc_orb_info
++{
++    string key;
++    string name;
++    int fail;
++    bool usable;
++    int tile;
++    int tex;
++    bool god;
++};
++
++static vector<sdc_orb_info> _sdc_talents()
++{
++    vector<sdc_orb_info> out;
++    for (const talent &t : your_talents(true))
++    {
++        sdc_orb_info a;
++        a.key = t.hotkey > 0 ? string(1, (char) t.hotkey) : string();
++        a.name = ability_name(t.which);
++        a.fail = failure_rate_to_int(t.fail);
++        a.usable = check_ability_possible(t.which, true);
++        const tileidx_t tile = tileidx_ability(t.which);
++        a.tile = (int) tile;
++        a.tex = (int) get_tile_texture(tile);
++        a.god = t.is_invocation;
++        out.push_back(a);
++    }
++    return out;
++}
++
++static vector<sdc_orb_info> _sdc_evokables()
++{
++    vector<sdc_orb_info> out;
++    for (int i = 0; i < ENDOFPACK; ++i)
++    {
++        const item_def &item = you.inv[i];
++        if (!item.defined() || !item_ever_evokable(item))
++            continue;
++        sdc_orb_info e;
++        e.key = string(1, index_to_letter(i));
++        e.name = item.name(DESC_PLAIN);
++        e.fail = 0;
++        e.usable = cannot_evoke_item_reason(&item, true, true).empty();
++        const tileidx_t tile = tileidx_item(item);
++        e.tile = (int) tile;
++        e.tex = (int) get_tile_texture(tile);
++        e.god = false;
++        out.push_back(e);
++    }
++    return out;
++}
++
++static string _sdc_orb_sig(const vector<sdc_orb_info> &list)
++{
++    string sig;
++    for (const sdc_orb_info &o : list)
++    {
++        sig += o.key + "|" + o.name + "|" + to_string(o.fail) + "|"
++               + (o.usable ? "1" : "0") + "|" + to_string(o.tile) + "|"
++               + (o.god ? "1" : "0") + ";";
++    }
++    return sig;
++}
++
++static void _sdc_send_orb_list(const char *name,
++                               const vector<sdc_orb_info> &list)
++{
++    tiles.json_open_array(name);
++    for (const sdc_orb_info &o : list)
++    {
++        tiles.json_open_object();
++        tiles.json_write_string("key", o.key);
++        tiles.json_write_string("name", o.name);
++        tiles.json_write_int("fail", o.fail);
++        tiles.json_write_bool("usable", o.usable);
++        tiles.json_write_int("tile", o.tile);
++        tiles.json_write_int("tex", o.tex);
++        tiles.json_write_bool("god", o.god);
++        tiles.json_close_object();
++    }
++    tiles.json_close_array();
++}
++
+ static bool _update_statuses(player_info& c)
+ {
+     bool changed = false;
+@@ -1260,6 +1401,47 @@ void TilesFramework::_send_player(bool force_full)
+     _update_string(force_full, c.place, short_name, "place");
+     _update_int(force_full, c.depth, brdepth[place.branch] > 1 ? you.depth : 0, "depth");
+ 
++    {
++        const vector<sdc_spell_info> spells = _sdc_spells();
++        const string sig = _sdc_spells_sig(spells);
++        if (force_full || c.spells_sig != sig)
++        {
++            json_open_array("spells");
++            for (const sdc_spell_info &s : spells)
++            {
++                json_open_object();
++                json_write_string("key", s.key);
++                json_write_string("name", s.name);
++                json_write_int("fail", s.fail);
++                json_write_int("mp", s.mp);
++                json_write_bool("usable", s.usable);
++                json_write_int("tile", s.tile);
++                json_write_int("tex", s.tex);
++                json_close_object();
++            }
++            json_close_array();
++            c.spells_sig = sig;
++        }
++    }
++    {
++        const vector<sdc_orb_info> talents = _sdc_talents();
++        const string sig = _sdc_orb_sig(talents);
++        if (force_full || c.talents_sig != sig)
++        {
++            _sdc_send_orb_list("talents", talents);
++            c.talents_sig = sig;
++        }
++    }
++    {
++        const vector<sdc_orb_info> evok = _sdc_evokables();
++        const string sig = _sdc_orb_sig(evok);
++        if (force_full || c.evokables_sig != sig)
++        {
++            _sdc_send_orb_list("evokables", evok);
++            c.evokables_sig = sig;
++        }
++    }
++
+     if (m_origin.equals(-1, -1))
+         m_origin = you.position;
+     coord_def pos = you.position - m_origin;
+diff --git a/crawl-ref/source/tileweb.h b/crawl-ref/source/tileweb.h
+index 9e0b818..a78137d 100644
+--- a/crawl-ref/source/tileweb.h
++++ b/crawl-ref/source/tileweb.h
+@@ -88,6 +88,13 @@ struct player_info
+     int depth;
+     coord_def position;
+ 
++    // Memorised spells, all abilities and evocable items for the mobile
++    // orb menu; serialized signatures of the last sent lists (Super
++    // Dungeon Crawl local patch).
++    string spells_sig;
++    string talents_sig;
++    string evokables_sig;
++
+     vector<status_info> status;
+ 
+     FixedVector<item_def, ENDOFPACK> inv;
