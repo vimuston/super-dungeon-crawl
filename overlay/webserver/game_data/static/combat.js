@@ -90,48 +90,44 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx, kit) 
         return layer;
     }
 
-    function anchor_of(pos)
-    {
-        var c = document.getElementById("dungeon");
-        var dr = dungeon_renderer;
-        if (!c || !dr || !dr.cols || !dr.rows || !dr.view || !pos)
-            return null;
-        if (dr.ui_state == enums.ui.VIEW_MAP) return null;
-        var r = c.getBoundingClientRect();
-        if (r.width < 50 || r.height < 50) return null;
-        var fx = (pos.x - dr.view.x + 0.5) / dr.cols;
-        var fy = (pos.y - dr.view.y + 0.5) / dr.rows;
-        if (!(fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1)) return null;
-        var cw = r.width / dr.cols, ch = r.height / dr.rows;
-        var b = document.body.classList;
-        if (b.contains("sdc-gl") && b.contains("sdc-curved"))
-        {
-            var k = api.curve_k();
-            var tx = fx * 2 - 1, ty = fy * 2 - 1;
-            var sx = tx, sy = ty, g = 1;
-            for (var i = 0; i < 6; i++)
-            {
-                g = (1 + k * (sx * sx + sy * sy)) / (1 + k);
-                sx = tx / g;
-                sy = ty / g;
-            }
-            fx = (sx + 1) / 2;
-            fy = (sy + 1) / 2;
-            cw /= g;
-            ch /= g;
-        }
-        return { x: r.left + fx * r.width, y: r.top + fy * r.height,
-                 cw: cw, ch: ch };
-    }
+    // shared tile -> screen mapping (CRT curve and the 2.5D camera)
+    function anchor_of(pos) { return kit.anchor_of(pos); }
 
     // Element helpers ---------------------------------------------------------
 
-    function mk(css, cls)
+    // Each effect is built inside a zero-size host pinned to its map tile, so
+    // it follows the view when it scrolls, zooms or rotates mid-animation
+    // (mobile pinch / twist). `host` is the one mk() fills right now.
+    var host = null;
+    var HOST_MS = 3000;             // longer than any combat animation
+
+    function pinned(pos, a, ms)
+    {
+        var h = document.createElement("div");
+        h.style.cssText = "position:absolute;left:0;top:0;width:0;height:0;"
+                          + "will-change:transform;";
+        ensure_layer().appendChild(h);
+        // copy: callers shift their anchor for slots after this
+        kit.pin(h, pos, { x: a.x, y: a.y, cw: a.cw, ch: a.ch }, ms || HOST_MS);
+        return h;
+    }
+
+    // run fn with mk() filling host h
+    function into(h, fn)
+    {
+        var prev = host;
+        host = h;
+        try { fn(); }
+        finally { host = prev; }
+    }
+
+    function mk(css, cls, parent)
     {
         var d = document.createElement("div");
         d.className = "cb-el" + (cls ? " " + cls : "");
         d.style.cssText = css || "";
-        ensure_layer().appendChild(d);
+        var p = parent || host;
+        (p && p.parentNode ? p : ensure_layer()).appendChild(d);
         return d;
     }
 
@@ -179,6 +175,11 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx, kit) 
     {
         var a = anchor_of(player.pos);
         if (!a || !document.body.animate) return;
+        into(pinned(player.pos, a), function () { blood_at(a, ratio, source); });
+    }
+
+    function blood_at(a, ratio, source)
+    {
         ratio = Math.max(0, Math.min(1, ratio || 0));
         var cw = a.cw, ch = a.ch;
 
@@ -269,7 +270,8 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx, kit) 
         {
             var ed = mk("left:0;top:0;width:100vw;height:100vh;"
                         + "background:radial-gradient(ellipse at 50% 50%,"
-                        + "transparent 55%,rgba(192,24,34,0.55) 100%)");
+                        + "transparent 55%,rgba(192,24,34,0.55) 100%)",
+                        null, ensure_layer());   // screen edge: not pinned
             fx_anim(ed, [{ opacity: 0 }, { opacity: 1, offset: 0.2 },
                          { opacity: 0 }], { duration: 650 });
         }
@@ -422,6 +424,7 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx, kit) 
         var a = anchor_of(pos);
         if (!a || !document.body.animate)
         { trace({ ev: "drop", why: "anchor", pos: pos }); return; }
+        var a0 = { x: a.x, y: a.y, cw: a.cw, ch: a.ch };
         var key = pos.x + "," + pos.y, t = now();
         var kind = ev.result, incoming = ev.dir === "in";
         if (!opt.batched)
@@ -482,9 +485,10 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx, kit) 
             cls += " cb-in" + (big ? " cb-heavy" : "");
         else
             cls += kind === "kill" ? " cb-kill" : big ? " cb-heavy" : "";
+        var h = pinned(pos, a0, (delay || 0) + HOST_MS);
         var el = mk("font-size:" + fs + "px;left:" + a.x + "px;top:"
                     + (a.y - a.ch * 0.1) + "px;margin-top:" + (-fs * 0.5)
-                    + "px;visibility:hidden;z-index:1", cls);
+                    + "px;visibility:hidden;z-index:1", cls, h);
         if (fam) spellfx.prepare(el, fam, text);
         else el.textContent = text;
         el.style.marginLeft = (-el.offsetWidth / 2) + "px";
@@ -511,7 +515,9 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx, kit) 
                 spellfx.play(fam, { a: a, el: el, fs: fs, inc: incoming,
                                     sev: sev, big: sev >= 2 || kind === "kill",
                                     dir: sdir, name: ev.spell, done: done,
-                                    H: { mk: mk, fx_anim: fx_anim } });
+                                    H: { mk: function (css, c) {
+                                             return mk(css, c, h); },
+                                         fx_anim: fx_anim } });
                 if (ev.brand && !incoming)
                     burst(a, false, "#fff3b0", "#ffe27a");  // the weapon impact
                 if (kind === "kill" && !incoming) kill_debris(a);
@@ -593,8 +599,9 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge, spellfx, kit) 
             burst(a, big, "#fff3b0", "#ffe27a");
             if (kind === "kill") kill_debris(a);
         };
-        if (delay > 0) window.setTimeout(run, delay);
-        else run();
+        var go = function () { into(h, run); };
+        if (delay > 0) window.setTimeout(go, delay);
+        else go();
     }
 
     // Target location ---------------------------------------------------------

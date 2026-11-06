@@ -459,9 +459,13 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, main) {
             // tile corners in dungeon uv -> screen px
             var u0 = (e.x - vx) / cols, u1 = (e.x - vx + 1) / cols;
             var v0 = (e.y - vy) / rows, v1 = (e.y - vy + 1) / rows;
-            unwarp(u0, v0, k_curve, p00);
-            unwarp(u1, v0, k_curve, p10);
-            unwarp(u0, v1, k_curve, p01);
+            // 2.5D camera (depth.js: rotate / zoom / tilt) first, then the
+            // CRT curve, as fxkit.anchor_of does
+            var q00 = api.depth_map(u0, v0), q10 = api.depth_map(u1, v0),
+                q01 = api.depth_map(u0, v1);
+            unwarp(q00[0], q00[1], k_curve, p00);
+            unwarp(q10[0], q10[1], k_curve, p10);
+            unwarp(q01[0], q01[1], k_curve, p01);
             ctx.setTransform((p10[0] - p00[0]) * w, (p10[1] - p00[1]) * h,
                              (p01[0] - p00[0]) * w, (p01[1] - p00[1]) * h,
                              p00[0] * w, p00[1] * h);
