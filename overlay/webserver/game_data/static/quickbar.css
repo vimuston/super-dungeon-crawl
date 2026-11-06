@@ -76,7 +76,7 @@ body.sdc-hud[data-sdc-quickbar="bottom"] #action-panel-placeholder:hover {
    a bit smaller, centred at the very bottom between them */
 html body.sdc-mobile.sdc-hud[data-sdc-quickbar="bottom"] #action-panel-placeholder {
     left: 50% !important;
-    bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+    bottom: calc(6px + env(safe-area-inset-bottom)) !important;
     transform: translateX(-50%) !important;
     width: 62px;
     height: 62px;
@@ -104,6 +104,14 @@ body.sdc-mobile.sdc-hud[data-sdc-quickbar="bottom"] #action-panel-placeholder a:
     margin-top: 2px;
     font-size: 10px;
     font-weight: normal;
+}
+/* phones: the bar sits at the very bottom of the screen (its caption row
+   under it), not at the dungeon view's bottom edge */
+html body.sdc-mobile.sdc-hud[data-sdc-quickbar="bottom"] #action-panel {
+    bottom: calc(6px + env(safe-area-inset-bottom));
+}
+html body.sdc-mobile.sdc-hud[data-sdc-quickbar="bottom"][data-sdc-qbcap="h"] #action-panel {
+    bottom: calc(20px + env(safe-area-inset-bottom));
 }
 /* the finger drag along the bar runs the dock (quickbar.js), not a pan */
 body.sdc-mobile #action-panel,
