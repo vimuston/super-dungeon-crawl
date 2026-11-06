@@ -11,7 +11,7 @@
 //     skills, abilities, character, stairs, pick up, ...), Esc / Enter, the
 //     on-screen keyboard, minimap and settings. Find opens its own panel:
 //     a search box, recent searches and one-tap presets.
-//   - tap your own tile = pick up (g).
+//   - tap your own tile = pick up (g); on stairs = take them (< / >).
 //   - messages: the message pane is hidden; new messages show in a small
 //     translucent bubble above the bottom bar that fades out. Tap the bubble
 //     for the recent log (or to answer --more--). Text prompts bring the
@@ -20,7 +20,8 @@
 //   - dungeon touch: tap = click a tile (travel / attack), swipe = one step
 //     in 8 directions (a long swipe runs), long-press = describe.
 //   - map view (X, or a Find result): tap the cursor = travel there; tap
-//     elsewhere = move the cursor there (tap it again to travel).
+//     elsewhere = move the cursor there (tap it again to travel). The < / >
+//     buttons beside Close map jump the cursor to the next up / down stairs.
 //
 // Options:
 //   "mobile"         auto / on / off. Auto = touch screen or the wrapper.
@@ -36,8 +37,9 @@
 // The wrapper (android/) calls window.sdcBack() for the back button and
 // exposes window.SdcNative ({isLocal(), manageSaves()}).
 define(["jquery", "comm", "./sdc_api", "./dungeon_renderer", "./enums", "./options",
-        "./player", "./view_data"],
-function ($, comm, api, renderer, enums, options, player, view_data) {
+        "./player", "./view_data", "./map_knowledge"],
+function ($, comm, api, renderer, enums, options, player, view_data,
+          map_knowledge) {
     "use strict";
 
     api.register_option({ key: "mobile", label: "Mobile UI", default: "on",
@@ -258,6 +260,7 @@ function ($, comm, api, renderer, enums, options, player, view_data) {
     {
         $("#sdc_m_toolbtn, #sdc_m_tools, #sdc_m_bubble, #sdc_m_macros,"
           + " #sdc_m_pin, #sdc_m_logclose, #sdc_m_find, #sdc_m_mapclose,"
+          + " .sdc-m-mapstair,"
           + " .sdc-m-big").remove();
         var normal = $("#normal");
 
@@ -271,6 +274,15 @@ function ($, comm, api, renderer, enums, options, player, view_data) {
         // map view (X) hides the thumb buttons; this is its way out
         key_button("Close map", "Esc", close_all)
             .attr("id", "sdc_m_mapclose").appendTo(normal);
+        // and its stairs finders: < / > jump the map cursor to the next up /
+        // down staircase on the level (crawl's own map keys); tap the cursor
+        // to travel there
+        [["<", "Next up stairs", "sdc_m_mapup"],
+         [">", "Next down stairs", "sdc_m_mapdown"]].forEach(function (b) {
+            key_button(b[0], b[0])
+                .attr({ id: b[2], "aria-label": b[1] })
+                .addClass("sdc-m-mapstair").appendTo(normal);
+        });
 
         $("<button type='button' id='sdc_m_toolbtn' aria-label='Tools'>")
             .html("&#9776;")
@@ -1035,6 +1047,18 @@ function ($, comm, api, renderer, enums, options, player, view_data) {
 
     function on_touchend(ev)
     {
+        // the map's < / > buttons: ours alone, before ui.js's click-outside
+        // handler (from Find the results popup is still open under the map,
+        // and a tap outside it would send Esc)
+        var stair_btn = active() && ev.type === "touchend"
+            && $(ev.target).closest(".sdc-m-mapstair")[0];
+        if (stair_btn)
+        {
+            ev.preventDefault();
+            ev.stopImmediatePropagation();
+            $(stair_btn).trigger("click");
+            return;
+        }
         if (pinch)
         {
             // swallow the lifted fingers; ignore until all are up
@@ -1134,9 +1158,33 @@ function ($, comm, api, renderer, enums, options, player, view_data) {
     document.addEventListener("touchcancel", on_touchend, opts);
     document.addEventListener("contextmenu", on_contextmenu, true);
 
-    // Tap your own tile = pick up (g). Wraps the stock mouse handler: the
+    // Tap your own tile = pick up (g), or take the stairs you stand on (< / >,
+    // like local tiles' click on self). Wraps the stock mouse handler: the
     // event is already unwarped by crt.js, so the same cell maths apply.
     var stock_mouse = renderer.handle_mouse;
+
+    // dungeon_feature_type values (TAG_MAJOR_VERSION 34) whose stairs
+    // direction (terrain.cc feat_stair_direction) is up; down is the same
+    // for the down stairs, hatches, branch / portal entrances, Abyss and Pan
+    // gates. Shops and altars count as "down" there but aren't stairs.
+    var STAIRS_UP = [46, 47, 48, 49, 60, 62, 67, 175, 194, 210, 217, 222]
+        .concat(range(86, 102), range(149, 159), range(198, 201));
+    var STAIRS_DOWN = [42, 43, 44, 45, 54, 55, 57, 58, 59, 61, 63, 64, 66,
+                       132, 174, 193, 209, 216, 221]
+        .concat(range(50, 53), range(69, 85), range(139, 148));
+    function range(a, b)
+    {
+        var out = [];
+        for (var i = a; i <= b; i++) out.push(i);
+        return out;
+    }
+    function stairs_key(pos)
+    {
+        var f = map_knowledge.get(pos.x, pos.y).f;
+        if (STAIRS_UP.indexOf(f) >= 0) return "<";
+        if (STAIRS_DOWN.indexOf(f) >= 0) return ">";
+        return null;
+    }
     function command_mode()
     {
         var g = window.game;    // global set by game.js (circular import)
@@ -1217,7 +1265,7 @@ function ($, comm, api, renderer, enums, options, player, view_data) {
             if (x === player.pos.x && y === player.pos.y)
             {
                 buzz();
-                send_keys("g");
+                send_keys(stairs_key(player.pos) || "g");
                 return;
             }
         }
