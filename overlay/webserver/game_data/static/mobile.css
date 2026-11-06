@@ -397,6 +397,26 @@ body.sdc-mobile.sdc-mapview #sdc_m_mapclose:active {
     transform: translateX(-50%) scale(0.95);
 }
 
+/* next up / down stairs (< / >), either side of Close map */
+.sdc-m-mapstair { display: none; }
+body.sdc-mobile.sdc-mapview .sdc-m-mapstair {
+    display: block;
+    position: fixed;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    z-index: 3200;
+    min-width: 48px;
+    padding: 7px 14px;
+    font-size: 20px;
+    line-height: 1.2;
+    font-weight: bold;
+    background: rgba(2, 10, 5, 0.75);
+    border-width: 2px;
+    box-shadow: 0 0 12px color-mix(in srgb, var(--sdc-accent) 25%, transparent);
+}
+body.sdc-mobile.sdc-mapview #sdc_m_mapup { right: calc(50% + 80px); }
+body.sdc-mobile.sdc-mapview #sdc_m_mapdown { left: calc(50% + 80px); }
+body.sdc-mobile.sdc-mapview .sdc-m-mapstair:active { transform: scale(0.95); }
+
 /* pinned macros, bottom-right above Explore */
 /* same round glowing look as the thumb buttons, a size smaller and centred
    over Explore (76px wide at right 12px) */
