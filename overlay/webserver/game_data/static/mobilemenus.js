@@ -173,7 +173,9 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
 
     // "[?] help  [!]/[I] toggle  [Esc] cancel" -> buttons. Plain text that is
     // not a hint (e.g. "Select a spell to cast") stays as a caption.
-    var HINT_RE = /\[([^\]\n]{1,8})\]((?:\/\[[^\]\n]{1,8}\])*)\s*([^\[\n]*)/g;
+    // A key glued to a word ("Uppercase [Y]es or [N]o only, please.") is
+    // that word's hotkey: the button is the word, the sentence the caption.
+    var HINT_RE = /\[([^\]\n]{1,8})\]((?:\/\[[^\]\n]{1,8}\])*)(\s*)([^\[\n]*)/g;
 
     // keep(keys): optional filter; hints it rejects are dropped (no button,
     // no caption), e.g. ones the dressed menu already offers elsewhere
@@ -204,7 +206,16 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
             var fn = null;
             for (var i = 0; i < keys.length && !fn; i++) fn = key_action(keys[i]);
             if (!fn) continue;
-            var label = m[3].trim().replace(/[,;:.]+$/, "") || keys[0];
+            var word = !m[2] && !m[3] && m[1].length === 1
+                && /^[a-z]+/i.exec(m[4]);
+            if (word)
+            {
+                bar.appendChild(btn(m[1] + word[0], "", fn));
+                caption = caption.replace(m[0], m[1] + m[4]);
+                found = true;
+                continue;
+            }
+            var label = m[4].trim().replace(/[,;:.]+$/, "") || keys[0];
             if (label.length > 26) label = label.slice(0, 25) + "…";
             bar.appendChild(btn(label, "", fn));
             caption = caption.replace(m[0].trim(), "");
