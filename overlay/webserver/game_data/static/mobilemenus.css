@@ -769,7 +769,9 @@ body.sdc-mm .sdc-mm-stacked:not(.sdc-mm-sheet-on) .sdc-mm-sheet > :not(.sdc-mm-t
     background: color-mix(in srgb, var(--sdc-accent) 6%, rgba(0, 0, 0, 0.4));
 }
 .sdc-mm-slot.tap:active { background: color-mix(in srgb, var(--sdc-accent) 18%, transparent); }
-.sdc-mm-slot.empty { min-height: 30px; opacity: 0.4; }
+.sdc-mm-slot.empty, .sdc-mm-slot.unarmed { opacity: 0.55; }
+.sdc-mm-slot.empty.tap, .sdc-mm-slot.unarmed.tap { border-style: dashed; background: none; }
+.sdc-mm-slot.empty:not(.tap) { min-height: 30px; opacity: 0.4; }
 .sdc-mm-si {
     flex: 0 0 30px;
     text-align: center;
@@ -809,14 +811,6 @@ body.sdc-mm .sdc-mm-stacked:not(.sdc-mm-sheet-on) .sdc-mm-sheet > :not(.sdc-mm-t
     background: color-mix(in srgb, var(--sdc-accent) 8%, transparent);
 }
 .sdc-mm-chip2.none { border-style: dashed; background: none; opacity: 0.5; }
-.sdc-mm-emptyl {
-    margin-top: 6px;
-    font-size: 10px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    opacity: 0.5;
-}
-.sdc-mm-empties .sdc-mm-chip2 { font-size: 11px; padding: 2px 8px; }
 
 /* ------------------------------------------------- settings panel */
 

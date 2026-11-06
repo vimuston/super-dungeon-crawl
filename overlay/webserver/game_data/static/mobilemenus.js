@@ -948,7 +948,15 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
     {
         return SLOT_ICON[slot] ? SLOT_ICON[slot] + "︎" : "";
     }
-    var STATUS_LABEL = { "%": "Passive", "@": "Status", "A": "Mutations" };
+    // empty slot -> the command that fills it (gizmos have none)
+    function slot_cmd(slot)
+    {
+        if (slot === "weapon") return "w";
+        if (slot === "amulet" || slot === "ring") return "P";
+        if (!slot || slot === "gizmo") return "";
+        return "W";     // offhand, body armour, armour, helmet, ..., barding
+    }
+    var STATUS_LABEL ={ "%": "Passive", "@": "Status", "A": "Mutations" };
 
     function frac(v)
     {
@@ -1051,41 +1059,41 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
         {
             var eq = card("sdc-mm-eqc", "Equipment");
             var plain = d.equip.length === SLOT_ORDER.length;
-            var empties = el("div", "sdc-mm-chips sdc-mm-empties");
+            // rows come in crawl's slot order; empty ones ("(no helmet)",
+            // the unarmed "- Nothing wielded") stay in place and open the
+            // matching equip prompt. Melded "(... unavailable)" slots are
+            // not parsed, so they never show.
             d.equip.forEach(function (x, i) {
-                var slot = x.empty ? x.label : plain ? SLOT_ORDER[i] : "";
-                if (x.empty)
-                {
-                    // empty slots: one compact row of chips at the end
-                    empties.appendChild(el("span", "sdc-mm-chip2 none",
-                        (slot_icon(slot) ? slot_icon(slot) + " " : "") + slot));
-                    return;
-                }
-                var row = el("div", "sdc-mm-slot" + (x.empty ? " empty" : "")
-                             + (x.key ? " tap" : ""));
+                var unarmed = !x.empty && !x.key;
+                var slot = x.empty ? x.label : unarmed ? "weapon"
+                    : plain ? SLOT_ORDER[i] : "";
+                var cmd = x.empty || unarmed ? slot_cmd(slot) : x.key;
+                var row = el("div", "sdc-mm-slot"
+                             + (x.empty ? " empty" : unarmed ? " unarmed" : "")
+                             + (cmd ? " tap" : ""));
                 row.appendChild(el("span", "sdc-mm-si", slot_icon(slot) || "•"));
                 var body = el("div", "sdc-mm-sb");
                 if (slot) body.appendChild(el("small", "", slot));
                 body.appendChild(el("div", "sdc-mm-sn" + (x.fg != null ? " fg" + x.fg : ""),
                                     x.empty ? "empty" : x.name));
                 row.appendChild(body);
-                if (x.key)
+                if (cmd)
                 {
-                    row.appendChild(el("span", "sdc-mm-sk2", x.key));
+                    row.appendChild(el("span", "sdc-mm-sk2", cmd));
                     row.addEventListener("click", function (ev) {
                         ev.preventDefault();
                         ev.stopPropagation();
                         buzz();
-                        send_text(x.key);
+                        if (cmd === x.key) send_text(cmd);   // describe item
+                        else
+                        {
+                            send_code(27);                  // close %
+                            send_text(cmd);
+                        }
                     });
                 }
                 eq.appendChild(row);
             });
-            if (empties.children.length)
-            {
-                eq.appendChild(el("small", "sdc-mm-emptyl", "Empty slots"));
-                eq.appendChild(empties);
-            }
         }
 
         // passive / status / mutations
