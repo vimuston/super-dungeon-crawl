@@ -1,9 +1,11 @@
 # Super Dungeon Crawl
 
 [Dungeon Crawl Stone Soup](https://github.com/crawl/crawl) (DCSS, current
-`master`) played through its webtiles client, with a CRT-monitor look, a
-minimal game-focused HUD and a lot of small visual effects. Everything runs on
-your own machine: a Windows exe, an Android app, or a local webtiles server.
+`master`) played through its webtiles client, rebuilt around visual effects:
+every spell element hits with its own animation, gods, wands, scrolls and
+statuses get their own moments, the dungeon is lit and alive, and phones get a
+real touch layout instead of a shrunken desktop page. Everything runs on your
+own machine: a Windows exe, an Android app, or a local webtiles server.
 
 - [What it changes](#what-it-changes)
 - [Install and play](#install-and-play)
@@ -19,33 +21,89 @@ your own machine: a Windows exe, an Android app, or a local webtiles server.
 Mostly the webtiles **browser client**; the crawl binary gets three small
 patches (see [Crawl patches](#crawl-patches)).
 
-- **CRT filter**: a WebGL pass over the dungeon view adds barrel curvature,
-  chroma bleed, chromatic aberration, bloom, an aperture-grille mask,
-  scanlines, a vignette and flicker. A glass layer adds a rolling refresh
-  band, and text gets a phosphor glow. When HP is low, red bleeds in from the
-  tube edges.
-- **HUD**: the dungeon takes the full width. Status badges, slim HP/MP bars
-  and a compact stats strip form one panel in the top-left corner.
-  The quick-use bar becomes an action bar at the bottom; a small minimap and
-  monster list sit top-right.
+### Spell effects
+
+Every spell hit shows its damage number, and every element has its own
+number style and motion, so a fireball, a frost bolt and a chaos surge never
+look like a sword hit:
+
+| Element | What you see |
+|---------|--------------|
+| fire    | flame tongues and embers; the number flickers and rises |
+| lava    | a molten slam with dark crust chunks and orange drips |
+| cold    | the number snaps in, shivers, freezes and shatters; frost spokes or ice spikes |
+| electricity | jittering digits, forked lightning from above, sparks |
+| poison / acid | the number sags and drips or melts away; bubbles, sizzle, a puddle |
+| earth   | slams in from above with rock chunks, a dust ring and cracks |
+| force / air | afterimages and shock rings, or a spiralling gust |
+| necromancy / shadow / blood | ghostly rise and drain motes, melting tendrils, heartbeat thumps |
+| chaos   | every digit twists its own way while hues cycle, glitch slices, a vortex |
+| holy    | rotating rays, a halo ring, sparkles |
+| water / steam | a jelly splash with ripples, hot puffs |
+| dispel  | digits dissolve into pixels |
+
+Spells that do no damage get their own effects too: polymorph, charm, hexes,
+blink and teleport (a dematerialise / rematerialise with phosphor tears), a
+rune circle and scanline curtain for summons and green soul wisps for
+necromancy, passwall ripples, digging debris and the Orb of Destruction's
+glowing trail.
+
+### More effects
+
+- **Gods**: abilities of nearly every god have their own effect: Okawaru's
+  arena duel, Qazlal's elemental upheaval, Wu Jian's golden dash trails,
+  Yredelemnul's chains, torment's red-black pulse, Lugonu's tears in reality,
+  Xom's random flourishes, Sif Muna's bolts into the MP bar and more.
+- **Statuses**: haste speed lines, slow's laggy ghosts, an icy Ozo's Armour
+  glow, Death's Door greyscale, poison bubbles and a throbbing HP bar, dizzy
+  stars for confusion, and a full berserk sequence (onset shockwave, rage
+  tremor, heartbeat vignette, the crash afterwards).
+- **Combat**: damage numbers (or comic-style "KA-CHUNK" words) on every
+  attack, blood when you are hurt, and a physical feel for ranged weapons: the
+  bowstring draws and snaps, crossbows thunk, hand cannons kick with flash and
+  smoke, slings whirl.
+- **Items and events**: scrolls and potions, rune and Orb pickups, a shaft
+  plunge into darkness, HP/MP bars that surge and drain, and terminal-style
+  splash text for statuses, big hits, level-ups and new areas.
+
+### Mobile layout
+
+On phones (and in the Android app) the client becomes a touch game rather
+than a shrunken desktop page: tap to travel or attack, swipe to step,
+long-press to describe. Long-press your character for the **orb menu**, a ring
+of orbs you slide onto to fan out spells, wands and abilities. Messages appear
+in a fading bubble, the quick-use bar sits at the very bottom, your own macros
+can be pinned on screen, y/n
+questions get real buttons, and the menus (skills, spells, character
+selection, the `%` overview, number prompts) get full-screen touch layouts.
+See [Controls](#controls) for the details.
+
+### A living dungeon
+
 - **Lighting**: fire, lava, torches, lightning, cold, poison, magic, portals,
   altars, glowing monsters and spell bolts light their surroundings; your
   line of sight is lantern-lit and the remembered map outside it turns cold
-  and foggy.
+  and foggy, with dark tendrils curling at the edge of the unexplored.
 - **Living tiles**: every tile in sight gets a little motion from what it is
   and what is happening (creatures breathe by state, water ripples, lava
-  heaves, trees sway, gold glints, hits send ripples). See the header of
-  `alive.js` for the full list.
+  heaves, trees sway, gold glints, hits send ripples), and clouds of fire,
+  fog, steam and poison drift and swirl. See the header of `alive.js` for
+  the full list.
 - **2.5D view**: an optional slanted camera with raised walls and upright
   creatures. Hold the middle mouse button (mouse3) on the view and drag
   sideways to rotate it, up/down to zoom; a middle click resets both. With
   Shift held, dragging up/down changes the perspective instead, and
   Shift + middle click resets it.
-- **Effects**: damage numbers, spell and god-ability effects, status auras,
-  ranged-weapon recoil, terminal-style splash text for statuses, big hits,
-  level-ups and new areas.
-- **Mobile layout**: touch controls and a compact UI on phones (and in the
-  Android app).
+
+### HUD and CRT look
+
+- **HUD**: the dungeon takes the full width. Status badges, slim HP/MP bars
+  and a compact stats strip form one panel in the top-left corner.
+  The quick-use bar becomes an action bar at the bottom; a small minimap and
+  monster list sit top-right.
+- **CRT filter** (optional, Alt+C): curvature, scanlines, bloom, an
+  aperture-grille mask and a phosphor glow on text; red bleeds in from the
+  edges when HP is low. With it off, the 2.5D view and all effects stay.
 
 Mouse clicks and hovers go through the same curvature, so they hit the tile
 you see. Settings persist in the browser (localStorage).
