@@ -606,6 +606,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
     function dock_deactivate()
     {
         document.body.classList.remove("sdc-qb-dock");
+        set_mag(false);
         dk.active = false;
         dk_last = 0;
         if (dk_raf)
@@ -909,6 +910,9 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
                 else settled = false;
                 dk_cur[i] = c;
             }
+            // finger gone and the slots back to size: the thumb buttons
+            // return and the bar is cropped again (a quiver may still run)
+            if (dk_cursor === null && settled) set_mag(false);
             var live = !settled;
             if (!reduce)
             {
@@ -928,6 +932,8 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
                 return;
             }
             dock_layout(canvas, r, pitch, now);
+            if (!document.body.classList.contains("sdc-qb-mag"))
+                crop();                     // a quiver at rest stays cropped
             if (!was_active)
             {
                 document.body.classList.add("sdc-qb-dock");
@@ -972,6 +978,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
             return;
         }
         dk_sim_until = 0;
+        set_mag(true);
         var changed = dk_cursor === null
                       || Math.floor(u) !== Math.floor(dk_cursor);
         dk_cursor = u;
@@ -1117,6 +1124,94 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
         sync_frame();
     }
 
+    // Phones: the bar is cropped to the gap between the Fight and Explore
+    // thumb buttons (mobile.js), so neither overlaps it. While a finger (or
+    // the mouse) magnifies the bar (body.sdc-qb-mag, until the dock is back
+    // at rest) the whole bar shows and mobile.css hides the two buttons.
+    // clip-path also clips hit testing, so taps on the cut ends reach the
+    // buttons.
+    var CROP_IDS = ["action-panel", "sdc_qb_ab", "sdc_qb_frame", "sdc_qb_caps",
+                    "sdc_qb_dock"];
+    var CROP_GAP = 6;           // px kept clear beside each button
+
+    function thumb_edge(id, side)
+    {
+        var el = document.getElementById(id);
+        // (fixed elements have no offsetParent: check the box instead)
+        if (!el || window.getComputedStyle(el).display === "none") return null;
+        var r = el.getBoundingClientRect();
+        if (r.width === 0) return null;
+        return side === "right" ? r.right + CROP_GAP : r.left - CROP_GAP;
+    }
+
+    function crop()
+    {
+        var b = document.body.classList;
+        var on = b.contains("sdc-mobile") && moved() && !b.contains("sdc-qb-mag");
+        var lo = on ? thumb_edge("sdc_m_fight", "right") : null;
+        var hi = on ? thumb_edge("sdc_m_explore", "left") : null;
+        CROP_IDS.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            var cl = "", mk = "";
+            if (lo !== null || hi !== null)
+            {
+                var r = el.getBoundingClientRect();
+                var l = lo === null ? 0 : Math.max(0, lo - r.left);
+                var rt = hi === null ? 0 : Math.max(0, r.right - hi);
+                if (r.width > 0 && (l > 0 || rt > 0))
+                {
+                    cl = "inset(-400px " + rt + "px -60px " + l + "px)";
+                    mk = crop_mask(r.width, l, rt);
+                }
+            }
+            if (el.style.clipPath !== cl) el.style.clipPath = cl;
+            set_mask(el, mk);
+        });
+    }
+
+    // the cut ends fade out over CROP_FADE px (about a slot and a half)
+    // instead of stopping hard; the gradient repeats vertically past the box
+    // (no-clip), so the bar's glow above and below is kept
+    var CROP_FADE = 44;
+    function crop_mask(w, l, rt)
+    {
+        var f = Math.min(CROP_FADE, (w - l - rt) / 3);
+        var a = l > 0 ? "transparent " + l + "px, #000 " + (l + f) + "px"
+                      : "#000 0px";
+        var e = w - rt;
+        var b = rt > 0 ? "#000 " + (e - f) + "px, transparent " + e + "px"
+                       : "#000 " + w + "px";
+        return "linear-gradient(to right, " + a + ", " + b + ")";
+    }
+
+    function set_mask(el, mk)
+    {
+        var s = el.style;
+        if (s.getPropertyValue("--sdc-qb-mask") === mk) return;
+        s.setProperty("--sdc-qb-mask", mk);
+        var props = ["mask", "-webkit-mask"];
+        props.forEach(function (p) {
+            if (!mk)
+            {
+                ["-image", "-repeat", "-clip"].forEach(
+                    function (k) { s.removeProperty(p + k); });
+                return;
+            }
+            s.setProperty(p + "-image", mk);
+            s.setProperty(p + "-repeat", "repeat-y");
+            s.setProperty(p + "-clip", "no-clip");
+        });
+    }
+
+    function set_mag(on)
+    {
+        var b = document.body.classList;
+        if (b.contains("sdc-qb-mag") === !!on) return;
+        b.toggle("sdc-qb-mag", !!on);
+        crop();
+    }
+
     // The frame is a sibling overlay (a canvas can't have ::before) sized to
     // the canvas, with one divider per slot. Slots are square tiles, so the
     // slot pitch is the canvas' css height for a horizontal panel.
@@ -1169,6 +1264,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
         frame.style.setProperty("--sdc-qb-pitch", pitch + "px");
         frame.setAttribute("data-dir", horizontal ? "h" : "v");
         sync_caps(canvas, r, horizontal, pitch);
+        crop();
     }
 
     api.on("game_init", function () {
