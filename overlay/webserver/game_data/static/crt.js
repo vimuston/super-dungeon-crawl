@@ -177,8 +177,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
     var PANEL_TABS = [
         ["Screen", ["#CRT", "filter", "curve_amount", "chroma_bleed",
                     "bleed_amount", "scan_sweep"]],
-        ["2.5D", ["depth", "depth_persp", "depth_rot", "depth_rot_lock",
-                  "depth_zoom", "depth_height"]],
+        ["2.5D", ["depth", "depth_persp", "depth_rot_lock", "depth_height"]],
         ["Effects", ["alive", "combat_text", "ranged_feel", "splash",
                      "fogedge_amount"]],
         ["Interface", ["turn_counter", "#Mobile", "mobile", "mobile_menus",
@@ -188,8 +187,8 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
     var PANEL_DEPENDS = {
         curve_amount: ["filter", "off"], chroma_bleed: ["filter", "off"],
         bleed_amount: ["chroma_bleed", false], scan_sweep: ["filter", "off"],
-        depth_persp: ["depth", false], depth_rot: ["depth", false],
-        depth_rot_lock: ["depth", false], depth_zoom: ["depth", false], depth_height: ["depth", false],
+        depth_persp: ["depth", false], depth_rot_lock: ["depth", false],
+        depth_height: ["depth", false],
         msg_fade: ["mobile", "off"],
         mobile_zoom: ["mobile", "off"]
     };
