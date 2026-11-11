@@ -498,3 +498,52 @@ body.sdc-hud.sdc-mapview #sdc_qb_frame,
 body.sdc-hud.sdc-mapview #sdc_qb_caps {
     display: none !important;
 }
+
+/* select-first (option "quickbar_confirm", quickbar.js): a pulsing ring on
+   the selected slot with a "tap again" label above it; on the dock copy
+   while the bar is magnified */
+#sdc_qb_sel {
+    display: none;
+    position: fixed;
+    z-index: 8;
+    pointer-events: none;
+    box-sizing: border-box;
+    --sdc-qb-sel: var(--sdc-accent);
+    border: 2px solid var(--sdc-qb-sel);
+    border-radius: 4px;
+    box-shadow: 0 0 10px color-mix(in srgb, var(--sdc-qb-sel) 70%, transparent),
+                inset 0 0 8px color-mix(in srgb, var(--sdc-qb-sel) 45%, transparent);
+    animation: sdc-qb-sel 0.8s ease-in-out infinite alternate;
+}
+#sdc_qb_sel.ab { --sdc-qb-sel: var(--sdc-qb-god, #ffbf47); }
+#sdc_qb_sel::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    transform: translate(-50%, -4px);
+    padding: 0 5px;
+    white-space: nowrap;
+    text-transform: uppercase;
+    font: 9px/13px var(--stat-font);
+    color: var(--sdc-qb-sel);
+    background: rgba(4, 12, 7, 0.96);
+    border: 1px solid color-mix(in srgb, var(--sdc-qb-sel) 60%, transparent);
+    border-radius: 3px;
+}
+body.sdc-qb-dock #sdc_qb_sel { display: none !important; }
+#sdc_qb_dock .slot.sdc-qb-sel::after {
+    box-shadow: inset 0 0 0 2px var(--sdc-accent),
+                0 0 10px color-mix(in srgb, var(--sdc-accent) 70%, transparent);
+}
+#sdc_qb_dock .slot.sdc-ab.sdc-qb-sel::after {
+    box-shadow: inset 0 0 0 2px var(--sdc-qb-god),
+                0 0 10px color-mix(in srgb, var(--sdc-qb-god) 70%, transparent);
+}
+@keyframes sdc-qb-sel {
+    from { opacity: 0.6; }
+    to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    #sdc_qb_sel { animation: none; }
+}

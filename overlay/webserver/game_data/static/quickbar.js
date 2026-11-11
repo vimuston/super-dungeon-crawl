@@ -72,6 +72,12 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
         }
         catch (e) { api.warn("quickbar mouse remap", e); }
         dock_mouse(ev.type, canvas, x, y);
+        // select-first: keep the stock mousedown (which uses the item) away
+        if (ev.type === "mousedown" && sel_gate_canvas(canvas, x, y, ev.which))
+        {
+            ev.stopImmediatePropagation();
+            ev.preventDefault();
+        }
     }
 
     MOUSE_EVENTS.forEach(function (type) {
@@ -169,6 +175,180 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
     {
         return Date.now() < touch_until;
     }
+
+    // select first, then use ----------------------------------------------
+    //
+    // Option "quickbar_confirm" (off by default): the first tap/click on an
+    // item or god ability only selects it (a pulsing ring with a "tap again"
+    // label); a second tap on the same slot uses it. Tapping anywhere else,
+    // pressing a key or waiting SEL_TIMEOUT drops the selection. The close /
+    // menu slots, right clicks (describe) and keyboard activation act at once.
+
+    api.register_option({ key: "quickbar_confirm", label: "Hotbar: select first",
+                          default: false, tab: "Interface",
+                          choices: [[false, "Off"], [true, "On"]],
+                          hint: ["Click an item once to select it, again to use it",
+                                 "Tap an item once to select it, again to use it"] });
+
+    var SEL_TIMEOUT = 5000;     // ms a selection stays armed
+    var sel = null;             // { kind: "inv"|"ab", i, id, t }
+    var sel_timer = 0;
+
+    function sel_on()
+    {
+        return api.get("quickbar_confirm") === true;
+    }
+
+    function command_mode()
+    {
+        var g = window.game;
+        return !(g && typeof g.get_input_mode === "function"
+                 && g.get_input_mode() !== enums.mouse_mode.COMMAND);
+    }
+
+    function sel_clear()
+    {
+        if (sel_timer) window.clearTimeout(sel_timer);
+        sel_timer = 0;
+        if (!sel) return;
+        sel = null;
+        sel_render();
+    }
+
+    // true: this press only selected (the caller swallows it);
+    // false: second press on the selected slot, go ahead and use it
+    function sel_take(kind, i, id)
+    {
+        var now = Date.now();
+        if (sel && sel.id === id && now - sel.t < SEL_TIMEOUT)
+        {
+            sel_clear();
+            return false;
+        }
+        sel = { kind: kind, i: i, id: id, t: now };
+        if (sel_timer) window.clearTimeout(sel_timer);
+        sel_timer = window.setTimeout(sel_clear, SEL_TIMEOUT);
+        sel_render();
+        return true;
+    }
+
+    function inv_id(item)
+    {
+        return "inv:" + item.slot + ":" + item.name;
+    }
+
+    function ab_id(a)
+    {
+        return "ab:" + a.key + ":" + a.name;
+    }
+
+    // mousedown on the stock canvas (x, y canvas-relative): true to swallow
+    function sel_gate_canvas(canvas, x, y, which)
+    {
+        if (!sel_on() || which !== 1) return false;
+        var horizontal = canvas.clientWidth >= canvas.clientHeight;
+        var pitch = horizontal ? canvas.clientHeight : canvas.clientWidth;
+        if (pitch <= 0) return false;
+        var idx = Math.floor((horizontal ? x : y) / pitch);
+        var items = panel_items();
+        var k = idx - NUM_RESERVED;
+        if (k < 0 || k >= items.length || !command_mode())
+        {
+            sel_clear();
+            return false;
+        }
+        return sel_take("inv", idx, inv_id(items[k]));
+    }
+
+    // click on a god ability button: true to swallow
+    function sel_gate_ab(i, a)
+    {
+        if (!sel_on() || !a || !a.usable || !a.key || !command_mode())
+            return false;       // ab_activate refuses / ignores it
+        return sel_take("ab", i, ab_id(a));
+    }
+
+    // the selection is dropped once its slot holds something else
+    function sel_valid()
+    {
+        if (!sel) return false;
+        if (!sel_on()) return false;
+        if (sel.kind === "ab")
+        {
+            var a = ab.list[sel.i];
+            return !!(a && ab.n && ab_id(a) === sel.id);
+        }
+        var it = panel_items()[sel.i - NUM_RESERVED];
+        return !!(it && inv_id(it) === sel.id);
+    }
+
+    function sel_slot_rect()
+    {
+        if (sel.kind === "ab")
+        {
+            var b = ab.el && ab.el.querySelector("button[data-i=\"" + sel.i
+                                                 + "\"]");
+            return b ? b.getBoundingClientRect() : null;
+        }
+        var canvas = document.getElementById("action-panel");
+        if (!canvas) return null;
+        var r = canvas.getBoundingClientRect();
+        if (r.width <= 0) return null;
+        var horizontal = canvas.clientWidth >= canvas.clientHeight;
+        var pitch = horizontal ? canvas.clientHeight : canvas.clientWidth;
+        var x = r.left + canvas.clientLeft, y = r.top + canvas.clientTop;
+        if (horizontal) x += sel.i * pitch;
+        else y += sel.i * pitch;
+        return { left: x, top: y, width: pitch, height: pitch };
+    }
+
+    function sel_render()
+    {
+        if (sel && !sel_valid())
+        {
+            sel = null;
+            if (sel_timer) window.clearTimeout(sel_timer);
+            sel_timer = 0;
+        }
+        var mk = document.getElementById("sdc_qb_sel");
+        // dock copies: the slot under the selection gets the ring instead
+        var di = !sel ? -1
+                 : sel.kind === "ab" ? (sel.i < (dk.na || 0) ? sel.i : -1)
+                 : (dk.na || 0) + sel.i;
+        dk.slots.forEach(function (s, i) {
+            s.classList.toggle("sdc-qb-sel", i === di);
+        });
+        var r = sel && hud_on() ? sel_slot_rect() : null;
+        if (!r)
+        {
+            if (mk) mk.style.display = "none";
+            return;
+        }
+        if (!mk)
+        {
+            mk = document.createElement("div");
+            mk.id = "sdc_qb_sel";
+            document.getElementById("normal").appendChild(mk);
+        }
+        mk.setAttribute("data-label", from_touch() ? "tap again" : "click again");
+        mk.classList.toggle("ab", sel.kind === "ab");
+        if (sel.kind === "ab" && ab.el)
+            mk.style.setProperty("--sdc-qb-god",
+                                 ab.el.style.getPropertyValue("--sdc-qb-god"));
+        mk.style.display = "block";
+        mk.style.left = r.left + "px";
+        mk.style.top = r.top + "px";
+        mk.style.width = r.width + "px";
+        mk.style.height = r.height + "px";
+    }
+
+    function sel_outside(ev)
+    {
+        if (sel && !bar_target(ev.target)) sel_clear();
+    }
+    document.addEventListener("touchstart", sel_outside, true);
+    document.addEventListener("mousedown", sel_outside, true);
+    document.addEventListener("keydown", function () { sel_clear(); }, true);
 
     // god abilities --------------------------------------------------------
     //
@@ -374,6 +554,8 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
             ev.preventDefault();
         }).on("click", "button", function (ev) {
             ev.preventDefault();
+            var i = Number(this.getAttribute("data-i"));
+            if (sel_gate_ab(i, pick(this))) return;
             ab_activate(pick(this), this);
         }).on("keydown", "button", function (ev) {
             if (ev.which !== 13 && ev.which !== 32) return;
@@ -1131,7 +1313,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
     // clip-path also clips hit testing, so taps on the cut ends reach the
     // buttons.
     var CROP_IDS = ["action-panel", "sdc_qb_ab", "sdc_qb_frame", "sdc_qb_caps",
-                    "sdc_qb_dock"];
+                    "sdc_qb_dock", "sdc_qb_sel"];
     var CROP_GAP = 6;           // px kept clear beside each button
 
     function thumb_edge(id, side)
@@ -1224,6 +1406,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
             if (frame) frame.style.display = "none";
             hide_caps();
             ab_hide();
+            sel_clear();
             return;
         }
         var r = canvas.getBoundingClientRect();
@@ -1237,6 +1420,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
             if (frame) frame.style.display = "none";
             hide_caps();
             ab_hide();
+            sel_clear();
             return;
         }
         if (!moved())
@@ -1264,6 +1448,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
         frame.style.setProperty("--sdc-qb-pitch", pitch + "px");
         frame.setAttribute("data-dir", horizontal ? "h" : "v");
         sync_caps(canvas, r, horizontal, pitch);
+        sel_render();
         crop();
     }
 
@@ -1277,6 +1462,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
             caps_key = "";
             apply();
         }
+        if (key === "quickbar_confirm") sel_clear();
     });
     api.on("hud_update", function () {
         sync_frame();
@@ -1298,7 +1484,8 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
         }
     });
     api.on("game_cleanup", function () {
-        $("#sdc_qb_frame, #sdc_qb_caps").remove();
+        sel_clear();
+        $("#sdc_qb_frame, #sdc_qb_caps, #sdc_qb_sel").remove();
         caps_key = "";
         ab_hide();
         $("#sdc_qb_ab, #sdc_qb_abtip").remove();
