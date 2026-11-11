@@ -381,6 +381,12 @@ stops the build; `SDC_ALLOW_PATCH_FAIL=1` builds without it instead.
   `spells` (memorised spells with letter, MP, fail %), `talents` (every
   ability) and `evokables` (evocable inventory items), for the mobile orb
   menu. Without it the orb menu falls back to the stock `z` / `a` / `V` menus.
+- `autopickup-slots.patch` (`dat/defaults/autopickup_exceptions.txt`, data
+  only, no rebuild): the default "pick up armour for empty slots" autopickup
+  function reads the `sdc_slot_pickup` option (`off` / `aux` / `all`), which
+  the settings panel sends (Interface, "Pick up gear for empty slots"). `all`
+  adds shields/orbs and body armour to crawl's default aux armour. Crawl reads
+  the file at game start, so copying it into a running install is enough.
 
 To revert them, `git checkout` those files in `$SDC_BUILD/crawl` and rebuild.
 
