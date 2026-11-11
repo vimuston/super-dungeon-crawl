@@ -1,0 +1,30 @@
+diff --git a/crawl-ref/source/dat/defaults/autopickup_exceptions.txt b/crawl-ref/source/dat/defaults/autopickup_exceptions.txt
+index 0731a8c..6d5aed6 100644
+--- a/crawl-ref/source/dat/defaults/autopickup_exceptions.txt
++++ b/crawl-ref/source/dat/defaults/autopickup_exceptions.txt
+@@ -41,12 +41,23 @@ ae += <good_item
+ :  return nil
+ :end)
+ 
+-# Pick up any aux armour for which the player still has empty slots
++# Pick up armour for which the player still has empty slots.
++# Super Dungeon Crawl: the client settings send sdc_slot_pickup:
++#   off = never, aux = cloak/helmet/gloves/boots/barding (crawl's default,
++#   also used when unset), all = aux plus shields/orbs and body armour.
+ :add_autopickup_func(function(it, name)
+ :  if it.class(true) == "armour" then
++:    local mode = options.sdc_slot_pickup or "aux"
++:    if mode == "off" then
++:      return nil
++:    end
+ :    local good_slots = {cloak="cloak", helmet="helmet", gloves="gloves",
+ :                        boots="boots", barding="barding"}
+-:    st, _ = it.subtype()
++:    if mode == "all" then
++:      good_slots.offhand = "offhand"
++:      good_slots.body = "body armour"
++:    end
++:    local st = it.subtype()
+ :    if good_slots[st] ~= nil and items.slot_is_available(good_slots[st]) == true then
+ :       if not it.is_useless then
+ :           return true
