@@ -377,9 +377,11 @@ body.sdc-mobile #sdc_m_explore {
 }
 body.sdc-mobile .sdc-m-big:active { opacity: 1; transform: scale(0.95); }
 /* the quick-use bar is cropped between these two; while a finger
-   magnifies it the whole bar shows and they step aside (quickbar.js) */
+   magnifies it (or a "select first" pick is armed) the whole bar shows
+   and they step aside (quickbar.js) */
 body.sdc-mobile .sdc-m-big { transition: opacity 0.15s; }
-body.sdc-mobile.sdc-qb-mag .sdc-m-big {
+body.sdc-mobile.sdc-qb-mag .sdc-m-big,
+body.sdc-mobile.sdc-qb-armed .sdc-m-big {
     opacity: 0;
     pointer-events: none;
 }
