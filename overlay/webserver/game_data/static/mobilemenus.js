@@ -1248,6 +1248,73 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
         $(input).trigger($.Event("keydown", { which: 13, keyCode: 13 }));
     }
 
+    // God description (^, or praying at an altar) ------------------------------
+    // The stock footer is "!/^: Overview | Powers | Wrath  J/Enter: join
+    // religion" as plain text; at an altar while worshipping another god the
+    // server then swaps it for "Are you sure you want to abandon X?" (needs an
+    // uppercase Y). Both become buttons.
+
+    function dress_god(popup)
+    {
+        var god = popup.querySelector(".describe-god");
+        var footer = god && god.querySelector(":scope > .footer");
+        if (!footer) return;
+        var body = god.querySelector(":scope > .body.paneset");
+        var fpanes = footer.querySelector(":scope > .paneset");
+        var prompt = !fpanes;
+        var altar = !!footer.querySelector(".join-keyhelp");
+        var bodies = body ? $(body).children(".pane") : $();
+        var cur = Math.max(0, bodies.index(bodies.filter(".current")));
+        var sig = prompt ? "p:" + footer.textContent : "t:" + altar + ":" + cur;
+
+        var bar = footer.nextElementSibling;
+        if (!bar || !bar.classList.contains("sdc-mm-keys"))
+        {
+            bar = el("div", "sdc-mm-keys sdc-mm-god");
+            footer.parentNode.insertBefore(bar, footer.nextSibling);
+        }
+        if (bar.getAttribute("data-src") === sig) return;
+        bar.setAttribute("data-src", sig);
+        bar.innerHTML = "";
+        footer.classList.add("sdc-mm-hidden");
+
+        if (prompt)
+        {
+            bar.appendChild(el("div", "sdc-mm-caption",
+                               footer.textContent.replace(/\s+/g, " ").trim()));
+            bar.appendChild(btn("Yes", "on", function () { send_text("Y"); }));
+            bar.appendChild(btn("No", "", function () { send_text("n"); }));
+            return;
+        }
+
+        // tabs: the client cycles its own panes only on a real "!" keydown,
+        // so a tap cycles them here and sends "!" to keep the server in step
+        var names = ["Overview", "Powers", "Wrath", "Extra"].slice(0, bodies.length);
+        names.forEach(function (name, i) {
+            bar.appendChild(btn(name, i === cur ? "on" : "", function () {
+                var n = bodies.length, steps = (i - cur + n) % n;
+                for (var s = 0; s < steps; s++)
+                {
+                    send_text("!");
+                    [body, fpanes].forEach(function (set) {
+                        var $p = $(set).children(".pane");
+                        var at = $p.index($p.filter(".current").removeClass("current"));
+                        $p.eq((at + 1) % $p.length).addClass("current");
+                    });
+                }
+                schedule();
+            }));
+        });
+        if (altar)
+        {
+            var fee = (footer.querySelector(".join-keyhelp").textContent
+                       .split("religion")[1] || "").replace(/\s+/g, " ").trim();
+            bar.appendChild(btn("Join religion", "on sdc-mm-join",
+                                function () { send_text("J"); }));
+            if (fee) bar.appendChild(el("div", "sdc-mm-caption", fee));
+        }
+    }
+
     // "(Left/Right/Tab to switch category)" in a menu title (inventory, ...):
     // a button for it, since arrows and Tab need a keyboard
     function category_button(menu)
@@ -1294,6 +1361,7 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
             return;
         }
         if (popup.querySelector(".newgame-choice")) { dress_newgame(popup); return; }
+        if (popup.querySelector(".describe-god")) { dress_god(popup); return; }
         dress_overview(popup);
         dress_input(popup);
         var fmore = popup.querySelector(".formatted-scroller > .more");
