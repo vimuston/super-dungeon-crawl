@@ -31,7 +31,9 @@
 // Options:
 //   "mobile"         auto / on / off. Auto = touch screen or the wrapper.
 //   "msg_fade"       seconds the message bubble stays up.
-//   "mobile_zoom"    dungeon zoom step (pinch).
+//   "mobile_zoom"    tile zoom step, gesture-only (pinch with 2.5D off;
+//                    with 2.5D on the tiles stay at Fit and pinch drives
+//                    the 2.5D zoom). Not in the settings panel.
 //   "mobile_macros"  [{label, keys, icon, pin, img?, spell?}] macros (Tools >
 //                    Macros). Spell pins (Pin in the spell menu,
 //                    mobilemenus.js) add img (the spell tile as a data URL)
@@ -69,11 +71,16 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     // Stock webtiles shrinks tiles until a 17-cell diameter fits, which is
     // ~20px on a landscape phone. Zoom k shows 17/k cells across the short
     // side instead (fit_to is wrapped below; click mapping stays stock).
+    // Gesture-only (no panel row): 0 = Fit.
     var ZOOMS = [1, 1.5, 2, 3, 4];
-    api.register_option({ key: "mobile_zoom", label: "Dungeon zoom",
-                          default: 0,
-                          choices: [[0, "Fit"], [1, "1.5x"], [2, "2x"],
-                                    [3, "3x"], [4, "4x"]] });
+    api.register_option({ key: "mobile_zoom", default: 0 });
+    // the panel setting is gone: start everyone from Fit once
+    if (!api.settings.mobile_zoom_v2)
+    {
+        api.settings.mobile_zoom = 0;
+        api.settings.mobile_zoom_v2 = true;
+        api.save();
+    }
     // Macros: no defaults (Fight / Explore have their own thumb buttons).
     api.register_option({ key: "mobile_macros", default: null });
     migrate_macros();
@@ -150,8 +157,10 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             close_all();
     }
 
+    // with 2.5D on, pinch drives its camera zoom and the tiles stay at Fit
     function zoom_step()
     {
+        if (api.settings.depth !== false) return 0;
         var z = Number(api.get("mobile_zoom"));
         return Math.max(0, Math.min(ZOOMS.length - 1, z || 0));
     }
@@ -1565,7 +1574,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             apply_mode();
             api.command("relayout");
         }
-        else if (key === "mobile_zoom")
+        else if (key === "mobile_zoom" || key === "depth")
             api.command("relayout");
         else if (key === "mobile_macros")
         {
