@@ -155,6 +155,9 @@ body.sdc-mm .sdc-mm-keys {
     margin-top: 6px;
 }
 body.sdc-mm .sdc-mm-keys .sdc-m-btn { font-size: 13px; flex: 1 1 auto; }
+/* god popup: the join button gets a row of its own under the tabs */
+body.sdc-mm .sdc-mm-keys.sdc-mm-god { flex: 0 0 auto; }
+body.sdc-mm .sdc-mm-keys .sdc-m-btn.sdc-mm-join { flex-basis: 100%; font-size: 15px; }
 .sdc-mm-caption {
     flex-basis: 100%;
     font-size: 12px;

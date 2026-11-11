@@ -11,7 +11,8 @@
 //     skills, abilities, innate, character, stairs, pick up, ...), Esc /
 //     Enter, the on-screen keyboard, minimap and settings. Find opens its
 //     own panel: a search box, recent searches and one-tap presets.
-//   - tap your own tile = pick up (g); on stairs = take them (< / >).
+//   - tap your own tile = pick up (g); on stairs = take them (< / >); on an
+//     altar = pray there (>, opens the join popup).
 //   - messages: the message pane is hidden; new messages show in a small
 //     translucent bubble bottom-left above the bottom bar that fades out.
 //     Tap the bubble for the recent log (or to answer --more--). Text
@@ -1184,8 +1185,8 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     document.addEventListener("touchcancel", on_touchend, opts);
     document.addEventListener("contextmenu", on_contextmenu, true);
 
-    // Tap your own tile = pick up (g), or take the stairs you stand on (< / >,
-    // like local tiles' click on self). Wraps the stock mouse handler: the
+    // Tap your own tile = pick up (g), take the stairs you stand on (< / >,
+    // like local tiles' click on self), or pray at the altar you stand on. Wraps the stock mouse handler: the
     // event is already unwarped by crt.js, so the same cell maths apply.
     var stock_mouse = renderer.handle_mouse;
 
@@ -1204,9 +1205,13 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         for (var i = a; i <= b; i++) out.push(i);
         return out;
     }
+    // altars (DNGN_ALTAR_*, same version): ">" kneels there and opens the
+    // god's join popup (main.cc _take_stairs). Not DNGN_UNKNOWN_ALTAR (130).
+    var ALTARS = [160, 161, 162, 170, 195].concat(range(103, 121), range(165, 168));
     function stairs_key(pos)
     {
         var f = map_knowledge.get(pos.x, pos.y).f;
+        if (ALTARS.indexOf(f) >= 0) return ">";
         if (STAIRS_UP.indexOf(f) >= 0) return "<";
         if (STAIRS_DOWN.indexOf(f) >= 0) return ">";
         return null;
