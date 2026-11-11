@@ -271,7 +271,12 @@ html body.sdc-mobile.sdc-m-open #sdc_m_def { display: none; }
 /* open (tap the pill): name line, labels and the full stats card */
 html body.sdc-mobile.sdc-m-open #sdc_vitals { width: auto !important; min-width: 220px; }
 html body.sdc-mobile.sdc-m-open #sdc_vitals .sdc-name { display: block; }
-html body.sdc-mobile.sdc-m-open #sdc_stats { display: block; }
+/* the whole card takes taps (stats.css lets them through to the dungeon) */
+html body.sdc-mobile.sdc-m-open #sdc_stats {
+    display: block;
+    pointer-events: auto;
+    cursor: pointer;
+}
 html body.sdc-mobile.sdc-m-open #sdc_stats::after {
     content: "Tap again: character sheet \203A";
     display: block;
