@@ -547,3 +547,25 @@ body.sdc-qb-dock #sdc_qb_sel { display: none !important; }
 @media (prefers-reduced-motion: reduce) {
     #sdc_qb_sel { animation: none; }
 }
+
+/* touch scrub: the slot a release would use is lit strongly (quickbar.js
+   scrub_slot); with the finger off the bar nothing is lit */
+#sdc_qb_dock .slot.pick {
+    background: color-mix(in srgb, var(--sdc-accent) 22%, rgba(6, 18, 11, 0.9));
+}
+#sdc_qb_dock .slot.pick::after {
+    box-shadow: inset 0 0 0 2px var(--sdc-accent),
+                0 0 14px color-mix(in srgb, var(--sdc-accent) 80%, transparent);
+}
+#sdc_qb_dock .slot.sdc-ab.pick {
+    background: color-mix(in srgb, var(--sdc-qb-god, #ffbf47) 22%, rgba(6, 18, 11, 0.9));
+}
+#sdc_qb_dock .slot.sdc-ab.pick::after {
+    box-shadow: inset 0 0 0 2px var(--sdc-qb-god, #ffbf47),
+                0 0 14px color-mix(in srgb, var(--sdc-qb-god, #ffbf47) 80%, transparent);
+}
+#sdc_qb_dock .lab.pick {
+    color: #000;
+    background: var(--sdc-accent);
+    text-shadow: none;
+}

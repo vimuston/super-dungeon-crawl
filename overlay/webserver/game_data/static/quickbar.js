@@ -87,13 +87,16 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
     // touch: dragging a finger along the bar runs the dock bell under it
     // (like hovering with a mouse); lifting it on a slot uses that slot (the
     // only way to reach the slots cropped behind the Fight / Explore
-    // buttons), lifting it well above or below the bar picks nothing. A
+    // buttons), lifting it off the bar (past its ends, or well above or
+    // below it) picks nothing. While scrubbing, the slot a release would
+    // use is lit (dock slot class "pick"); off the bar nothing is lit. A
     // plain tap still clicks through the browser's synthesized mouse events,
     // which are kept out of the dock (no mouseleave would ever follow them,
     // leaving the bar magnified).
     var TOUCH_SLOP = 8;         // px before a touch on the bar is a drag
     var qb_touch = null;
     var touch_until = 0;        // synthesized mouse events end by then (ms)
+    var scrub_ok = null;        // scrubbing: release would pick a slot
 
     function bar_target(el)
     {
@@ -131,6 +134,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
         touch_until = Date.now() + 1000;
         var t = ev.touches[0];
         qb_touch = { x: t.clientX, y: t.clientY, drag: false };
+        scrub_ok = null;
     }
 
     function on_qb_touchmove(ev)
@@ -139,6 +143,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
         if (ev.touches.length !== 1)
         {
             qb_touch = null;
+            scrub_ok = null;
             dock_cursor_set("mouseleave", null);
             return;
         }
@@ -149,6 +154,9 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
         qb_touch.drag = true;
         ev.preventDefault();
         touch_until = Date.now() + 1000;
+        var ok = scrub_slot(t.clientX, t.clientY) !== null;
+        if (ok !== scrub_ok) dk_dirty = true;
+        scrub_ok = ok;
         var u = touch_u(t.clientX);
         if (u !== null) dock_cursor_set("mousemove", u);
     }
@@ -158,6 +166,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
         if (!qb_touch) return;
         var drag = qb_touch.drag;
         qb_touch = null;
+        scrub_ok = null;
         touch_until = Date.now() + 1000;
         if (drag)
         {
@@ -174,21 +183,39 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
         }
     }
 
+    // the bar slot (slot units over the whole bar, god abilities first) a
+    // finger lifted at (x, y) would pick, or null: off the bar, or on the
+    // close slot (a scrub never closes the panel)
+    function scrub_slot(x, y)
+    {
+        var canvas = document.getElementById("action-panel");
+        if (!canvas) return null;
+        var r = canvas.getBoundingClientRect();
+        var pitch = canvas.clientHeight;
+        if (pitch <= 0) return null;
+        // the magnified slots reach ~2.4 pitches up
+        if (y < r.top - pitch * 2.6 || y > r.bottom + pitch) return null;
+        var na = ab.pitch === pitch ? ab_dock_n() : 0;
+        var left = r.left;
+        if (na && ab.el) left = ab.el.getBoundingClientRect().left;
+        if (x < left || x > r.right) return null;
+        var u = touch_u(x);
+        if (u === null) return null;
+        var i = Math.floor(u);
+        if (i >= na && i - na < 1) return null;
+        return i;
+    }
+
     // finger lifted at (x, y) after a scrub: act on the slot under it, the
     // same way a tap would (so "select first" applies too)
     function scrub_pick(x, y)
     {
+        var i = scrub_slot(x, y);
+        if (i === null) return;
         var canvas = document.getElementById("action-panel");
-        if (!canvas) return;
         var r = canvas.getBoundingClientRect();
         var pitch = canvas.clientHeight;
-        // lifted off the bar (the magnified slots reach ~2.4 pitches up):
-        // cancel
-        if (y < r.top - pitch * 2.6 || y > r.bottom + pitch) return;
-        var u = touch_u(x);
-        if (u === null) return;
         var na = ab.pitch === pitch ? ab_dock_n() : 0;
-        var i = Math.floor(u);
         if (i < na)
         {
             var b = ab.el && ab.el.querySelector("button[data-i=\"" + i
@@ -197,12 +224,13 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
             return;
         }
         var idx = i - na;
-        if (idx < 1) return;    // never close the panel from a scrub
         // the stock handler picks the slot on mousemove, acts on mousedown;
         // the capture remap turns these viewport coordinates canvas-relative
         var cx = r.left + canvas.clientLeft + (idx + 0.5) * pitch;
         var cy = r.top + canvas.clientTop + pitch / 2;
-        ["mousemove", "mousedown", "mouseup"].forEach(function (type) {
+        // (then mouseout, which jQuery turns into the stock mouseleave:
+        // the stock cursor would stay on the slot)
+        ["mousemove", "mousedown", "mouseup", "mouseout"].forEach(function (type) {
             canvas.dispatchEvent(new MouseEvent(type, {
                 bubbles: true, cancelable: true, view: window,
                 clientX: cx, clientY: cy, button: 0,
@@ -223,17 +251,27 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
 
     // select first, then use ----------------------------------------------
     //
-    // Option "quickbar_confirm" (off by default): the first tap/click on an
+    // Option "quickbar_confirm" (on by default): the first tap/click on an
     // item or god ability only selects it (a pulsing ring with a "tap again"
     // label); a second tap on the same slot uses it. Tapping anywhere else,
     // pressing a key or waiting SEL_TIMEOUT drops the selection. The close /
     // menu slots, right clicks (describe) and keyboard activation act at once.
 
     api.register_option({ key: "quickbar_confirm", label: "Hotbar: select first",
-                          default: false, tab: "Interface",
+                          default: true, tab: "Interface",
                           choices: [[false, "Off"], [true, "On"]],
                           hint: ["Click an item once to select it, again to use it",
                                  "Tap an item once to select it, again to use it"] });
+
+    // It shipped off by default for a while, and the whole settings object
+    // is stored, so an untouched "off" is indistinguishable from a chosen
+    // one: switch everyone to the new default once.
+    if (!api.settings.quickbar_confirm_v2)
+    {
+        api.settings.quickbar_confirm = true;
+        api.settings.quickbar_confirm_v2 = true;
+        api.save();
+    }
 
     var SEL_TIMEOUT = 5000;     // ms a selection stays armed
     var sel = null;             // { kind: "inv"|"ab", i, id, t, touch }
@@ -1040,9 +1078,15 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
             st.transform = "translateY(" + ty.toFixed(2) + "px) rotate("
                            + rot.toFixed(2) + "deg) scale(" + s.toFixed(3)
                            + ")";
-            var hot = (i === dk_hover && dk_cursor !== null);
+            // under a scrubbing finger only the slot a release would use
+            // is lit, and nothing while the finger is off the bar
+            var hot = (i === dk_hover && dk_cursor !== null
+                       && scrub_ok !== false);
+            var pick = hot && scrub_ok === true;
             if (hot !== dk.slots[i].classList.contains("hot"))
                 dk.slots[i].classList.toggle("hot", hot);
+            if (pick !== dk.slots[i].classList.contains("pick"))
+                dk.slots[i].classList.toggle("pick", pick);
             if (hot) hover_cx = center;
         }
         // caption of the hovered slot (the stock strip is hidden meanwhile)
@@ -1060,6 +1104,8 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
             var up = from_touch();
             if (up !== dk.label.classList.contains("up"))
                 dk.label.classList.toggle("up", up);
+            if ((scrub_ok === true) !== dk.label.classList.contains("pick"))
+                dk.label.classList.toggle("pick", scrub_ok === true);
             dk.label.style.top = (up ? pitch * (1 - (dk_cur[dk_hover] || 1)) - 6
                                      : pitch + 4) + "px";
         }
