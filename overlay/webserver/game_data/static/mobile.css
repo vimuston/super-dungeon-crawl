@@ -26,6 +26,9 @@ body.sdc-mobile #tooltip,
 body.sdc-mobile #chat { display: none !important; }
 body.sdc-mobile:not(.sdc-m-map) #right_column { display: none; }
 body.sdc-mobile #right_column { top: 52px; }
+/* the desktop action bar (toolbar.js) lives in #right_column, so the
+   minimap / monster view above would show it: never on mobile */
+.sdc-mobile #sdc_toolbar { display: none !important; }
 body.sdc-mobile #mobile_input {
     position: fixed;
     left: 0;
