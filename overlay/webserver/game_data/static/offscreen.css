@@ -1,0 +1,54 @@
+/* offscreen.js: chevrons on the dungeon view edge pointing at hostile
+   monsters outside the zoomed-in view. Each .osa-arrow is a zero-size pivot
+   at the edge point, rotated toward the monster; the chevron tip sits on the
+   pivot and points along +x. Phosphor red glow, kept faint. */
+#sdc_offscreen .osa-arrow {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+    will-change: transform, opacity;
+    --osa-s: 20px;
+    --osa-c: color-mix(in srgb, var(--sdc-hp, #ff4d4d) 80%, #ffb627);
+}
+#sdc_offscreen .osa-in {
+    position: absolute;
+    left: 0;
+    top: 0;
+    animation: osa-in 0.35s ease-out both,
+               osa-nudge 1.4s ease-in-out 0.35s infinite;
+    filter: drop-shadow(0 0 calc(var(--osa-s) * 0.18) var(--osa-c))
+            drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));
+}
+#sdc_offscreen .osa-in i {
+    position: absolute;
+    width: calc(var(--osa-s) * 0.5);
+    height: calc(var(--osa-s) * 0.5);
+    /* tip of the rotated square's top-right corner on the pivot */
+    left: calc(var(--osa-s) * -0.6);
+    top: calc(var(--osa-s) * -0.25);
+    border-top: max(2px, calc(var(--osa-s) * 0.11)) solid var(--osa-c);
+    border-right: max(2px, calc(var(--osa-s) * 0.11)) solid var(--osa-c);
+    border-radius: 0 2px 0 0;
+    box-sizing: border-box;
+    transform: rotate(45deg);
+    opacity: 0.85;
+}
+#sdc_offscreen .osa-in i + i {
+    left: calc(var(--osa-s) * -0.98);
+    opacity: 0.4;
+}
+@keyframes osa-in {
+    from { opacity: 0; translate: calc(var(--osa-s) * -0.4) 0; }
+    to   { opacity: 1; translate: 0 0; }
+}
+@keyframes osa-nudge {
+    0%, 100% { transform: translateX(0); }
+    50%      { transform: translateX(calc(var(--osa-s) * 0.14)); }
+}
+@media (prefers-reduced-motion: reduce) {
+    #sdc_offscreen .osa-in { animation: osa-in 0.35s linear both; }
+    @keyframes osa-in { from { opacity: 0; } to { opacity: 1; } }
+}

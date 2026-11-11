@@ -8,6 +8,9 @@
 //                                MSG_GRACE ms after game_init or on replays)
 //   fxkit.anchor_of({x,y})       tile centre in client px {x, y, cw, ch}
 //                                (curved-screen corrected) or null off view
+//   fxkit.view_uv({x,y})         flat canvas uv {u, v} of a tile, unclamped
+//                                (off-canvas tiles too), + cw, ch, rect r
+//   fxkit.client_of(u, v, r, cw, ch)  canvas uv -> client px (curved screen)
 //   fxkit.pin(el, pos, a0, ms)   keep container `el` (children laid out around
 //                                anchor a0) on map tile `pos` as the view
 //                                scrolls or zooms (scaled by cw), for ms;
@@ -97,7 +100,11 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge) {
                  height: bottom - top };
     }
 
-    function anchor_of(pos)
+    // Where map tile `pos` lands on the flat (pre-curvature) dungeon canvas:
+    // {u, v} in canvas uv (y down; outside 0..1 when the tile is off the
+    // canvas), raw grid uv {gu, gv}, cell size {cw, ch} in px and the canvas
+    // rect r. Unclamped, so tiles beyond the edge get a position too.
+    function view_uv(pos)
     {
         var c = document.getElementById("dungeon");
         var dr = dungeon_renderer;
@@ -107,21 +114,24 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge) {
             return null;
         var r = c.getBoundingClientRect();
         if (r.width < 50 || r.height < 50) return null;
-        var fx = (pos.x - dr.view.x + 0.5) / dr.cols;
-        var fy = (pos.y - dr.view.y + 0.5) / dr.rows;
-        if (!(fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1)) return null;
-        var cw = r.width / dr.cols, ch = r.height / dr.rows;
-
+        var gu = (pos.x - dr.view.x + 0.5) / dr.cols;
+        var gv = (pos.y - dr.view.y + 0.5) / dr.rows;
         // 2.5D view (depth.js): rotation / perspective / zoom move the tiles
-        var dm = api.depth_map(fx, fy);
-        fx = dm[0]; fy = dm[1];
-        cw *= dm[2]; ch *= dm[3];
+        var dm = api.depth_map(gu, gv);
+        return { u: dm[0], v: dm[1], gu: gu, gv: gv, r: r,
+                 cw: r.width / dr.cols * dm[2],
+                 ch: r.height / dr.rows * dm[3] };
+    }
 
+    // canvas uv (u, v inside 0..1) -> client px through the curved screen;
+    // cw / ch are scaled by the local curvature
+    function client_of(u, v, r, cw, ch)
+    {
         var b = document.body.classList;
         if (b.contains("sdc-gl") && b.contains("sdc-curved"))
         {
             var k = api.curve_k();
-            var tx = fx * 2 - 1, ty = fy * 2 - 1;
+            var tx = u * 2 - 1, ty = v * 2 - 1;
             var sx = tx, sy = ty, g = 1;
             for (var i = 0; i < 6; i++)
             {
@@ -129,13 +139,21 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge) {
                 sx = tx / g;
                 sy = ty / g;
             }
-            fx = (sx + 1) / 2;
-            fy = (sy + 1) / 2;
+            u = (sx + 1) / 2;
+            v = (sy + 1) / 2;
             cw /= g;
             ch /= g;
         }
-        return { x: r.left + fx * r.width, y: r.top + fy * r.height,
+        return { x: r.left + u * r.width, y: r.top + v * r.height,
                  cw: cw, ch: ch };
+    }
+
+    function anchor_of(pos)
+    {
+        var p = view_uv(pos);
+        if (!p) return null;
+        if (!(p.gu >= 0 && p.gu <= 1 && p.gv >= 0 && p.gv <= 1)) return null;
+        return client_of(p.u, p.v, p.r, p.cw, p.ch);
     }
 
     // Keep an effect on its map tile while the view scrolls (the player
@@ -472,6 +490,8 @@ function ($, api, player, dungeon_renderer, enums, map_knowledge) {
     return {
         on_message: function (fn) { api.on("message", fn); },
         anchor_of: anchor_of,
+        view_uv: view_uv,
+        client_of: client_of,
         pin: pin,
         player_pos: player_pos,
         monsters: monsters,
