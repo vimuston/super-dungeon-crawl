@@ -15,7 +15,7 @@ define(["jquery", "./player", "./util", "./enums", "./dungeon_renderer",
         "./statusfx", "./statusauras", "./summonfx", "./terrainfx", "./wandfx",
         "./beamfx", "./rangedfx", "./barfx", "./itemfx", "./godfx_support", "./godfx_dark",
         "./godfx_martial", "./godfx_odd",
-        "./alive", "./depth", "./fogedge", "./mobile", "./mobilemenus", "./orbmenu", "require"],
+        "./alive", "./depth", "./fogedge", "./mobile", "./mobilemenus", "./orbmenu", "./explore", "require"],
 function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
     "use strict";
 
@@ -182,7 +182,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         ["Effects", ["alive", "combat_text", "ranged_feel", "splash",
                      "fogedge_amount"]],
         ["Interface", ["turn_counter", "#Mobile", "mobile", "mobile_menus",
-                       "msg_fade", "mobile_zoom"]],
+                       "msg_fade", "mobile_zoom", "#Travel", "explore_delay"]],
         ["Other", []]
     ];
     var PANEL_DEPENDS = {

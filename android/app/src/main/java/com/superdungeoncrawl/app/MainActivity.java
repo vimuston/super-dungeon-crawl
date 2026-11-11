@@ -3,6 +3,7 @@ package com.superdungeoncrawl.app;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -41,6 +42,7 @@ import java.nio.charset.StandardCharsets;
  */
 public class MainActivity extends Activity {
     private static final String SAVE = "saves/player.cs";
+    private static final String PREF_SETTINGS = "settings";
     /** Save and stop crawl after this long in the background. */
     private static final long BACKGROUND_SAVE_MS = 60_000;
     private static final int REQ_EXPORT = 1, REQ_IMPORT = 2;
@@ -261,8 +263,12 @@ public class MainActivity extends Activity {
         afterStop = null;
         if (next != null) {
             next.run();
+        } else if (!stopping && "saved".equals(reason)) {
+            // the player chose Save and Quit: leave the app (restarting
+            // crawl would just load the save again, as -name skips the menu)
+            finish();
         } else if (!stopping) {
-            // saved & quit, died, or crashed: back to crawl's start menu
+            // died, quit or crashed: back to crawl's start menu
             ui.postDelayed(this::playLocal, 1500);
         }
     }
@@ -421,6 +427,10 @@ public class MainActivity extends Activity {
         }
     }
 
+    private SharedPreferences prefs() {
+        return getSharedPreferences("sdc", MODE_PRIVATE);
+    }
+
     private void toast(String text) {
         Toast.makeText(this, text, Toast.LENGTH_LONG).show();
     }
@@ -474,6 +484,21 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public boolean isLocal() {
             return true;
+        }
+
+        /**
+         * The page's settings (sdc_api.js). The server gets a new port on
+         * every launch, so the page's localStorage would start empty.
+         */
+        @JavascriptInterface
+        public String loadSettings() {
+            return prefs().getString(PREF_SETTINGS, null);
+        }
+
+        @JavascriptInterface
+        public void saveSettings(String json) {
+            if (json != null && json.length() < 1 << 20)
+                prefs().edit().putString(PREF_SETTINGS, json).apply();
         }
 
         @JavascriptInterface

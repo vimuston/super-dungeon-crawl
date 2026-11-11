@@ -40,6 +40,20 @@ define(["jquery"], function ($) {
         catch (e) { warn("settings load", e); }   // blocked storage / bad JSON
         if (stored && typeof stored === "object")
             $.extend(settings, stored);
+        // The Android app serves the page from a new loopback port on every
+        // launch, so localStorage (per origin) starts empty each time: it
+        // keeps the settings itself, and its copy wins.
+        var native = native_store();
+        if (native)
+        {
+            try
+            {
+                stored = JSON.parse(native.loadSettings() || "null");
+                if (stored && typeof stored === "object")
+                    $.extend(settings, stored);
+            }
+            catch (e) { warn("native settings load", e); }
+        }
     }
 
     function save()
@@ -49,6 +63,22 @@ define(["jquery"], function ($) {
             window.localStorage.setItem(STORE_KEY, JSON.stringify(settings));
         }
         catch (e) { warn("settings save", e); }   // private mode / full quota
+        var native = native_store();
+        if (native)
+        {
+            try
+            {
+                native.saveSettings(JSON.stringify(settings));
+            }
+            catch (e) { warn("native settings save", e); }
+        }
+    }
+
+    // the app's settings store (window.SdcNative), if this page runs in it
+    function native_store()
+    {
+        var n = window.SdcNative;
+        return n && n.loadSettings && n.saveSettings ? n : null;
     }
 
     // Report an error a module chose to survive (an effect that failed must
