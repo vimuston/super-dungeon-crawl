@@ -1188,9 +1188,9 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "    vec2 gc = v_uv * 2.0 - 1.0;",
         "    col = mix(col, u_gvig.rgb, smoothstep(0.3, 1.2, dot(gc, gc) * 0.5) * u_gvig.w);",
         "  }",
-        // flicker + grain
-        "  col *= 0.97 + 0.03 * sin(u_time * 60.0);",
-        "  col += (hash(gl_FragCoord.xy + u_time) - 0.5) * 0.035;",
+        // flicker + grain (CRT look only)
+        "  col *= 1.0 - u_crt * (0.03 - 0.03 * sin(u_time * 60.0));",
+        "  col += (hash(gl_FragCoord.xy + u_time) - 0.5) * 0.035 * u_crt;",
         "  gl_FragColor = vec4(col, 1.0);",
         "}"]).join("\n");
 
