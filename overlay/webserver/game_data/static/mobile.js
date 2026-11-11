@@ -733,8 +733,42 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         var b = document.body.classList;
         var open = force === undefined ? !b.contains("sdc-m-tools") : force;
         if (open)
+        {
             toggle_vitals(false);
+            // one menu at a time: the quick-use bar's MENU slot opens
+            // crawl's game menu, which Tools would cover; Esc it first
+            var top = $("#ui-stack").children(".ui-popup").last();
+            if (top.find(".menu_game_menu").length)
+                send_keys("Esc");
+        }
         b.toggle("sdc-m-tools", open);
+    }
+
+    // ...and the other way round: any popup crawl pushes (the game menu,
+    // inventory, ...) closes Tools, which would otherwise sit on top of it.
+    var stack_observer = null, observed_stack = null;
+    function watch_stack()
+    {
+        var stack = document.getElementById("ui-stack");
+        if (!stack || stack === observed_stack) return;
+        if (stack_observer) stack_observer.disconnect();
+        observed_stack = stack;
+        stack_observer = new MutationObserver(function (records) {
+            for (var i = 0; i < records.length; i++)
+            {
+                var added = records[i].addedNodes;
+                for (var j = 0; j < added.length; j++)
+                {
+                    if (added[j].classList
+                        && added[j].classList.contains("ui-popup"))
+                    {
+                        toggle_tools(false);
+                        return;
+                    }
+                }
+            }
+        });
+        stack_observer.observe(stack, { childList: true });
     }
 
     function toggle_log(open)
@@ -1490,6 +1524,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     api.on("game_init", function () {
         apply_mode();
         build();
+        watch_stack();
         if (zoom_step())
             api.command("relayout");
     });
