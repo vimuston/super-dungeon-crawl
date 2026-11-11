@@ -55,7 +55,7 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
                           hint: ["Shift + middle mouse drag up/down",
                                  "Three-finger swipe up/down"] });
     api.register_option({ key: "depth_rot", label: "Rotation",
-                          default: -1, range: { min: -45, max: 45, step: 1 },
+                          default: 0, range: { min: -45, max: 45, step: 1 },
                           hint: ["Middle mouse drag sideways",
                                  "Two-finger twist or sideways swipe"] });
     api.register_option({ key: "depth_rot_lock", label: "Lock rotation",

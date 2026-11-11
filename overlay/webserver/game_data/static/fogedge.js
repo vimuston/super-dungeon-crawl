@@ -26,7 +26,7 @@ function (api, map_knowledge, dungeon_renderer, enums, dngn, kit) {
     var REBUILD_MS = 500;       // safety rebuild even without map updates
 
     api.register_option({ key: "fogedge_amount", label: "Unexplored edge",
-                          default: 100,
+                          default: 60,
                           range: { min: 0, max: 200, step: 5 } });
 
     var data = null, cols = 0, rows = 0;

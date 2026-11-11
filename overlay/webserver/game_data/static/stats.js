@@ -20,7 +20,7 @@ define(["jquery", "./sdc_api"], function ($, api) {
     // true = turn count (kept as the old "On" value), "speed" = game time the
     // last action took
     api.register_option({ key: "turn_counter", label: "Turn counter",
-                          default: false,
+                          default: "speed",
                           choices: [[true, "Turns"], ["speed", "Speed"],
                                     [false, "Off"]] });
 
