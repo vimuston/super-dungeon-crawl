@@ -58,6 +58,11 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
                           default: -1, range: { min: -45, max: 45, step: 1 },
                           hint: ["Middle mouse drag sideways",
                                  "Two-finger twist or sideways swipe"] });
+    api.register_option({ key: "depth_rot_lock", label: "Lock rotation",
+                          default: false,
+                          choices: [[false, "Off"], [true, "On (0°)"]],
+                          hint: ["Middle mouse drag no longer rotates",
+                                 "Twists and sideways swipes no longer rotate"] });
     api.register_option({ key: "depth_zoom", label: "Zoom",
                           default: 139, range: { min: 50, max: 200, step: 5 },
                           hint: ["Middle mouse drag up/down",
@@ -299,6 +304,7 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
 
     function rot()
     {
+        if (api.settings.depth_rot_lock === true) return 0;
         var v = Number(api.settings.depth_rot);
         return (isFinite(v) ? v : 12) * Math.PI / 180;
     }
@@ -424,8 +430,9 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
         if (Math.abs(dx) + Math.abs(dy) > CLICK_PX) drag.moved = true;
         if (!drag.moved) return;
         // 0.1 steps: whole degrees / percents step visibly on a slow drag
-        api.settings.depth_rot = Math.max(-45, Math.min(45,
-            Math.round((drag.rot + dx * DRAG_DEG) * 10) / 10));
+        if (api.settings.depth_rot_lock !== true)
+            api.settings.depth_rot = Math.max(-45, Math.min(45,
+                Math.round((drag.rot + dx * DRAG_DEG) * 10) / 10));
         if (drag.shift)
             api.settings.depth_persp = Math.max(0, Math.min(100,
                 Math.round((drag.persp - dy * DRAG_PERSP) * 10) / 10));

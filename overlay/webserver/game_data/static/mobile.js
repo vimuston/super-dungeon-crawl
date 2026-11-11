@@ -907,7 +907,8 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     // both fingers swiping sideways = rotate. The first clear motion picks
     // the mode for that gesture. A third finger switches to perspective
     // (three fingers swiping up/down), undoing what the two did so far.
-    // With 2.5D off, a pinch steps the tile zoom instead.
+    // With 2.5D off, a pinch steps the tile zoom instead. With "Lock
+    // rotation" on, twists and sideways swipes leave the rotation alone.
     var pinch = null;
     var CAM_PERSP = 0.3, CAM_DEG = 0.25;    // % / deg per px of parallel swipe
     function span(ev)
@@ -966,8 +967,10 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             if (Math.max(spread, turn, slide) < SLOP) return;
             p.mode = slide > spread && slide > turn ? "pan" : "pinch";
         }
+        var lock = api.settings.depth_rot_lock === true;
         if (p.mode === "pan")
         {
+            if (lock) return;
             api.settings.depth_rot = clamp(p.rot + mx * CAM_DEG, -45, 45);
         }
         else
@@ -975,8 +978,9 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             api.settings.depth_zoom = clamp(p.zoom * r, 50, 200);
             // positive rotation turns the view counter-clockwise on screen,
             // so the map follows the fingers
-            api.settings.depth_rot = clamp(p.rot - tw * 180 / Math.PI,
-                                           -45, 45);
+            if (!lock)
+                api.settings.depth_rot = clamp(p.rot - tw * 180 / Math.PI,
+                                               -45, 45);
         }
         p.changed = true;
     }
