@@ -5,8 +5,9 @@
 //
 // Middle mouse button on the view: drag sideways = rotate, up/down = zoom,
 // click = reset (rotation 12, zoom 100%). Shift + drag up/down = perspective,
-// Shift + click = reset perspective (90%). All are also sliders in the
-// settings panel.
+// Shift + click = reset perspective (90%). On touch: two-finger pinch =
+// zoom, twist / sideways swipe = rotate (mobile.js). Rotation and zoom are
+// gesture-only (no settings sliders); perspective is also a slider.
 // "Rotation" turns the view (yaw, degrees) about the screen centre; walls
 // still rise toward the top of the screen. Creatures share the map canvas,
 // so they turn with it (they cannot be billboarded).
@@ -54,19 +55,15 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
                           default: 90, range: { min: 0, max: 100, step: 5 },
                           hint: ["Shift + middle mouse drag up/down",
                                  "Three-finger swipe up/down"] });
-    api.register_option({ key: "depth_rot", label: "Rotation",
-                          default: 0, range: { min: -45, max: 45, step: 1 },
-                          hint: ["Middle mouse drag sideways",
-                                 "Two-finger twist or sideways swipe"] });
+    // rotation (-45..45 deg) and zoom (50..200 %) have no sliders: set by
+    // middle mouse drag (below) or pinch / twist (mobile.js) only
+    api.register_option({ key: "depth_rot", default: 0 });
     api.register_option({ key: "depth_rot_lock", label: "Lock rotation",
                           default: false,
                           choices: [[false, "Off"], [true, "On (0°)"]],
                           hint: ["Middle mouse drag no longer rotates",
                                  "Twists and sideways swipes no longer rotate"] });
-    api.register_option({ key: "depth_zoom", label: "Zoom",
-                          default: 139, range: { min: 50, max: 200, step: 5 },
-                          hint: ["Middle mouse drag up/down",
-                                 "Two-finger pinch"] });
+    api.register_option({ key: "depth_zoom", default: 139 });
     api.register_option({ key: "depth_height", label: "Wall height",
                           default: 36, range: { min: 4, max: 40, step: 1 } });
 
@@ -306,7 +303,7 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
     {
         if (api.settings.depth_rot_lock === true) return 0;
         var v = Number(api.settings.depth_rot);
-        return (isFinite(v) ? v : 12) * Math.PI / 180;
+        return Math.max(-45, Math.min(45, isFinite(v) ? v : 0)) * Math.PI / 180;
     }
 
     function zoom()
