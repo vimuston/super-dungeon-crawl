@@ -919,3 +919,50 @@ body.sdc-mm #sdc_panel .sdc-opt button {
 }
 body.sdc-mm #sdc_panel .sdc-opt input[type=range] { min-height: 38px; min-width: 0; }
 body.sdc-mm #sdc_panel .sdc-opt .sdc-k.sdc-val { font-size: 13px; }
+
+/* ------------------------------------------------------------ shops */
+
+/* footer yes/no (any menu): big answer buttons on their own row */
+body.sdc-mm .sdc-mm-keys .sdc-mm-yes,
+body.sdc-mm .sdc-mm-keys .sdc-mm-no { flex: 1 1 40%; font-size: 16px; min-height: 44px; }
+body.sdc-mm .sdc-mm-yes { border-color: var(--sdc-accent); }
+
+body.sdc-mm #ui-stack .sdc-mm-shop li.selectable { flex-wrap: wrap; cursor: pointer; }
+body.sdc-mm #ui-stack .sdc-mm-shop li.sdc-mm-sel {
+    background: color-mix(in srgb, var(--sdc-accent) 12%, transparent);
+    outline: 1px solid var(--sdc-accent-dim);
+}
+.sdc-mm-shop .sdc-mm-price { font-weight: bold; }
+.sdc-mm-c-lightgreen { color: #6f6; }
+.sdc-mm-c-yellow { color: #ee5; }
+.sdc-mm-c-red { color: #c33; }
+.sdc-mm-c-lightred { color: #f66; }
+.sdc-mm-c-lightcyan { color: #5ff; }
+.sdc-mm-shop .sdc-mm-tag { color: var(--sdc-accent); }
+.sdc-mm-shopacts {
+    flex: 1 0 100%;
+    display: flex;
+    gap: 6px;
+    padding: 6px 0 2px;
+}
+.sdc-mm-shopacts .sdc-m-btn { flex: 1 1 0; min-height: 44px; font-size: 14px; }
+.sdc-mm-shopfoot {
+    display: none;
+    padding-top: 8px;
+    border-top: 1px solid var(--sdc-accent-dim);
+    margin-top: 6px;
+}
+body.sdc-mm .sdc-mm-shopfoot { display: block; }
+.sdc-mm-shopfoot .sdc-mm-caption { font-size: 13px; opacity: 0.85; }
+.sdc-mm-shopq {
+    font-size: 15px;
+    color: var(--sdc-accent);
+    margin-bottom: 2px;
+}
+
+/* the stock scroller hides its bar with margin-right: -20px, which makes
+   the popup a little wider than the screen; a tap on a card button then
+   scrolls it sideways. clip (not hidden) also blocks scripted scrolling. */
+body.sdc-mm #ui-stack .ui-popup:has(.sdc-mm-shop),
+body.sdc-mm #ui-stack .ui-popup:has(.sdc-mm-shop) .ui-popup-outer { overflow-x: clip; }
+body.sdc-mm .sdc-mm-shopfoot .sdc-mm-shopyn { border-top: none; margin-top: 0; padding-top: 4px; }

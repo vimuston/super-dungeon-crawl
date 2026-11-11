@@ -17,6 +17,9 @@
 //     spell description, Pin = a cast shortcut among the pinned macros
 //     (known spells only). Known / Learn tabs switch between the known list
 //     and the memorise library.
+//   - shops: one card per item (price, marked / shopping list chips). Tap
+//     = select it: Buy / Describe / Shopping list buttons. The footer is
+//     just the gold line; the purchase confirm gets Yes / No.
 //   - innate abilities & mutations (A): wrapped cards, the legend's [] / ()
 //     markers as chips (future XL, transient, suppressed, bane), a Close bar.
 //   - character selection: a single scrolling list grouped by the stock
@@ -224,11 +227,23 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
             caption = caption.replace(m[0].trim(), "");
             found = true;
         }
+        // a yes/no question in the footer ("...? (y/N)") waits for a key
+        // no hint names: Yes / No buttons first. Capitals: yesno() takes
+        // them whatever easy_confirm says.
+        if (YN_FOOT_RE.test(text))
+        {
+            var yes = btn("Yes", "sdc-mm-yes", send_text.bind(null, "Y"));
+            var no = btn("No", "sdc-mm-no", send_text.bind(null, "N"));
+            bar.insertBefore(no, bar.firstChild);
+            bar.insertBefore(yes, no);
+            found = true;
+        }
         caption = caption.replace(/\s+/g, " ").trim();
         if (caption && !/^[-\s]*$/.test(caption))
             bar.insertBefore(el("div", "sdc-mm-caption", caption), bar.firstChild);
         src.classList.toggle("sdc-mm-hidden", found);
     }
+    var YN_FOOT_RE = /\?[^?]*[(\[]\s*y\s*\/\s*n\s*[)\]]/i;
 
     // Skills (CRT menu "skills") ------------------------------------------------
 
@@ -697,6 +712,163 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
             tabs.appendChild(b);
         });
         return tabs;
+    }
+
+    // Shops (menu tag "shop", shopping.cc ShopMenu) --------------------------------
+    // One card per item (tile, name, price coloured by affordability, chips
+    // for marked / on shopping list / owned / unknown). Tapping a card
+    // selects it and shows Buy / Describe / Shopping list under it; the
+    // stock footer (exit, buy|examine, buy marked) is replaced by the gold
+    // line, and the purchase confirm gets Yes / No. Exit = the X.
+    // Keys (ShopMenu::process_key): a-z mark for purchase (buy mode),
+    // Enter buys the marked items, A-Z toggles the shopping list, ! cycles
+    // buy / examine mode (a letter in examine mode describes).
+    var SHOP_ROW_RE = /^\s*(\S)\s+([+$-])\s+(\d+) gold\s+(.*?)\s*$/;
+    var shop_state = new WeakMap();     // menu element -> {sel, restore}
+
+    function shop_rows(menu)
+    {
+        return Array.prototype.map.call(
+            menu.querySelectorAll("li.selectable"), function (li) {
+                // the item's own text, not the li (which we replace):
+                // "<lightgreen>d - </lightgreen><yellow>  20 gold   ...</yellow>"
+                var item = $(li).data("item");
+                var src = item && String(item.text || "");
+                var m = src && SHOP_ROW_RE.exec(src.replace(/<[^>]*>/g, ""));
+                if (!m) return null;
+                var col = /^\s*<(\w+)>/.exec(src);
+                return { li: li, item: item, key: m[1], mark: m[2],
+                         cost: Number(m[3]), name: m[4],
+                         col: col ? col[1].toLowerCase() : "" };
+            }).filter(Boolean);
+    }
+
+    function dress_shop(menu)
+    {
+        var st = shop_state.get(menu);
+        if (!st)
+        {
+            st = { sel: null, restore: false };
+            shop_state.set(menu, st);
+            // a tap selects the card instead of the stock click (which
+            // marks it for purchase); our buttons inside still work
+            menu.addEventListener("click", function (ev) {
+                if (ev.target.closest(".sdc-m-btn")) return;
+                var li = ev.target.closest("li.selectable");
+                if (!li || !menu.contains(li)) return;
+                ev.preventDefault();
+                ev.stopPropagation();
+                var k = li.getAttribute("data-sdc-key");
+                st.sel = st.sel === k ? null : k;
+                buzz();
+                dress_shop(menu);
+            }, true);
+        }
+        menu.classList.add("sdc-mm-cards", "sdc-mm-shop");
+
+        var more = menu.querySelector(".menu_more");
+        var foot = more ? more.textContent.replace(/\s+/g, " ").trim() : "";
+        var can_buy = /buy\s*\|\s*examine/i.test(foot);
+        var examine = /examine item\b/i.test(foot);
+        // back from a description (it opened over the shop and closed
+        // again): return to buy mode
+        var popup = menu.closest(".ui-popup");
+        var top = !popup || popup === top_popup();
+        if (st.restore === "sent" && !top) st.restore = "open";
+        else if (st.restore === "open" && top)
+        {
+            st.restore = false;
+            if (examine && can_buy) send_text("!");
+        }
+
+        var rows = shop_rows(menu);
+        function act(r, what)
+        {
+            if (what === "buy")
+            {
+                if (examine) send_text("!");
+                rows.forEach(function (o) {
+                    if (o !== r && o.mark === "+") send_text(o.key);
+                });
+                if (r.mark !== "+") send_text(r.key);
+                send_code(13);
+            }
+            else if (what === "describe")
+            {
+                if (!examine && can_buy) { send_text("!"); st.restore = "sent"; }
+                send_text(r.key);
+            }
+            else if (what === "list")
+                send_text(r.key.toUpperCase());
+        }
+
+        rows.forEach(function (r) {
+            var li = r.li;
+            var sel = st.sel === r.key;
+            var sig = r.item.text + "|" + sel + "|" + can_buy;
+            if (li.getAttribute("data-sdc") === sig
+                && li.querySelector(".sdc-mm-main")) return;
+            var canvas = li.querySelector("canvas");
+            li.setAttribute("data-sdc", sig);
+            li.setAttribute("data-sdc-key", r.key);
+            li.classList.toggle("sdc-mm-sel", sel);
+            li.innerHTML = "";
+            if (canvas) li.appendChild(canvas);
+            var main = el("div", "sdc-mm-main");
+            var name = r.name, owned = /\s*\(owned: (\d+)\)$/.exec(name);
+            if (owned) name = name.slice(0, owned.index);
+            var unknown = / \(unknown\)$/.test(name);
+            if (unknown) name = name.replace(/ \(unknown\)$/, "");
+            main.appendChild(el("div", "sdc-mm-nm", name));
+            var meta = el("div", "sdc-mm-meta");
+            // the hotkey's affordability colour (ShopEntry::get_text):
+            // lightgreen fits, yellow fits without the other marks, red
+            // never, lightred = the marked total is too much
+            meta.appendChild(el("span", "sdc-mm-chiplet sdc-mm-price sdc-mm-c-" + r.col,
+                                r.cost + " gold"));
+            if (r.mark === "+") meta.appendChild(el("span", "sdc-mm-chiplet sdc-mm-tag", "✓ marked"));
+            if (r.mark === "$") meta.appendChild(el("span", "sdc-mm-chiplet sdc-mm-tag", "on shopping list"));
+            if (owned) meta.appendChild(el("span", "sdc-mm-chiplet", "owned " + owned[1]));
+            if (unknown) meta.appendChild(el("span", "sdc-mm-chiplet", "unknown"));
+            main.appendChild(meta);
+            li.appendChild(main);
+            if (!sel) return;
+            var acts = el("div", "sdc-mm-shopacts");
+            if (can_buy)
+                acts.appendChild(btn("Buy", "sdc-mm-yes", act.bind(null, r, "buy")));
+            acts.appendChild(btn("Describe", "", act.bind(null, r, "describe")));
+            if (can_buy)
+                acts.appendChild(btn(r.mark === "$" ? "Off list" : "Add to list", "",
+                                     act.bind(null, r, "list")));
+            li.appendChild(acts);
+        });
+
+        // footer: the gold line (and the purchase question) without the
+        // key legend, which starts at the first "[x]" hint
+        if (!more) return;
+        more.classList.add("sdc-mm-hidden");
+        var bar = more.nextElementSibling;
+        if (!bar || !bar.classList.contains("sdc-mm-shopfoot"))
+        {
+            bar = el("div", "sdc-mm-shopfoot");
+            more.parentNode.insertBefore(bar, more.nextSibling);
+        }
+        if (bar.getAttribute("data-src") === foot) return;
+        bar.setAttribute("data-src", foot);
+        bar.innerHTML = "";
+        var cap = foot.split(/\[[^\]]{1,8}\]/)[0].trim();
+        var yn = YN_FOOT_RE.exec(cap);
+        if (yn)
+        {
+            var q = cap.slice(0, yn.index + yn[0].length);
+            bar.appendChild(el("div", "sdc-mm-shopq", q.replace(YN_FOOT_RE, "?")));
+            var row = el("div", "sdc-mm-keys sdc-mm-shopyn");
+            row.appendChild(btn("Yes", "sdc-mm-yes", send_text.bind(null, "Y")));
+            row.appendChild(btn("No", "sdc-mm-no", send_text.bind(null, "N")));
+            bar.appendChild(row);
+            cap = cap.slice(q.length).trim();
+        }
+        if (cap) bar.appendChild(el("div", "sdc-mm-caption", cap));
     }
 
     // Innate abilities & mutations (A) -------------------------------------------
@@ -1421,6 +1593,7 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
         if (menu)
         {
             if (is_mut_menu(menu)) { dress_muts(popup, menu); return; }
+            if (menu.classList.contains("menu_shop")) { dress_shop(menu); return; }
             if (menu.classList.contains("menu_spell")) dress_rows(popup, "spell");
             else if (menu.classList.contains("menu_ability")) dress_rows(popup, "ability");
             var more = menu.querySelector(".menu_more");
