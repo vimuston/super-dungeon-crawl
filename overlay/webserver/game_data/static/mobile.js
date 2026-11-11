@@ -3,7 +3,8 @@
 // scoped to body.sdc-mobile, so desktop is untouched.
 //
 //   - vitals: the HP/MP panel shrinks to a small pill (top-left). Tapping
-//     it toggles the enlarged layout (name line + full stats card).
+//     it enlarges the layout (name line + full stats card); a second tap
+//     opens the character sheet (%) and shrinks it back to the pill.
 //   - macros (Tools > Macros): user-defined key sequences, each with an
 //     optional emoji shown in place of the label; pinned ones stack
 //     bottom-right above Explore.
@@ -324,12 +325,16 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             })
             .appendTo(normal);
 
-        // tap the pill / statuses: toggle the enlarged vitals + stats card
+        // tap the pill / statuses: enlarge the vitals + stats card; tap
+        // again for the character sheet (%), back to the pill underneath
         normal.off("click.sdcm")
             .on("click.sdcm", "#sdc_vitals, #sdc_statuses", function (ev) {
                 if (!active()) return;
                 ev.preventDefault();
+                var was_open = document.body.classList.contains("sdc-m-open");
                 toggle_vitals();
+                if (was_open && command_mode())
+                    send_keys("%");
             });
 
         watch_messages();
