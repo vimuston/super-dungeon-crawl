@@ -85,10 +85,12 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
     });
 
     // touch: dragging a finger along the bar runs the dock bell under it
-    // (like hovering with a mouse); lifting it settles the bar and picks
-    // nothing. A plain tap still clicks through the browser's synthesized
-    // mouse events, which are kept out of the dock (no mouseleave would ever
-    // follow them, leaving the bar magnified).
+    // (like hovering with a mouse); lifting it on a slot uses that slot (the
+    // only way to reach the slots cropped behind the Fight / Explore
+    // buttons), lifting it well above or below the bar picks nothing. A
+    // plain tap still clicks through the browser's synthesized mouse events,
+    // which are kept out of the dock (no mouseleave would ever follow them,
+    // leaving the bar magnified).
     var TOUCH_SLOP = 8;         // px before a touch on the bar is a drag
     var qb_touch = null;
     var touch_until = 0;        // synthesized mouse events end by then (ms)
@@ -159,10 +161,53 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
         touch_until = Date.now() + 1000;
         if (drag)
         {
-            // no click after a scrub
+            // no synthesized click after a scrub: the release picks instead
             if (ev.cancelable) ev.preventDefault();
             dock_cursor_set("mouseleave", null);
+            var t = ev.type === "touchend" && ev.changedTouches
+                    && ev.changedTouches[0];
+            if (t)
+            {
+                try { scrub_pick(t.clientX, t.clientY); }
+                catch (e) { api.warn("quickbar scrub pick", e); }
+            }
         }
+    }
+
+    // finger lifted at (x, y) after a scrub: act on the slot under it, the
+    // same way a tap would (so "select first" applies too)
+    function scrub_pick(x, y)
+    {
+        var canvas = document.getElementById("action-panel");
+        if (!canvas) return;
+        var r = canvas.getBoundingClientRect();
+        var pitch = canvas.clientHeight;
+        // lifted off the bar (the magnified slots reach ~2.4 pitches up):
+        // cancel
+        if (y < r.top - pitch * 2.6 || y > r.bottom + pitch) return;
+        var u = touch_u(x);
+        if (u === null) return;
+        var na = ab.pitch === pitch ? ab_dock_n() : 0;
+        var i = Math.floor(u);
+        if (i < na)
+        {
+            var b = ab.el && ab.el.querySelector("button[data-i=\"" + i
+                                                 + "\"]");
+            if (b) b.click();
+            return;
+        }
+        var idx = i - na;
+        if (idx < 1) return;    // never close the panel from a scrub
+        // the stock handler picks the slot on mousemove, acts on mousedown;
+        // the capture remap turns these viewport coordinates canvas-relative
+        var cx = r.left + canvas.clientLeft + (idx + 0.5) * pitch;
+        var cy = r.top + canvas.clientTop + pitch / 2;
+        ["mousemove", "mousedown", "mouseup"].forEach(function (type) {
+            canvas.dispatchEvent(new MouseEvent(type, {
+                bubbles: true, cancelable: true, view: window,
+                clientX: cx, clientY: cy, button: 0,
+                buttons: type === "mousedown" ? 1 : 0 }));
+        });
     }
 
     var touch_opts = { capture: true, passive: false };
@@ -191,7 +236,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
                                  "Tap an item once to select it, again to use it"] });
 
     var SEL_TIMEOUT = 5000;     // ms a selection stays armed
-    var sel = null;             // { kind: "inv"|"ab", i, id, t }
+    var sel = null;             // { kind: "inv"|"ab", i, id, t, touch }
     var sel_timer = 0;
 
     function sel_on()
@@ -225,7 +270,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
             sel_clear();
             return false;
         }
-        sel = { kind: kind, i: i, id: id, t: now };
+        sel = { kind: kind, i: i, id: id, t: now, touch: from_touch() };
         if (sel_timer) window.clearTimeout(sel_timer);
         sel_timer = window.setTimeout(sel_clear, SEL_TIMEOUT);
         sel_render();
@@ -310,6 +355,11 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
             if (sel_timer) window.clearTimeout(sel_timer);
             sel_timer = 0;
         }
+        if (document.body.classList.contains("sdc-qb-armed") !== !!sel)
+        {
+            document.body.classList.toggle("sdc-qb-armed", !!sel);
+            crop();
+        }
         var mk = document.getElementById("sdc_qb_sel");
         // dock copies: the slot under the selection gets the ring instead
         var di = !sel ? -1
@@ -330,7 +380,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
             mk.id = "sdc_qb_sel";
             document.getElementById("normal").appendChild(mk);
         }
-        mk.setAttribute("data-label", from_touch() ? "tap again" : "click again");
+        mk.setAttribute("data-label", sel.touch ? "tap again" : "click again");
         mk.classList.toggle("ab", sel.kind === "ab");
         if (sel.kind === "ab" && ab.el)
             mk.style.setProperty("--sdc-qb-god",
@@ -1309,7 +1359,8 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
     // Phones: the bar is cropped to the gap between the Fight and Explore
     // thumb buttons (mobile.js), so neither overlaps it. While a finger (or
     // the mouse) magnifies the bar (body.sdc-qb-mag, until the dock is back
-    // at rest) the whole bar shows and mobile.css hides the two buttons.
+    // at rest) or a "select first" selection is armed (body.sdc-qb-armed)
+    // the whole bar shows and mobile.css hides the two buttons.
     // clip-path also clips hit testing, so taps on the cut ends reach the
     // buttons.
     var CROP_IDS = ["action-panel", "sdc_qb_ab", "sdc_qb_frame", "sdc_qb_caps",
@@ -1329,7 +1380,8 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
     function crop()
     {
         var b = document.body.classList;
-        var on = b.contains("sdc-mobile") && moved() && !b.contains("sdc-qb-mag");
+        var on = b.contains("sdc-mobile") && moved() && !b.contains("sdc-qb-mag")
+                 && !b.contains("sdc-qb-armed");
         var lo = on ? thumb_edge("sdc_m_fight", "right") : null;
         var hi = on ? thumb_edge("sdc_m_explore", "left") : null;
         CROP_IDS.forEach(function (id) {
