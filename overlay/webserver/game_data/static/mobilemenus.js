@@ -394,6 +394,16 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
             var seg = el("div", "sdc-mm-seg");
             seg.appendChild(el("span", "sdc-mm-seg-l",
                                SW_LABEL[sw.name] || sw.name));
+            // the view column has too many options for one row: a single
+            // button that steps to the next view (the key cycles them)
+            if (sw.name === "")
+            {
+                seg.appendChild(btn(sw.cur >= 0 ? "Showing " + sw.opts[sw.cur]
+                                                : "Next column", "",
+                                    send_text.bind(null, sw.key)));
+                sws.appendChild(seg);
+                return;
+            }
             sw.opts.forEach(function (o, k) {
                 var b = btn(o, k === sw.cur ? "on" : "", function () {
                     if (k === sw.cur) return;
