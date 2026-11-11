@@ -85,16 +85,17 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     api.register_option({ key: "mobile_macros", default: null });
     migrate_macros();
 
-    // Most used first. A function instead of keys opens a panel.
+    // Most used first. A function instead of keys opens a panel. Items,
+    // Spells and Skills live on the quick row (QUICK) instead.
     var TOOLS = [
-        ["Spells", "I"], ["Learn spells", "M"], ["Skills", "m"], ["Abilities", "a"],
-        ["Innate", "A"], ["Character", "%"], ["Up <", "<"], ["Down >", ">"],
-        ["Pick up", "g"], ["Inventory", "i"], ["Rest", "5"],
+        ["Abilities", "a"], ["Innate", "A"], ["Up <", "<"], ["Down >", ">"],
+        ["Character", "%"], ["Shopping list", "$"], ["Pick up", "g"],
+        ["Rest", "5"],
         ["Wait", "s"], ["Find", function () { toggle_find(true); }],
         ["Macros", function () { toggle_macros(true); }], ["Map", "X"],
         ["Travel", "G"], ["Look", "x"], ["In view", "Ctrl+X"],
         ["God", "^"], ["Known items", "\\"], ["Lookup", "?/"],
-        ["History", "Ctrl+P"], ["Esc", "Esc"], ["Enter", "Enter"],
+        ["Enter", "Enter"], ["Esc", "Esc"], ["History", "Ctrl+P"],
     ];
 
     // Find (Ctrl+F) presets: crawl matches item names plus class prefixes

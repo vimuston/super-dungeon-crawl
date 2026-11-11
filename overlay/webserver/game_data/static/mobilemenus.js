@@ -20,6 +20,8 @@
 //   - shops: one card per item (price, marked / shopping list chips). Tap
 //     = select it: Buy / Describe / Shopping list buttons. The footer is
 //     just the gold line; the purchase confirm gets Yes / No.
+//   - shopping list ($): one card per entry (location, price). Tap =
+//     select it: Travel / Describe buttons.
 //   - innate abilities & mutations (A): wrapped cards, the legend's [] / ()
 //     markers as chips (future XL, transient, suppressed, bane), a Close bar.
 //   - character selection: a single scrolling list grouped by the stock
@@ -881,6 +883,119 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
         if (cap) bar.appendChild(el("div", "sdc-mm-caption", cap));
     }
 
+    // Shopping list ($, shopping.cc ShoppingListMenu) ------------------------------
+    // Also tagged "shop", told apart by its title. One card per entry
+    // (location, price, name); tapping a card selects it and shows Travel /
+    // Describe under it. The menu's action is a mode cycled by ! (travel ->
+    // examine -> delete -> travel; the footer bolds the current one, <w>),
+    // and a letter then acts on that entry, so a button cycles to its mode
+    // first. view_only lists (from inside a shop) only examine.
+    var SHOPLIST_ROW_RE = /^\s*(\S)\s+-\s+\[([^\]]*)\]\s+(\d+) gold\s+(.*?)\s*$/;
+    var SHOPLIST_MODES = ["travel", "examine", "delete"];
+
+    function is_shoplist(menu)
+    {
+        var t = menu.querySelector(".menu_title");
+        return !!t && /^\s*Shopping list:/.test(t.textContent);
+    }
+
+    // index into SHOPLIST_MODES, or -1 for a view-only list
+    function shoplist_mode(more)
+    {
+        if (!more || !/travel\s*\|\s*examine\s*\|\s*delete/.test(more.textContent))
+            return -1;
+        var spans = more.querySelectorAll("span");
+        for (var i = 0; i < spans.length; i++)
+        {
+            var m = SHOPLIST_MODES.indexOf(spans[i].textContent.trim());
+            if (m >= 0) return m;
+        }
+        return 0;
+    }
+
+    function dress_shoplist(menu)
+    {
+        var st = shop_state.get(menu);
+        if (!st)
+        {
+            st = { sel: null };
+            shop_state.set(menu, st);
+            menu.addEventListener("click", function (ev) {
+                if (ev.target.closest(".sdc-m-btn")) return;
+                var li = ev.target.closest("li.selectable");
+                if (!li || !menu.contains(li)) return;
+                ev.preventDefault();
+                ev.stopPropagation();
+                var k = li.getAttribute("data-sdc-key");
+                st.sel = st.sel === k ? null : k;
+                buzz();
+                dress_shoplist(menu);
+            }, true);
+        }
+        menu.classList.add("sdc-mm-cards", "sdc-mm-shop");
+
+        var more = menu.querySelector(".menu_more");
+        var mode = shoplist_mode(more);
+        function act(key, want)
+        {
+            if (mode >= 0)
+                for (var n = (want - mode + 3) % 3; n > 0; n--) send_text("!");
+            send_text(key);
+        }
+
+        Array.prototype.forEach.call(menu.querySelectorAll("li.selectable"), function (li) {
+            var item = $(li).data("item");
+            var src = item && String(item.text || "");
+            var m = src && SHOPLIST_ROW_RE.exec(src.replace(/<[^>]*>/g, ""));
+            if (!m) return;
+            var key = m[1], sel = st.sel === key;
+            var sig = src + "|" + sel + "|" + (mode >= 0);
+            if (li.getAttribute("data-sdc") === sig
+                && li.querySelector(".sdc-mm-main")) return;
+            var canvas = li.querySelector("canvas");
+            li.setAttribute("data-sdc", sig);
+            li.setAttribute("data-sdc-key", key);
+            li.classList.toggle("sdc-mm-sel", sel);
+            li.innerHTML = "";
+            if (canvas) li.appendChild(canvas);
+            var main = el("div", "sdc-mm-main");
+            var name = m[4], owned = /\s*\(owned: (\d+)\)$/.exec(name);
+            if (owned) name = name.slice(0, owned.index);
+            var unknown = / \(unknown\)$/.test(name);
+            if (unknown) name = name.replace(/ \(unknown\)$/, "");
+            main.appendChild(el("div", "sdc-mm-nm", name));
+            var meta = el("div", "sdc-mm-meta");
+            meta.appendChild(el("span", "sdc-mm-chiplet sdc-mm-tag", m[2]));
+            meta.appendChild(el("span", "sdc-mm-chiplet sdc-mm-price", m[3] + " gold"));
+            if (owned) meta.appendChild(el("span", "sdc-mm-chiplet", "owned " + owned[1]));
+            if (unknown) meta.appendChild(el("span", "sdc-mm-chiplet", "unknown"));
+            main.appendChild(meta);
+            li.appendChild(main);
+            if (!sel) return;
+            var acts = el("div", "sdc-mm-shopacts");
+            if (mode >= 0)
+                acts.appendChild(btn("Travel", "sdc-mm-yes", act.bind(null, key, 0)));
+            acts.appendChild(btn("Describe", "", act.bind(null, key, 1)));
+            li.appendChild(acts);
+        });
+
+        // footer: just the gold line, without the key legend
+        if (!more) return;
+        more.classList.add("sdc-mm-hidden");
+        var foot = more.textContent.replace(/\s+/g, " ").trim();
+        var bar = more.nextElementSibling;
+        if (!bar || !bar.classList.contains("sdc-mm-shopfoot"))
+        {
+            bar = el("div", "sdc-mm-shopfoot");
+            more.parentNode.insertBefore(bar, more.nextSibling);
+        }
+        if (bar.getAttribute("data-src") === foot) return;
+        bar.setAttribute("data-src", foot);
+        bar.innerHTML = "";
+        var gold = /You have \d+ gold pieces?(?: and a voucher)?/.exec(foot);
+        if (gold) bar.appendChild(el("div", "sdc-mm-caption", gold[0]));
+    }
+
     // Innate abilities & mutations (A) -------------------------------------------
     // A plain untagged Menu (mutation.cc MutationMenu), so it is found by its
     // title. Rows wrap as cards without the hotkey letter, and the legend's
@@ -1603,7 +1718,12 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
         if (menu)
         {
             if (is_mut_menu(menu)) { dress_muts(popup, menu); return; }
-            if (menu.classList.contains("menu_shop")) { dress_shop(menu); return; }
+            if (menu.classList.contains("menu_shop"))
+            {
+                if (is_shoplist(menu)) dress_shoplist(menu);
+                else dress_shop(menu);
+                return;
+            }
             if (menu.classList.contains("menu_spell")) dress_rows(popup, "spell");
             else if (menu.classList.contains("menu_ability")) dress_rows(popup, "ability");
             var more = menu.querySelector(".menu_more");
