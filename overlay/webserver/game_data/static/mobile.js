@@ -42,9 +42,19 @@ function ($, comm, api, renderer, enums, options, player, view_data,
           map_knowledge) {
     "use strict";
 
-    api.register_option({ key: "mobile", label: "Mobile UI", default: "on",
+    api.register_option({ key: "mobile", label: "Mobile UI", default: "auto",
                           choices: [["auto", "Auto"], ["on", "On"],
                                     ["off", "Off"]] });
+    // It shipped "on" by default, which put desktop browsers in the mobile
+    // UI too, and the whole settings object is stored, so an untouched "on"
+    // is indistinguishable from a chosen one: switch everyone to Auto once
+    // (touch devices and the app still get the mobile UI).
+    if (!api.settings.mobile_auto_v2)
+    {
+        if (api.settings.mobile === "on") api.settings.mobile = "auto";
+        api.settings.mobile_auto_v2 = true;
+        api.save();
+    }
     api.register_option({ key: "msg_fade", label: "Message fade (s)",
                           default: 5, range: { min: 2, max: 15, step: 1 } });
     // Stock webtiles shrinks tiles until a 17-cell diameter fits, which is
