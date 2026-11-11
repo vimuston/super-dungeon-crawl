@@ -8,6 +8,9 @@
 //   - macros (Tools > Macros): user-defined key sequences, each with an
 //     optional emoji shown in place of the label; pinned ones stack
 //     bottom-right above Explore.
+//   - quick row (top-right, left of Tools): Items (i), Spells (I; the
+//     Memorise list M when no spell is known yet) and Skills (m). The
+//     spell popup itself has Known / Learn tabs (mobilemenus.js).
 //   - tools (top-right): a grid of commands, most used first (spells,
 //     skills, abilities, innate, character, stairs, pick up, ...), Esc /
 //     Enter, the on-screen keyboard, minimap and settings. Find opens its
@@ -29,7 +32,10 @@
 //   "mobile"         auto / on / off. Auto = touch screen or the wrapper.
 //   "msg_fade"       seconds the message bubble stays up.
 //   "mobile_zoom"    dungeon zoom step (pinch).
-//   "mobile_macros"  [{label, keys, icon, pin}] macros (Tools > Macros).
+//   "mobile_macros"  [{label, keys, icon, pin, img?, spell?}] macros (Tools >
+//                    Macros). Spell pins (Pin in the spell menu,
+//                    mobilemenus.js) add img (the spell tile as a data URL)
+//                    and spell (its name: cast as z + its current letter).
 //                    Migrated once from the old "mobile_buttons" list.
 //
 // Key specs (macros, tools): space-separated tokens. Named keys Tab,
@@ -73,7 +79,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
 
     // Most used first. A function instead of keys opens a panel.
     var TOOLS = [
-        ["Spells", "I"], ["Skills", "m"], ["Abilities", "a"],
+        ["Spells", "I"], ["Learn spells", "M"], ["Skills", "m"], ["Abilities", "a"],
         ["Innate", "A"], ["Character", "%"], ["Up <", "<"], ["Down >", ">"],
         ["Pick up", "g"], ["Inventory", "i"], ["Rest", "5"],
         ["Wait", "s"], ["Find", function () { toggle_find(true); }],
@@ -224,11 +230,34 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         api.set("mobile_macros", list);
     }
 
-    // what a macro button shows: its emoji if it has one, else the label
+    // the keys a macro sends; a pinned spell is cast by its current letter
+    // (letters can be reassigned), falling back to the one it was pinned with
+    function macro_keys(m)
+    {
+        if (!m.spell || !Array.isArray(player.spells)) return m.keys;
+        for (var i = 0; i < player.spells.length; i++)
+        {
+            var x = player.spells[i];
+            if (x && x.name === m.spell && x.key) return "z" + x.key;
+        }
+        return m.keys;
+    }
+
+    function macro_img(m)
+    {
+        return $("<img class='sdc-m-mimg' alt=''>").attr("src", m.img);
+    }
+
+    // what a macro button shows: its tile or emoji if it has one, else the
+    // label
     function macro_button(m, after)
     {
-        var btn = key_button(m.icon || m.label, m.keys, after);
-        if (m.icon)
+        var btn = key_button(m.icon || m.label,
+                             function () { return macro_keys(m); }, after);
+        if (m.img)
+            btn.text("").append(macro_img(m)).addClass("sdc-m-imgbtn")
+                .attr({ title: m.label, "aria-label": m.label });
+        else if (m.icon)
             btn.addClass("sdc-m-emoji")
                 .attr({ title: m.label + " (" + m.keys + ")",
                         "aria-label": m.label });
@@ -252,19 +281,20 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     {
         return $("<button type='button' class='sdc-m-btn'>")
             .text(label)
-            .attr("title", keys)
+            .attr("title", typeof keys === "function" ? null : keys)
             .on("click", function (ev) {
                 ev.preventDefault();
                 ev.stopPropagation();
                 buzz();
                 if (after) after();
-                send_keys(keys);
+                var k = typeof keys === "function" ? keys() : keys;
+                if (k) send_keys(k);
             });
     }
 
     function build()
     {
-        $("#sdc_m_toolbtn, #sdc_m_tools, #sdc_m_bubble, #sdc_m_macros,"
+        $("#sdc_m_toolbtn, #sdc_m_quick, #sdc_m_tools, #sdc_m_bubble, #sdc_m_macros,"
           + " #sdc_m_pin, #sdc_m_logclose, #sdc_m_find, #sdc_m_mapclose,"
           + " .sdc-m-mapstair,"
           + " .sdc-m-big").remove();
@@ -298,6 +328,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
                 toggle_tools();
             })
             .appendTo(normal);
+        build_quick().appendTo(normal);
         $("<div id='sdc_m_tools' class='sdc-panel'>").appendTo(normal);
         render_tools();
         $("<div id='sdc_m_find' class='sdc-panel'>").appendTo(normal);
@@ -340,6 +371,60 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         watch_messages();
     }
 
+    // Quick row -----------------------------------------------------------------
+    // The menus opened most often, one tap away beside the Tools button.
+
+    var QUICK_SVG = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor'"
+                    + " stroke-width='1.7' stroke-linecap='round'"
+                    + " stroke-linejoin='round' aria-hidden='true'>";
+    var QUICK = [
+        // backpack
+        { label: "Items", keys: "i",
+          icon: "<path d='M8 7V5.5a4 4 0 0 1 8 0V7'/>"
+                + "<rect x='4.5' y='7' width='15' height='14' rx='3'/>"
+                + "<path d='M8.5 13h7v4h-7z'/>" },
+        // open book with a star
+        { label: "Spells", keys: spells_keys,
+          icon: "<path d='M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5"
+                + "C14 18 17 17.5 20.5 18V5C17 4.5 14 5 12 6.5zM12 6.5v13'/>"
+                + "<path d='M16.3 8.5l.6 1.3 1.4.2-1 1 .2 1.4-1.2-.7-1.2.7.2-1.4"
+                + "-1-1 1.4-.2z' fill='currentColor' stroke-width='0.8'/>" },
+        // rising bars
+        { label: "Skills", keys: "m",
+          icon: "<path d='M4 20h16'/><rect x='5.5' y='13' width='3' height='5'/>"
+                + "<rect x='10.5' y='9' width='3' height='9'/>"
+                + "<rect x='15.5' y='5' width='3' height='13'/>" },
+    ];
+
+    // Known spells, or straight to the library while none is known yet
+    // (I only prints "You don't know any spells." then).
+    function spells_keys()
+    {
+        return Array.isArray(player.spells) && !player.spells.length
+            ? "M" : "I";
+    }
+
+    function build_quick()
+    {
+        var row = $("<div id='sdc_m_quick'>");
+        QUICK.forEach(function (q) {
+            $("<button type='button' class='sdc-m-btn sdc-m-quick'>")
+                .attr("aria-label", q.label)
+                .html(QUICK_SVG + q.icon + "</svg><span>" + q.label
+                      + "</span>")
+                .on("click", function (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    buzz();
+                    close_all();
+                    send_keys(typeof q.keys === "function" ? q.keys()
+                                                            : q.keys);
+                })
+                .appendTo(row);
+        });
+        return row;
+    }
+
     // Macros panel -----------------------------------------------------------
     // A list of macros (run / pin / edit / delete) and a form to add or edit
     // one. Opened from Tools > Macros; pinned macros stack bottom-right.
@@ -373,8 +458,9 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         list.forEach(function (m, i) {
             var row = $("<div class='sdc-m-mrow'>").appendTo(panel);
             var run = macro_button(m, close_all).addClass("sdc-m-mrun");
-            if (m.icon)
-                run.text("").append($("<span class='sdc-m-micon'>").text(m.icon),
+            if (m.img || m.icon)
+                run.text("").append(m.img ? macro_img(m)
+                                    : $("<span class='sdc-m-micon'>").text(m.icon),
                                     $("<span>").text(m.label));
             run.append($("<span class='sdc-m-mkeys'>").text(m.keys));
             row.append(run,
@@ -436,8 +522,12 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             ev.stopPropagation();
             var k = keys.val().trim();
             if (!k) return;
-            var m = { label: label.val().trim() || k, keys: k,
-                      icon: icon.val().trim(), pin: cur ? !!cur.pin : false };
+            var m = $.extend({}, cur || {},
+                             { label: label.val().trim() || k, keys: k,
+                               icon: icon.val().trim(),
+                               pin: cur ? !!cur.pin : false });
+            // edited keys: no longer resolved from the spell's name
+            if (cur && cur.spell && k !== cur.keys) delete m.spell;
             var l = macros().slice();
             if (cur) l[editing] = m;
             else l.push(m);

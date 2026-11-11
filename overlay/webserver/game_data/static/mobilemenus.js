@@ -12,8 +12,11 @@
 //     Target = a number picker (sets the training target), i = description.
 //     Mode (auto/manual), shown skills and the value column are segmented
 //     buttons.
-//   - spells (z / I): one card per spell (name, schools, failure, level or
-//     power / damage / range / noise). Tap = cast, i = spell description.
+//   - spells (z / I / M): one card per spell (name, schools, failure, level
+//     or power / damage / range / noise). Tap = cast (or memorise), i =
+//     spell description, Pin = a cast shortcut among the pinned macros
+//     (known spells only). Known / Learn tabs switch between the known list
+//     and the memorise library.
 //   - innate abilities & mutations (A): wrapped cards, the legend's [] / ()
 //     markers as chips (future XL, transient, suppressed, bane), a Close bar.
 //   - character selection: a single scrolling list grouped by the stock
@@ -576,15 +579,25 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
         var extra = mine ? title.getAttribute("data-sdc-extra") === "1"
                          : !!(title && /Power/.test(title.textContent));
         menu.classList.add("sdc-mm-cards");
+        var in_lib = !!title && title.getAttribute("data-sdc-lib") === "1";
         if (title && kind === "spell" && !mine)
         {
             var full = title.textContent.replace(/\s+/g, " ").trim();
             var t = (/^.*?\)/.exec(full) || [full.split(" Type")[0]])[0];
+            // the library (M, "Spells (Memorise)") shares the "spell" tag
+            // with the known list (I / z, "Your spells (cast)")
+            var lib = /^Spells \(/.test(full);
+            var mode = (/\((\w+)\)/.exec(t) || [])[1] || "";
             title.setAttribute("data-sdc-extra", extra ? "1" : "0");
+            title.setAttribute("data-sdc-lib", lib ? "1" : "0");
             title.innerHTML = "";
-            title.appendChild(el("span", "sdc-mm-title", t));
-            title.appendChild(btn(extra ? "Show failure" : "Show power",
-                                  "sdc-mm-tog", function () { send_text("!"); }));
+            title.appendChild(spell_tabs(lib));
+            // ! cycles power / failure columns in the known list, and the
+            // action (Memorise / Describe / Hide / Show) in the library
+            title.appendChild(lib
+                ? btn("Mode: " + mode, "sdc-mm-tog", function () { send_text("!"); })
+                : btn(extra ? "Show failure" : "Show power",
+                      "sdc-mm-tog", function () { send_text("!"); }));
         }
         menu.querySelectorAll("li.selectable").forEach(function (li) {
             var item = $(li).data("item");
@@ -608,6 +621,9 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
             });
             main.appendChild(meta);
             li.appendChild(main);
+            // known spells only: pin a cast shortcut with the macros
+            if (kind === "spell" && !in_lib && f.name)
+                li.appendChild(pin_button(f, canvas));
             if (kind === "spell")
             {
                 li.appendChild(btn("i", "sdc-mm-info", function () {
@@ -616,6 +632,71 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
                 }));
             }
         });
+    }
+
+    // Pin: a spell shortcut among the pinned macros (mobile.js draws them
+    // bottom-right). Stored in its "mobile_macros" option with the tile as
+    // an image and the spell's name, so it casts by the current letter.
+    function spell_pins()
+    {
+        var l = api.get("mobile_macros");
+        return Array.isArray(l) ? l : [];
+    }
+
+    function pin_index(name)
+    {
+        var l = spell_pins();
+        for (var i = 0; i < l.length; i++)
+            if (l[i] && l[i].spell === name && l[i].pin) return i;
+        return -1;
+    }
+
+    function pin_button(f, canvas)
+    {
+        var b = btn("Pin", "sdc-mm-pin", function () {
+            var l = spell_pins().slice(), i = pin_index(f.name);
+            if (i >= 0)
+                l.splice(i, 1);
+            else
+            {
+                var img = "";
+                try { if (canvas) img = canvas.toDataURL("image/png"); }
+                catch (e) { img = ""; }
+                l.push({ label: f.name.slice(0, 12), keys: "z" + f.key,
+                         icon: img ? "" : "✶", img: img || undefined,
+                         spell: f.name, pin: true });
+            }
+            api.set("mobile_macros", l);
+            show(b);
+        });
+        function show(x)
+        {
+            var on = pin_index(f.name) >= 0;
+            x.textContent = on ? "Pinned" : "Pin";
+            x.classList.toggle("sdc-mm-on", on);
+            x.setAttribute("aria-pressed", on ? "true" : "false");
+        }
+        show(b);
+        return b;
+    }
+
+    // Known / Learn tabs over the spell popups: switching closes this menu
+    // and opens the other one (I = list known spells, M = memorise).
+    function spell_tabs(lib)
+    {
+        var tabs = el("span", "sdc-mm-title sdc-mm-tabs");
+        [["Known", false, "I"], ["Learn", true, "M"]].forEach(function (d) {
+            var on = d[1] === lib;
+            var b = btn(d[0], "sdc-mm-tab" + (on ? " sdc-mm-on" : ""),
+                        function () {
+                if (on) return;
+                send_code(27);
+                send_text(d[2]);
+            });
+            b.setAttribute("aria-pressed", on ? "true" : "false");
+            tabs.appendChild(b);
+        });
+        return tabs;
     }
 
     // Innate abilities & mutations (A) -------------------------------------------

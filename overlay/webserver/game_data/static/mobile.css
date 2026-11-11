@@ -135,8 +135,11 @@ html body.sdc-mobile #sdc_corner {
     bottom: auto;
     transform: none;
     align-items: flex-start;
-    max-width: calc(100vw - 70px);
+    /* clear of the quick row and Tools (top-right) */
+    max-width: calc(100vw - 206px);
 }
+/* the enlarged vitals card takes the full width (the quick row hides) */
+html body.sdc-mobile.sdc-m-open #sdc_corner { max-width: calc(100vw - 70px); }
 /* open: above crawl's menus (#ui-stack, 3000) like the tools menu */
 html body.sdc-mobile.sdc-m-open #sdc_corner { z-index: 3120; }
 html body.sdc-mobile #sdc_vitals {
@@ -333,6 +336,39 @@ body.sdc-mobile #sdc_m_toolbtn {
     opacity: 0.75;
 }
 body.sdc-mobile.sdc-m-tools #sdc_m_toolbtn { opacity: 1; }
+/* quick row: Items / Spells / Skills, left of the tools button */
+#sdc_m_quick { display: none; }
+body.sdc-mobile #sdc_m_quick {
+    display: flex;
+    gap: 4px;
+    position: fixed;
+    top: calc(6px + env(safe-area-inset-top));
+    right: calc(50px + env(safe-area-inset-right));
+    z-index: 3200;
+}
+body.sdc-mobile.sdc-mapview #sdc_m_quick,
+body.sdc-mobile.sdc-m-open #sdc_m_quick,
+body.sdc-mobile:has(#ui-stack > .ui-popup) #sdc_m_quick { display: none; }
+body.sdc-mobile #sdc_m_quick .sdc-m-quick {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    min-width: 0;
+    width: 44px;
+    height: 40px;
+    min-height: 0;
+    padding: 2px 0 1px;
+    font-size: 9px;
+    letter-spacing: 0.03em;
+    background: rgba(2, 10, 5, 0.6);
+    border-radius: 4px;
+    opacity: 0.75;
+}
+body.sdc-mobile #sdc_m_quick svg { width: 20px; height: 20px; }
+body.sdc-mobile #sdc_m_quick .sdc-m-quick:active { opacity: 1; transform: scale(0.94); }
+
 body.sdc-mobile.sdc-m-tools #sdc_m_tools {
     display: block;
     position: fixed;
@@ -468,6 +504,15 @@ body.sdc-mobile #sdc_m_pin .sdc-m-btn {
     opacity: 0.85;
 }
 body.sdc-mobile #sdc_m_pin .sdc-m-btn.sdc-m-emoji { font-size: 24px; padding: 0; }
+/* pinned spells: the spell tile in the round button */
+body.sdc-mobile #sdc_m_pin .sdc-m-btn.sdc-m-imgbtn { padding: 0; }
+body.sdc-mobile #sdc_m_pin .sdc-m-imgbtn .sdc-m-mimg {
+    width: 40px;
+    height: 40px;
+    vertical-align: middle;
+    image-rendering: pixelated;
+}
+.sdc-m-mimg { width: 24px; height: 24px; image-rendering: pixelated; flex: 0 0 auto; }
 body.sdc-mobile #sdc_m_pin .sdc-m-btn:active { opacity: 1; transform: scale(0.95); }
 
 /* settings panel fits the phone */
