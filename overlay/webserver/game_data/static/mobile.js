@@ -368,9 +368,11 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             .appendTo(normal);
 
         // tap the pill / statuses: enlarge the vitals + stats card; tap
-        // again for the character sheet (%), back to the pill underneath
+        // again (pill, statuses or the open stats card) for the character
+        // sheet (%), back to the pill underneath
         normal.off("click.sdcm")
-            .on("click.sdcm", "#sdc_vitals, #sdc_statuses", function (ev) {
+            .on("click.sdcm", "#sdc_vitals, #sdc_statuses, #sdc_stats",
+                function (ev) {
                 if (!active()) return;
                 ev.preventDefault();
                 var was_open = document.body.classList.contains("sdc-m-open");
