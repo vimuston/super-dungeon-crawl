@@ -56,6 +56,10 @@ body.sdc-mobile #message_pane:has(input) {
     border-top: 1px solid var(--sdc-accent-dim);
     box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.6);
 }
+body.sdc-mobile.sdc-m-log #messages_container,
+body.sdc-mobile.sdc-m-log #messages_container * {
+    font: 13px/1.35 var(--stat-font) !important;
+}
 body.sdc-mobile.sdc-m-log #messages_container {
     max-height: 45vh !important;
     overflow-y: auto !important;
@@ -70,9 +74,10 @@ body.sdc-mobile #message_pane input { font-size: 16px; } /* no zoom-in */
 #sdc_m_logclose { display: none; }
 body.sdc-mobile.sdc-m-log #sdc_m_logclose {
     display: block;
-    position: fixed;
+    /* moved into #message_pane while open (mobile.js): rides its top edge */
+    position: absolute;
     right: 8px;
-    bottom: calc(45vh + 26px);
+    top: -18px;
     z-index: 3160;
     width: 36px;
     height: 36px;

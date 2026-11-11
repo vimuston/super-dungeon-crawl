@@ -789,6 +789,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         document.body.classList.toggle("sdc-m-log", open);
         if (open)
         {
+            $("#sdc_m_logclose").appendTo("#message_pane");
             var c = document.getElementById("messages_container");
             if (c) c.scrollTop = c.scrollHeight;
             hide_bubble(true);
