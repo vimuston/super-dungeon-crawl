@@ -350,6 +350,29 @@ body.sdc-mm #ui-stack .sdc-mm-cards .menu_title {
 }
 body.sdc-mm #ui-stack .sdc-mm-cards .menu_title .sdc-mm-title { flex: 1 1 auto; }
 .sdc-mm-tog { flex: 0 0 auto; white-space: nowrap; font-size: 12px !important; }
+/* Known / Learn tabs (spell list I / z, memorise library M) */
+body.sdc-mm #ui-stack .menu_title .sdc-mm-tabs { display: flex; gap: 4px; }
+body.sdc-mm #ui-stack .sdc-mm-tab {
+    flex: 1 1 0;
+    max-width: 120px;
+    min-height: 40px;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+}
+body.sdc-mm #ui-stack .sdc-mm-cards .sdc-mm-pin {
+    flex: 0 0 auto;
+    min-width: 58px;
+    min-height: 40px;
+    margin-right: 6px;
+    font-size: 12px !important;
+}
+body.sdc-mm #ui-stack .sdc-mm-pin.sdc-mm-on,
+body.sdc-mm #ui-stack .sdc-mm-tab.sdc-mm-on {
+    color: #000;
+    background: var(--sdc-accent);
+    border-color: var(--sdc-accent);
+    font-weight: bold;
+}
 body.sdc-mm #ui-stack .sdc-mm-cards .menu_title { padding-right: 52px; }
 body.sdc-mm #ui-stack .sdc-mm-cards li.selectable {
     white-space: normal;
