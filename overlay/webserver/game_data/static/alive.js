@@ -61,7 +61,8 @@
 //   Cells outside line of sight (remembered map) do not move.
 //
 // Data texture (uploaded only when the map changes; NEAREST, no flip, row 0 =
-// top row of the view): R = material, G = creature state, B = creature
+// top row of the view): R = material, G = creature state | spill << 4 (how
+// far the sprite reaches into the cell above, 15ths of a cell), B = creature
 // params (damage 0-4 | threat << 3 | big << 6 | flying << 7),
 // A = item/cloud class | body plan << 4.
 //
@@ -395,7 +396,13 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
                 }
                 mat_a[i] = mat;
                 data[o] = mat;
-                data[o + 1] = st;
+                // a sprite drawn past the top of its cell (two-tile bosses,
+                // hydras, tall helmets): how far, in 15ths of a cell, so the
+                // shader moves the part in the cell above with it
+                var spill = 0;
+                if (st && t.sy < 0)
+                    spill = Math.max(1, Math.min(15, Math.round(-t.sy / 32 * 15)));
+                data[o + 1] = st | (spill << 4);
                 data[o + 2] = par;
                 data[o + 3] = itm | (kind << 4);
             }
@@ -412,7 +419,8 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
                                        : (data[fo + 3] & 0xF0) | fe.val;
             else
                 data[fo + fe.ch] = fe.val;
-            if (fe.kind && !data[fo + 1]) data[fo + 1] = S.HOSTILE;
+            if (fe.kind && !(data[fo + 1] & 15))
+                data[fo + 1] = (data[fo + 1] & 0xF0) | S.HOSTILE;
         }
         prev = { vx: vx, vy: vy, cols: cols, mat: mat_a, mid: mid_a,
                  dmg: dmg_a };
@@ -774,9 +782,10 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
                 for (var i = 0; i < cols * rows; i++)
                 {
                     var o = i * 4;
-                    var names = [MAT_NAMES[data[o]], STATE_NAMES[data[o + 1]],
+                    var sto = data[o + 1] & 15;
+                    var names = [MAT_NAMES[data[o]], STATE_NAMES[sto],
                                  ITEM_NAMES[data[o + 3] & 15]];
-                    if (data[o + 1] && data[o + 1] !== S.PLAYER)
+                    if (sto && sto !== S.PLAYER)
                         names.push("kind:" + KIND_NAMES[data[o + 3] >> 4]);
                     names.forEach(function (n) {
                         if (n && n !== "none" && n !== "empty")
@@ -796,7 +805,9 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
             if (c < 0 || r < 0 || c >= cols || r >= rows) return null;
             var o = (r * cols + c) * 4;
             var p = data[o + 2];
-            return { mat: MAT_NAMES[data[o]], state: STATE_NAMES[data[o + 1]],
+            return { mat: MAT_NAMES[data[o]],
+                     state: STATE_NAMES[data[o + 1] & 15],
+                     spill: (data[o + 1] >> 4) / 15,
                      item: ITEM_NAMES[data[o + 3] & 15],
                      body: KIND_NAMES[data[o + 3] >> 4], dmg: p & 7,
                      threat: (p >> 3) & 7, big: !!(p & 64),
