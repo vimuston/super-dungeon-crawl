@@ -195,7 +195,7 @@ function (api, kit, map_knowledge, player) {
         var pp = enabled() && player.pos && kit.view_uv(player.pos);
         if (!pp) { why = { stop: "no view / off" }; hide_from(0); return; }
         var r = pp.r, vr = kit.view_rect();
-        var size = Math.max(14, Math.min(26, pp.cw * 0.42));
+        var size = Math.max(30, Math.min(42, pp.cw * 0.75));
         // visible part of the canvas: an arrow tip sits `inset` inside it,
         // and a monster whose tile centre is that far in counts as on screen
         var inset = size * 1.1;
