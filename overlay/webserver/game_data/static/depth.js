@@ -37,6 +37,8 @@
 //   R = wall (255) / shallow water, lava (128) / deep water (90)
 //   G = creature (255) / item (128)
 //   B = upright feature (255)       A = cloud (255) / fire cloud (100)
+// plus an overflow mask canvas (see build_mask): sprite pixels spilled
+// from a creature's cell into the wall cell above, drawn flat in front.
 //
 // Debug (browser console): sdc_depth_debug.stats()
 define(["jquery", "./sdc_api", "./map_knowledge", "./dungeon_renderer",
@@ -160,7 +162,75 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
     var amt = 0, t_last = 0;
     var stats = { builds: 0, build_ms: 0 };
     var result = { data: null, cols: 0, rows: 0, dirty: false, amt: 0, h: 0,
-                   p: 0, rot: 0, hl: 0, zoom: 1 };
+                   p: 0, rot: 0, hl: 0, zoom: 1,
+                   mask: null, mask_on: false, mask_dirty: false };
+
+    // Overflow mask: tall sprites (your doll's weapons and helmet, big
+    // monsters) are drawn by crawl past the top of their cell, into the cell
+    // above. When that cell is a wall, the shader would raise those pixels
+    // with the wall and smear them down its front face (a stretched head).
+    // This canvas (same size as the map canvas) holds only those spilled
+    // pixels; the shader draws them flat, in front of the wall, and keeps
+    // the wall's own sampling off them.
+    var mask_cv = null, mask_r = null, mask_sig = "", mask_cell = "";
+
+    function build_mask(vx, vy)
+    {
+        var dr = dungeon_renderer;
+        var el = dr.element;
+        var list = [], sig = "";
+        for (var r = 1; r < rows; r++)
+        {
+            for (var c = 0; c < cols; c++)
+            {
+                if (!wall_at(c, r - 1)) continue;
+                var mc = map_knowledge.get(vx + c, vy + r);
+                var t = mc && mc.t;
+                if (!t || !(t.sy < 0)) continue;
+                list.push([c, r, mc]);
+                sig += c + "," + r + ":" + JSON.stringify(
+                    [t.fg, t.base, t.doll, t.mcache, t.bg]) + ";";
+            }
+        }
+        if (!el || !list.length)
+        {
+            if (result.mask_on) result.mask_dirty = true;
+            result.mask_on = false;
+            mask_sig = "";
+            return;
+        }
+        var sc = dr.scaled_size();
+        var cell_key = dr.cell_width + "x" + dr.cell_height;
+        sig += "|" + el.width + "x" + el.height + "|" + cell_key;
+        if (sig === mask_sig && result.mask_on) return;
+        mask_sig = sig;
+        if (!mask_cv) mask_cv = document.createElement("canvas");
+        if (mask_cv.width !== el.width) mask_cv.width = el.width;
+        if (mask_cv.height !== el.height) mask_cv.height = el.height;
+        if (!mask_r || mask_cell !== cell_key)
+        {
+            mask_r = dr.new_renderer();
+            mask_cell = cell_key;
+        }
+        mask_r.init(mask_cv);
+        var ctx = mask_r.ctx;
+        ctx.clearRect(0, 0, mask_cv.width, mask_cv.height);
+        for (var i = 0; i < list.length; i++)
+        {
+            var e = list[i], x = e[0] * sc.width, y = e[1] * sc.height;
+            mask_r.render_cell(vx + e[0], vy + e[1], x, y, e[2], e[2].t);
+            ctx.clearRect(x, y, sc.width, sc.height);
+        }
+        // keep only what landed on wall cells
+        for (var rr = 0; rr < rows; rr++)
+            for (var cc = 0; cc < cols; cc++)
+                if (!wall_at(cc, rr))
+                    ctx.clearRect(cc * sc.width, rr * sc.height,
+                                  sc.width, sc.height);
+        result.mask = mask_cv;
+        result.mask_on = true;
+        result.mask_dirty = true;
+    }
 
     function now()
     {
@@ -219,6 +289,8 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
                     data[o + 1] = 128;
             }
         }
+        try { build_mask(vx, vy); }
+        catch (e) { result.mask_on = false; result.mask_dirty = true; }
         stats.builds++;
         stats.build_ms = Math.round((now() - t0) * 100) / 100;
     }
