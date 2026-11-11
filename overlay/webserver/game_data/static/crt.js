@@ -26,7 +26,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
 
     var FILTER_MODES = ["curved", "flat", "off"];
     api.register_option({ key: "hud", default: true });
-    api.register_option({ key: "filter", label: "CRT filter", default: "curved",
+    api.register_option({ key: "filter", label: "CRT filter", default: "off",
                           choices: FILTER_MODES.map(function (m) {
                               return [m, m]; }) });
     api.register_option({ key: "curve_amount", label: "Curvature",
