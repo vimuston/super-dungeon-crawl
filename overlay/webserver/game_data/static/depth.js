@@ -37,14 +37,15 @@
 //   R = wall (255) / shallow water, lava (128) / deep water (90)
 //   G = creature (255) / item (128)
 //   B = upright feature (255)       A = cloud (255) / fire cloud (100)
-// plus an overflow mask canvas (see build_mask): sprite pixels spilled
-// from a creature's cell into the wall cell above, drawn flat in front.
+// plus overflow mask + clean wall canvases (see build_mask): sprite pixels
+// spilled from a creature's cell onto walls, drawn flat in front of them.
 //
 // Debug (browser console): sdc_depth_debug.stats()
 define(["jquery", "./sdc_api", "./map_knowledge", "./dungeon_renderer",
-        "./enums", "./player", "./tileinfo-dngn", "./tileinfo-main", "./fxkit"],
+        "./enums", "./player", "./tileinfo-dngn", "./tileinfo-main", "./fxkit",
+        "./cell_renderer"],
 function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
-          kit) {
+          kit, cell_renderer) {
     "use strict";
 
     var REBUILD_MS = 2000;      // safety rebuild interval
@@ -163,30 +164,58 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
     var stats = { builds: 0, build_ms: 0 };
     var result = { data: null, cols: 0, rows: 0, dirty: false, amt: 0, h: 0,
                    p: 0, rot: 0, hl: 0, zoom: 1,
-                   mask: null, mask_on: false, mask_dirty: false };
+                   mask: null, clean: null, mask_on: false,
+                   mask_dirty: false };
 
     // Overflow mask: tall sprites (your doll's weapons and helmet, big
-    // monsters) are drawn by crawl past the top of their cell, into the cell
-    // above. When that cell is a wall, the shader would raise those pixels
-    // with the wall and smear them down its front face (a stretched head).
-    // This canvas (same size as the map canvas) holds only those spilled
-    // pixels; the shader draws them flat, in front of the wall, and keeps
-    // the wall's own sampling off them.
-    var mask_cv = null, mask_r = null, mask_sig = "", mask_cell = "";
+    // monsters, two-tile bosses and hydras) are drawn by crawl past the top
+    // (and wide ones past the left) of their cell, into the cells around it.
+    // When such a cell is a wall, the shader would raise those pixels with
+    // the wall and smear them down its front face. Two canvases, both the
+    // size of the map canvas:
+    //   mask:  only the spilled pixels on wall cells; the shader draws them
+    //          flat, in front of the wall
+    //   clean: those wall cells rendered on their own (no sprite on them);
+    //          the raised wall top and face sample this where the mask is set
+    var mask_cv = null, clean_cv = null, mask_r = null, mask_sig = "";
+    var mask_warned = false;
+
+    function cell_renderer_for(cv)
+    {
+        // dungeon_renderer.new_renderer() calls a draw_tiles() that this
+        // crawl version no longer has, so build the cell renderer directly
+        if (!mask_r) mask_r = new cell_renderer.DungeonCellRenderer();
+        mask_r.set_cell_size(dungeon_renderer.cell_width,
+                             dungeon_renderer.cell_height);
+        mask_r.init(cv);
+        return mask_r;
+    }
 
     function build_mask(vx, vy)
     {
         var dr = dungeon_renderer;
         var el = dr.element;
-        var list = [], sig = "";
-        for (var r = 1; r < rows; r++)
+        var list = [], walls = {}, sig = "";
+        function spill(c, r)
+        {
+            if (!wall_at(c, r)) return false;
+            walls[c + "," + r] = [c, r];
+            return true;
+        }
+        for (var r = 0; r < rows; r++)
         {
             for (var c = 0; c < cols; c++)
             {
-                if (!wall_at(c, r - 1)) continue;
                 var mc = map_knowledge.get(vx + c, vy + r);
                 var t = mc && mc.t;
-                if (!t || !(t.sy < 0)) continue;
+                if (!t) continue;
+                var up = t.sy < 0, left = t.left_overlap < 0;
+                if (!up && !left) continue;
+                var hit = false;
+                if (up) hit = spill(c, r - 1) || hit;
+                if (left) hit = spill(c - 1, r) || hit;
+                if (up && left) hit = spill(c - 1, r - 1) || hit;
+                if (!hit) continue;
                 list.push([c, r, mc]);
                 sig += c + "," + r + ":" + JSON.stringify(
                     [t.fg, t.base, t.doll, t.mcache, t.bg]) + ";";
@@ -200,34 +229,60 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
             return;
         }
         var sc = dr.scaled_size();
-        var cell_key = dr.cell_width + "x" + dr.cell_height;
-        sig += "|" + el.width + "x" + el.height + "|" + cell_key;
+        var cw = sc.width, ch = sc.height;
+        var wl = [];
+        for (var k in walls)
+        {
+            var w = walls[k];
+            var wm = map_knowledge.get(vx + w[0], vy + w[1]);
+            if (!wm || !wm.t) continue;
+            wl.push([w[0], w[1], wm]);
+            sig += "w" + k + ":" + JSON.stringify(
+                [wm.t.fg, wm.t.bg, wm.t.flv]) + ";";
+        }
+        sig += "|" + el.width + "x" + el.height + "|" + cw + "x" + ch;
         if (sig === mask_sig && result.mask_on) return;
         mask_sig = sig;
         if (!mask_cv) mask_cv = document.createElement("canvas");
-        if (mask_cv.width !== el.width) mask_cv.width = el.width;
-        if (mask_cv.height !== el.height) mask_cv.height = el.height;
-        if (!mask_r || mask_cell !== cell_key)
-        {
-            mask_r = dr.new_renderer();
-            mask_cell = cell_key;
-        }
-        mask_r.init(mask_cv);
-        var ctx = mask_r.ctx;
+        if (!clean_cv) clean_cv = document.createElement("canvas");
+        [mask_cv, clean_cv].forEach(function (cv) {
+            if (cv.width !== el.width) cv.width = el.width;
+            if (cv.height !== el.height) cv.height = el.height;
+        });
+
+        var mr = cell_renderer_for(mask_cv), ctx = mr.ctx;
         ctx.clearRect(0, 0, mask_cv.width, mask_cv.height);
         for (var i = 0; i < list.length; i++)
         {
-            var e = list[i], x = e[0] * sc.width, y = e[1] * sc.height;
-            mask_r.render_cell(vx + e[0], vy + e[1], x, y, e[2], e[2].t);
-            ctx.clearRect(x, y, sc.width, sc.height);
+            var e = list[i], x = e[0] * cw, y = e[1] * ch;
+            mr.render_cell(vx + e[0], vy + e[1], x, y, e[2], e[2].t);
+            ctx.clearRect(x, y, cw, ch);
         }
-        // keep only what landed on wall cells
-        for (var rr = 0; rr < rows; rr++)
-            for (var cc = 0; cc < cols; cc++)
-                if (!wall_at(cc, rr))
-                    ctx.clearRect(cc * sc.width, rr * sc.height,
-                                  sc.width, sc.height);
+        // keep only what landed on those wall cells
+        ctx.globalCompositeOperation = "destination-in";
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        for (var j = 0; j < wl.length; j++)
+            ctx.rect(wl[j][0] * cw, wl[j][1] * ch, cw, ch);
+        ctx.fill();
+        ctx.globalCompositeOperation = "source-over";
+
+        // the same wall cells without anything spilled onto them
+        var cr2 = cell_renderer_for(clean_cv), cx2 = cr2.ctx;
+        cx2.clearRect(0, 0, clean_cv.width, clean_cv.height);
+        for (var n = 0; n < wl.length; n++)
+        {
+            var wx = wl[n][0] * cw, wy = wl[n][1] * ch;
+            cx2.save();
+            cx2.beginPath();
+            cx2.rect(wx, wy, cw, ch);
+            cx2.clip();
+            cr2.render_cell(vx + wl[n][0], vy + wl[n][1], wx, wy,
+                            wl[n][2], wl[n][2].t);
+            cx2.restore();
+        }
         result.mask = mask_cv;
+        result.clean = clean_cv;
         result.mask_on = true;
         result.mask_dirty = true;
     }
@@ -290,7 +345,14 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
             }
         }
         try { build_mask(vx, vy); }
-        catch (e) { result.mask_on = false; result.mask_dirty = true; }
+        catch (e)
+        {
+            result.mask_on = false;
+            result.mask_dirty = true;
+            if (!mask_warned && window.console)
+                console.warn("depth: overflow mask failed", e);
+            mask_warned = true;
+        }
         stats.builds++;
         stats.build_ms = Math.round((now() - t0) * 100) / 100;
     }

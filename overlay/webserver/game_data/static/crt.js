@@ -586,8 +586,19 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "  float win = sin(3.1416 * f.x) * sin(3.1416 * f.y);",
         "  float yw = smoothstep(0.0, 0.22, f.y);",
         "  float up = (1.0 - f.y) * yw;",      // 0 at the feet, most near the head
-        "  float mat = A.r, st = A.g, par = A.b;",
+        "  float mat = A.r, st = mod(A.g, 16.0), par = A.b;",
         "  float itm = mod(A.a, 16.0), kind = floor(A.a / 16.0);",
+        "  float sp = floor(A.g / 16.0) / 15.0;",   // sprite reach above its cell
+        // the top of a tall sprite drawn here from the cell below (a two-tile
+        // boss, a hydra's heads): it moves with its owner, as one. A raised
+        // wall shown at this point (d_clean, depth) stays put.
+        "  float bsp = floor(B.g / 16.0) / 15.0;",
+        "  if (st < 0.5 && bsp > 0.0 && f.y > 1.0 - bsp && d_clean < 0.5) {",
+        "    ci.y += 1.0; f.y -= 1.0; w.y += 1.0; h = hash(w);",
+        "    mat = 0.0; itm = 0.0; st = mod(B.g, 16.0); par = B.b;",
+        "    kind = floor(B.a / 16.0);",
+        "    sp = bsp;",
+        "  }",
         "  vec2 d = vec2(0.0);",
         // world-wide fields: event ripples, abyss warp, quake, hellish shimmer
         "  d += (arip(wp, u_alive_rip0, u_alive_ripw.x) + arip(wp, u_alive_rip1, u_alive_ripw.y)",
@@ -691,6 +702,14 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "    a_mul *= vec3(1.02, 1.16, 0.94);",
         "    a_add += vec3(0.02, 0.05, 0.012) * lush;",
         "  }",
+        // a tall sprite: its in-cell frame spans everything it draws (feet
+        // at the bottom of its cell, head up in the cell above)
+        "  vec2 f0 = f; float win0 = win, up0 = up;",
+        "  if (sp > 0.0 && st > 0.5) {",
+        "    f.y = (f.y + sp) / (1.0 + sp);",
+        "    win = sin(3.1416 * f.x) * sin(3.1416 * f.y);",
+        "    up = (1.0 - f.y) * smoothstep(0.0, 0.22, f.y);",
+        "  }",
         // --- you ---
         "  if (st == 7.0) {",
         "    float P = u_alive_amp1.w;",
@@ -761,6 +780,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "      d.x += u_alive_twitch.w * e * e * 0.04 * up * C;",
         "    }",
         "  }",
+        "  f = f0; win = win0; up = up0;",
         // --- items and clouds ---
         "  if (itm == 1.0 || itm == 2.0) {",                // gold / gem glints
         "    float period = itm == 1.0 ? 6.0 : 9.0;",
@@ -854,6 +874,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "uniform vec2 u_depth_cells;",
         "uniform sampler2D u_depth_mask;", // sprite overflow into walls (a)
         "uniform float u_depth_mask_on;",
+        "uniform sampler2D u_depth_clean;", // those walls without the sprite
         "uniform sampler2D u_fog;",   // unexplored mask (fogedge.js), R = never seen
         "uniform float u_fog_amt;",   // 0 = off, 1 = default, 2 = max reach
         "uniform vec2 u_fog_cells;",  // cols, rows
@@ -872,7 +893,17 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "  c *= (1.0 + u_curve * dot(c, c)) / (1.0 + u_curve);",
         "  return c * 0.5 + 0.5;",
         "}",
-        "vec3 tap(vec2 uv) { return texture2D(u_tex, uv).rgb; }",
+        // d_clean: this fragment shows a raised wall that a sprite spilled
+        // onto; take that wall cell from its clean copy (opaque over those
+        // cells, empty elsewhere), so no sprite edge is left on it
+        "float d_clean = 0.0;",
+        "vec3 tap(vec2 uv) {",
+        "  vec3 c = texture2D(u_tex, uv).rgb;",
+        // (transparent texels are black, so rgb / a is the wall's own colour
+        // right up to the filtered cell edge, with no sprite leaking in)
+        "  if (d_clean > 0.5) { vec4 k = texture2D(u_depth_clean, uv); if (k.a > 0.01) c = k.rgb / k.a; }",
+        "  return c;",
+        "}",
         "float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }",
         "float vnoise(vec2 p) {",
         "  vec2 i = floor(p), f = fract(p);",
@@ -892,14 +923,10 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "  if (u_depth_mask_on < 0.5) return 0.0;",
         "  return texture2D(u_depth_mask, vec2(g.x / u_depth_cells.x, 1.0 - g.y / u_depth_cells.y)).a;",
         "}",
-        // a wall sample that hit spilled sprite pixels: move up past them
-        // (within the wall cell) so the wall shows its own texture there
-        "vec2 dclean(vec2 g) {",
-        "  for (int i = 0; i < 8; i++) {",
-        "    if (dmask(g) < 0.05) break;",
-        "    g.y = max(g.y - 0.07, floor(g.y) + 0.02);",
-        "  }",
-        "  return g;",
+        // 1 when g is on a wall cell that a sprite spilled onto
+        "float dspill(vec2 g) {",
+        "  if (u_depth_mask_on < 0.5) return 0.0;",
+        "  return texture2D(u_depth_clean, vec2(g.x / u_depth_cells.x, 1.0 - g.y / u_depth_cells.y)).a > 0.01 ? 1.0 : 0.0;",
         "}",
         "vec2 drot(vec2 v, vec2 cs) { return vec2(cs.x * v.x - cs.y * v.y, cs.y * v.x + cs.x * v.y); }",
         "bool isliq(vec4 c) { return c.r > 0.3 && c.r < 0.7; }",
@@ -1008,7 +1035,8 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         // wall behind it: drawn flat where it is, never raised or smeared
         "    if (dmask(G) > 0.5) {",
         "    } else if (dcell(G + hv).r > 0.75) {",                // wall top
-        "      gs = dclean(G + hv);",
+        "      gs = G + hv;",
+        "      d_clean = dspill(gs);",
         "      shade = 1.0 + 0.14 * u_depth_amt;",
         "    } else {",
         // wall side: the highest wall cell met on the way up the extrusion
@@ -1029,7 +1057,8 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "        }",
         "      }",
         "      if (hit >= 0.0) {",
-        "        gs = dclean(G + hv * hit);",
+        "        gs = G + hv * hit;",
+        "        d_clean = dspill(gs);",
         "        shade = mix(1.0, 0.40 + 0.22 * hit, u_depth_amt);",
         "      } else if (ishi(dcell(G + hlv))) {",             // shallow water / lava top
         "        gs = G + hlv;",
@@ -1216,7 +1245,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
     var gl = null, prog = null, tex = null, light_tex = null, los_tex = null;
     var alive_tex = null, alive_size = "", alive_err = false;
     var depth_tex = null, depth_size = "", depth_err = false;
-    var depth_mask_tex = null, depth_mask_ok = false;
+    var depth_mask_tex = null, depth_clean_tex = null, depth_mask_ok = false;
     var fog_tex = null, fog_size = "", fog_err = false;
     var screen = null;
     var uni = {};
@@ -1279,7 +1308,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
          "u_alive", "u_alive_amt", "u_fx", "u_fxp", "u_shake",
          "u_g1", "u_gtint", "u_gvig", "u_ghue",
          "u_depth", "u_depth_amt", "u_depth_h", "u_depth_p", "u_depth_rot", "u_depth_zoom", "u_depth_hl", "u_depth_cells",
-         "u_depth_mask", "u_depth_mask_on",
+         "u_depth_mask", "u_depth_mask_on", "u_depth_clean",
          "u_fog", "u_fog_amt", "u_fog_cells", "u_fog_view", "u_fog_t"]
             .forEach(function (n) { uni[n] = gl.getUniformLocation(prog, n); });
 
@@ -1306,6 +1335,9 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         depth_mask_tex = make_tex();
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA,
+                      gl.UNSIGNED_BYTE, new Uint8Array(4));
+        depth_clean_tex = make_tex();   // filtered like the map texture
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA,
                       gl.UNSIGNED_BYTE, new Uint8Array(4));
         tex = make_tex();
@@ -1549,16 +1581,23 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         }
         else
             a = null;
-        // sprite overflow mask (same layout as the map canvas) on unit 6
+        // sprite overflow mask (same layout as the map canvas) on unit 6,
+        // the walls under it without the sprite on unit 7
+        gl.activeTexture(gl.TEXTURE7);
+        gl.bindTexture(gl.TEXTURE_2D, depth_clean_tex);
+        gl.uniform1i(uni.u_depth_clean, 7);
         gl.activeTexture(gl.TEXTURE6);
         gl.bindTexture(gl.TEXTURE_2D, depth_mask_tex);
         gl.uniform1i(uni.u_depth_mask, 6);
-        if (a && a.mask_on && a.mask && a.mask_dirty)
+        if (a && a.mask_on && a.mask && a.clean && a.mask_dirty)
         {
             try
             {
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,
                               gl.UNSIGNED_BYTE, a.mask);
+                gl.activeTexture(gl.TEXTURE7);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,
+                              gl.UNSIGNED_BYTE, a.clean);
                 depth_mask_ok = true;
             }
             catch (e) { depth_mask_ok = false; }
