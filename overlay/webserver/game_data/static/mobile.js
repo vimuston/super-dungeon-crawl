@@ -641,11 +641,39 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         list.unshift(text);
         api.set("mobile_find_recent", list.slice(0, FIND_RECENT_MAX));
         close_all();
-        send_keys("Ctrl+F");
-        for (var i = 0; i < text.length; i++)
-            comm.send_message("input", { text: text.charAt(i) });
-        send_keys("Enter");
+        // Type only once crawl shows its "Search for what?" prompt: if Ctrl+F
+        // is swallowed (a pending --more--, a leftover results popup) the text
+        // would run as commands ("altar" -> a = abilities). No prompt: Esc
+        // clears whatever ate it and Ctrl+F is tried once more, else give up.
+        var token = ++find_token;
+        function prompt_up()
+        {
+            return !!document.querySelector(
+                "#ui-stack .msgwin-get-line input");
+        }
+        function attempt(tries_left)
+        {
+            if (tries_left < 2) send_keys("Esc");
+            send_keys("Ctrl+F");
+            var started = Date.now();
+            (function poll() {
+                if (token !== find_token) return;
+                if (prompt_up())
+                {
+                    for (var i = 0; i < text.length; i++)
+                        comm.send_message("input", { text: text.charAt(i) });
+                    send_keys("Enter");
+                    return;
+                }
+                if (Date.now() - started < 1500)
+                    setTimeout(poll, 40);
+                else if (tries_left > 1)
+                    attempt(tries_left - 1);
+            })();
+        }
+        attempt(2);
     }
+    var find_token = 0;
 
     function find_chip(label, text)
     {
