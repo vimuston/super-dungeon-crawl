@@ -70,6 +70,61 @@ body.sdc-mobile #message_pane:has(input) #messages_container {
     overflow-y: auto !important;
 }
 body.sdc-mobile #message_pane input { font-size: 16px; } /* no zoom-in */
+body.sdc-mobile #message_pane input.text {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 40px;
+    margin: 4px 0 2px;
+    padding: 4px 8px;
+}
+/* a text prompt on its own (not the open log): a centred dialog with just
+   the prompt line, the input and the button bar; the map dimmed behind */
+body.sdc-mobile:not(.sdc-m-log) #message_pane:has(input) {
+    top: 38%;
+    bottom: auto;
+    left: 16px;
+    right: 16px;
+    width: auto !important;
+    transform: translateY(-50%);
+    padding: 12px 14px 14px;
+    border: 1px solid var(--sdc-accent-dim);
+    border-radius: 8px;
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.55),
+                0 6px 24px rgba(0, 0, 0, 0.7);
+}
+body.sdc-mobile:not(.sdc-m-log) #message_pane:has(input) #messages_container {
+    width: auto !important;    /* stock sets the screen width inline */
+    max-height: none !important;
+    overflow: visible !important;
+}
+body.sdc-mobile:not(.sdc-m-log) #message_pane:has(input)
+    #messages .game_message:not(:has(input)),
+body.sdc-mobile:not(.sdc-m-log) #message_pane:has(input) #more,
+body.sdc-mobile:not(.sdc-m-log) #message_pane:has(input) .prefix_glyph {
+    display: none !important;
+}
+body.sdc-mobile:not(.sdc-m-log) #message_pane:has(input) .game_message {
+    font: 15px/1.4 var(--stat-font);
+    white-space: normal;
+}
+/* Keyboard / Clear / Cancel / OK under a message-pane text prompt */
+#sdc_m_inbar {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+}
+#sdc_m_inbar .sdc-m-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 4px;
+    font-size: 14px;
+}
+#sdc_m_inbar .sdc-m-inbar-ok {
+    color: var(--sdc-accent);
+    border-color: var(--sdc-accent);
+}
 
 #sdc_m_logclose { display: none; }
 body.sdc-mobile.sdc-m-log #sdc_m_logclose {
@@ -674,3 +729,39 @@ body.sdc-mobile.sdc-m-macros #sdc_m_macros {
 .sdc-m-stat-cur { font-size: 12px; opacity: 0.7; }
 .sdc-m-stat-new { font-size: 18px; text-shadow: 0 0 6px var(--sdc-accent-dim); }
 .sdc-m-stat-max { font-size: 10px; opacity: 0.6; }
+
+/* lettered choices from the message log (Gozag's merchants, ...): one
+   full-width row each, letter chip / name / price */
+.sdc-m-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+}
+.sdc-m-choices .sdc-m-choice {
+    min-height: 48px;
+    padding: 6px 10px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas: "key name" "key price";
+    align-items: center;
+    column-gap: 10px;
+    text-align: left;
+}
+.sdc-m-choice-key {
+    grid-area: key;
+    width: 26px;
+    height: 26px;
+    line-height: 26px;
+    text-align: center;
+    border: 1px solid currentColor;
+    border-radius: 6px;
+    font-weight: bold;
+    opacity: 0.8;
+}
+.sdc-m-choice-name { grid-area: name; font-size: 14px; white-space: normal; }
+.sdc-m-choice-price { grid-area: price; font-size: 12px; opacity: 0.75; }
+.sdc-m-choice:not(:has(.sdc-m-choice-price)) .sdc-m-choice-name { grid-row: 1 / 3; }
+.sdc-m-choice-poor { opacity: 0.45; }
+.sdc-m-choice-cur { border-color: var(--sdc-accent); }
+.sdc-m-choices .sdc-m-yn { margin-top: 2px; }

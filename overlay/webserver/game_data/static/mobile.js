@@ -20,7 +20,9 @@
 //   - messages: the message pane is hidden; new messages show in a small
 //     translucent bubble bottom-left above the bottom bar that fades out.
 //     Tap the bubble for the recent log (or to answer --more--). Text
-//     prompts bring the pane back automatically. y/n prompts get Yes / No buttons.
+//     prompts bring the pane back automatically. y/n prompts get Yes / No buttons;
+//     lettered choices in the log (Gozag's merchants and potions, Nemelex's
+//     Draw Three, ally orders, Hepliaklqana's ancestor) get one button each.
 //   - big thumb buttons: Fight (Tab) bottom-left, Explore (o) bottom-right.
 //   - dungeon touch: tap = click a tile (travel / attack), swipe = one step
 //     in 8 directions (a long swipe runs), long-press = describe.
@@ -898,16 +900,68 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             });
             if (changed)
                 show_bubble();
+            dress_msg_input();
         });
         msg_observer.observe(pane, { childList: true, subtree: true,
                                      attributes: true,
                                      attributeFilter: ["style"] });
+        dress_msg_input();
         // messages that arrived before the HUD was built (reconnect)
         if (more_pending())
         {
             recent = $("#messages .game_message").slice(-2).toArray();
             show_bubble();
         }
+    }
+
+    // Text prompts typed into the message pane (msgwin_get_line: renaming
+    // Hepliaklqana's ancestor, annotations, ...): a touch bar under the
+    // input. textinput.js submits on an Enter keydown and cancels on Esc,
+    // so the buttons trigger exactly those.
+    function msg_input()
+    {
+        return $("#messages .game_message input.text").last();
+    }
+
+    function dress_msg_input()
+    {
+        var pane = document.getElementById("message_pane");
+        if (!pane) return;
+        var bar = document.getElementById("sdc_m_inbar");
+        var on = active() && msg_input().length > 0;
+        if (!on)
+        {
+            if (bar) bar.remove();
+            return;
+        }
+        if (bar && bar.parentNode === pane) return;
+        function key(code)
+        {
+            return function (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                buzz();
+                msg_input().trigger($.Event("keydown",
+                                            { which: code, keyCode: code }));
+            };
+        }
+        function b(label, cls, fn)
+        {
+            return $("<button type='button' class='sdc-m-btn'>")
+                .addClass(cls).text(label).on("click", fn);
+        }
+        bar = $("<div id='sdc_m_inbar'>");
+        bar.append(b("Keyboard", "", function (ev) {
+            ev.preventDefault();
+            msg_input().trigger("focus");
+        }));
+        bar.append(b("Clear", "", function (ev) {
+            ev.preventDefault();
+            msg_input().val("").trigger("focus");
+        }));
+        bar.append(b("Cancel", "", key(27)));
+        bar.append(b("OK", "sdc-m-inbar-ok", key(13)));
+        $(pane).append(bar);
     }
 
     // #more's own display (the whole pane is hidden in the mobile layout)
@@ -967,6 +1021,144 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         return box;
     }
 
+    // Lettered choices printed into the message log. Each kind becomes one
+    // big button per choice (sending its letter); the choice lines leave
+    // the bubble and only the question stays, as its caption.
+    //   - "[x] text" lines right above a question: Gozag's "Fund which
+    //     merchant?" ("  [a]   973 gold - Cranius' Magic Scroll Boutique"),
+    //     "Purchase which effect?" ("  [a] - 420 gold - heal wounds, ...").
+    //   - Nemelex's Draw Three: "You draw... (choose one card, ? for their
+    //     descriptions)" then "a - Velocity" lines. No cancel; ? describes.
+    //   - orders (t): "What are your orders?", " t - Shout!", "Orders for
+    //     allies: a - Attack new target.", "r - Retreat!  s - Stop
+    //     attacking." ..., " Anything else - Cancel."
+    //   - Hepliaklqana's ancestor: "Was X a) male, b) female, or c)
+    //     neither? (Currently male.)"; anything but a letter keeps it.
+    var CHOICE_RE = /^[^\[]*\[([a-z])\]\s+(?:-\s+)?(\S.*)$/i;
+    var GOLD_RE = /^(\d+) gold - (.+)$/;
+    var DRAW_RE = /^You draw\.\.\. \(choose one card/;
+    var CARD_RE = /^([a-z]) - (\S.*)$/;
+    var ORDERS_RE = /^What are your orders\?$/;
+    var ORDERS_END_RE = /^Anything else - Cancel\.?$/;
+    var ORDER_RE = /([a-z]) - (.+?)(?=\s+[a-z] - |$)/g;
+    var GENDER_RE = /a\) (\w+), b\) (\w+),? or c\) (\w+)\?(?:\s*\(Currently (\w+)\.\))?/;
+
+    function msg_text(n)
+    {
+        var c = n.cloneNode(true);
+        $(c).find(".prefix_glyph, #text_cursor, input").remove();
+        return c.textContent.replace(/\s+/g, " ").trim();
+    }
+
+    // message lines above n (top first) while ok(text) holds
+    function lines_above(n, ok)
+    {
+        var out = [];
+        for (n = n.previousElementSibling; n; n = n.previousElementSibling)
+        {
+            if (!n.classList.contains("game_message") || !ok(msg_text(n)))
+                break;
+            out.unshift(n);
+        }
+        return out;
+    }
+
+    // -> {head: question line, list: [{key, text, cls}],
+    //     extra: [[label, keys]]} or null
+    function letter_choices()
+    {
+        var last = recent[recent.length - 1];
+        if (!last || !last.isConnected) return null;
+        var t = msg_text(last), m, list = [], nodes;
+
+        if ((m = GENDER_RE.exec(t)))
+        {
+            [1, 2, 3].forEach(function (i) {
+                list.push({ key: "abc"[i - 1], text: m[i],
+                            cls: m[i] === m[4] ? "sdc-m-choice-cur" : "" });
+            });
+            return { head: last, list: list, extra: [["Keep", "Esc"]] };
+        }
+
+        if (ORDERS_END_RE.test(t))
+        {
+            nodes = lines_above(last, function (x) { return !ORDERS_RE.test(x); });
+            var head = nodes.length ? nodes[0].previousElementSibling
+                                    : last.previousElementSibling;
+            if (!head || !ORDERS_RE.test(msg_text(head))) return null;
+            nodes.forEach(function (n) {
+                var x = msg_text(n).replace(/^Orders for allies:\s*/, "");
+                ORDER_RE.lastIndex = 0;
+                while ((m = ORDER_RE.exec(x)))
+                    list.push({ key: m[1], text: m[2].replace(/\.$/, "") });
+            });
+            return list.length ? { head: head, list: list,
+                                   extra: [["Cancel", "Esc"]] }
+                               : null;
+        }
+
+        if (CARD_RE.test(t))
+        {
+            nodes = lines_above(last, function (x) { return CARD_RE.test(x); });
+            nodes.push(last);
+            var draw = nodes[0].previousElementSibling;
+            if (!draw || !DRAW_RE.test(msg_text(draw))) return null;
+            nodes.forEach(function (n) {
+                m = CARD_RE.exec(msg_text(n));
+                list.push({ key: m[1], text: m[2] });
+            });
+            return { head: draw, list: list, extra: [["Describe cards", "?"]] };
+        }
+
+        if (!prompt_pending() || YN_RE.test(t) || CHOICE_RE.test(t)) return null;
+        nodes = lines_above(last, function (x) { return CHOICE_RE.test(x); });
+        if (nodes.length < 2) return null;
+        nodes.forEach(function (n) {
+            m = CHOICE_RE.exec(msg_text(n));
+            list.push({ key: m[1], text: m[2] });
+        });
+        return { head: last, list: list, extra: [] };
+    }
+
+    function choice_picker(ch)
+    {
+        var gold = Number(player.gold);
+        var box = document.createElement("div");
+        box.className = "sdc-m-choices";
+        ch.list.forEach(function (c) {
+            var b = key_button("", c.key, hide_now);
+            b.addClass("sdc-m-choice " + (c.cls || ""));
+            b.append($("<span class='sdc-m-choice-key'>").text(c.key));
+            var g = GOLD_RE.exec(c.text);
+            b.append($("<span class='sdc-m-choice-name'>")
+                .text(g ? g[2] : c.text));
+            if (g)
+            {
+                var price = Number(g[1]);
+                b.append($("<span class='sdc-m-choice-price'>")
+                    .text(price + " gold"));
+                // crawl just says "not enough gold" and asks again
+                if (isFinite(gold) && price > gold)
+                    b.addClass("sdc-m-choice-poor");
+            }
+            else if (c.cls === "sdc-m-choice-cur")
+                b.append($("<span class='sdc-m-choice-price'>").text("current"));
+            box.appendChild(b[0]);
+        });
+        if (ch.extra.length)
+        {
+            var row = document.createElement("div");
+            row.className = "sdc-m-yn";
+            ch.extra.forEach(function (e) {
+                // ? opens a popup and the list comes back: keep the bubble
+                row.appendChild(key_button(e[0], e[1],
+                                           e[1] === "?" ? null : hide_now)[0]);
+            });
+            box.appendChild(row);
+        }
+        return box;
+    }
+
     function prompt_pending()
     {
         if (more_pending()) return true;
@@ -980,6 +1172,10 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         if (!active()) return;
         var bubble = document.getElementById("sdc_m_bubble");
         if (!bubble) return;
+        var choices = !more_pending() && letter_choices();
+        // only the question above the buttons (the list may be longer
+        // than the bubble keeps)
+        if (choices) recent = [choices.head];
         recent = recent.filter(function (n) { return n.isConnected; })
                        .slice(-MAX_LINES);
         if (!recent.length && !more_pending())
@@ -988,6 +1184,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             return;
         }
         bubble.innerHTML = "";
+        var pinned = !!choices || prompt_pending();
         recent.forEach(function (n) {
             var line = n.cloneNode(true);
             line.removeAttribute("id");
@@ -995,7 +1192,6 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             line.className = "sdc-m-line";
             bubble.appendChild(line);
         });
-        var pinned = prompt_pending();
         if (more_pending())
         {
             var more = document.createElement("div");
@@ -1003,6 +1199,8 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             more.textContent = "-- tap for more --";
             bubble.appendChild(more);
         }
+        else if (choices)
+            bubble.appendChild(choice_picker(choices));
         else if (pinned && YN_RE.test(last_text()))
         {
             // yes/no prompts: answer with a tap, no keyboard needed
