@@ -928,6 +928,18 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "  if (u_depth_mask_on < 0.5) return 0.0;",
         "  return texture2D(u_depth_clean, vec2(g.x / u_depth_cells.x, 1.0 - g.y / u_depth_cells.y)).a > 0.01 ? 1.0 : 0.0;",
         "}",
+        // a raised wall sample at g, kept two texels inside its cell on each
+        // side that borders a non-wall cell: the face extrudes the wall's
+        // edge row, and filtering right at the edge would pull in the sprite
+        // next to it (a stretched head up the face of the wall behind you)
+        "vec2 dinside(vec2 g) {",
+        "  vec2 c = floor(g), e = 2.0 * u_texel * u_depth_cells;",
+        "  if (dcell(c + vec2(0.0, 1.0)).r < 0.75) g.y = min(g.y, c.y + 1.0 - e.y);",
+        "  if (dcell(c - vec2(0.0, 1.0)).r < 0.75) g.y = max(g.y, c.y + e.y);",
+        "  if (dcell(c + vec2(1.0, 0.0)).r < 0.75) g.x = min(g.x, c.x + 1.0 - e.x);",
+        "  if (dcell(c - vec2(1.0, 0.0)).r < 0.75) g.x = max(g.x, c.x + e.x);",
+        "  return g;",
+        "}",
         "vec2 drot(vec2 v, vec2 cs) { return vec2(cs.x * v.x - cs.y * v.y, cs.y * v.x + cs.x * v.y); }",
         "bool isliq(vec4 c) { return c.r > 0.3 && c.r < 0.7; }",
         "bool ishi(vec4 c) { return c.r > 0.45 && c.r < 0.7; }",   // shallow water, lava
@@ -1035,7 +1047,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         // wall behind it: drawn flat where it is, never raised or smeared
         "    if (dmask(G) > 0.5) {",
         "    } else if (dcell(G + hv).r > 0.75) {",                // wall top
-        "      gs = G + hv;",
+        "      gs = dinside(G + hv);",
         "      d_clean = dspill(gs);",
         "      shade = 1.0 + 0.14 * u_depth_amt;",
         "    } else {",
@@ -1057,7 +1069,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "        }",
         "      }",
         "      if (hit >= 0.0) {",
-        "        gs = G + hv * hit;",
+        "        gs = dinside(G + hv * hit);",
         "        d_clean = dspill(gs);",
         "        shade = mix(1.0, 0.40 + 0.22 * hit, u_depth_amt);",
         "      } else if (ishi(dcell(G + hlv))) {",             // shallow water / lava top
