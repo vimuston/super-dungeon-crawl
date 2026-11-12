@@ -34,12 +34,13 @@
 //   "mobile_zoom"    tile zoom step, gesture-only (pinch with 2.5D off;
 //                    with 2.5D on the tiles stay at Fit and pinch drives
 //                    the 2.5D zoom). Not in the settings panel.
-//   "mobile_macros"  [{label, keys, icon, pin, img?, spell?}] macros (Tools >
-//                    Macros). Spell pins (Pin in the spell menu,
-//                    mobilemenus.js) add img (the spell tile as a data URL)
-//                    and spell (its name: cast as z + its current letter).
+//   "mobile_macros"  [{label, keys, icon, pin, img?, spell?, char?}] macros
+//                    (Tools > Macros), kept across characters. Spell pins
+//                    (Pin in the spell menu, mobilemenus.js) add img (the
+//                    spell tile as a data URL), spell (its name: cast as z +
+//                    its current letter) and char (the character's name);
+//                    they are dropped for a new character or another one.
 //                    Migrated once from the old "mobile_buttons" list.
-//                    Cleared when a new character starts (turn 0).
 //
 // Key specs (macros, tools): space-separated tokens. Named keys Tab,
 // Esc, Enter, Space, Bksp; Ctrl+X for control keys; anything else is typed
@@ -1562,29 +1563,44 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     api.on("hud_update", function (player) {
         try { update_defenses(player); }
         catch (e) { console.error("sdc: mobile defenses", e); }
-        reset_macros_on_new_char(player);
+        reset_spell_pins(player);
     });
 
-    // Macros (and spell pins) belong to the character they were made for: a
-    // brand-new character (turn 0 on its first update) starts with none.
-    // Checked once per game so a macro added at turn 0 survives; resuming a
-    // save (turn > 0) keeps them.
-    var new_char_checked = false;
-    function reset_macros_on_new_char(player)
+    // Macros persist across characters; spell pins (m.spell) belong to the
+    // character they were pinned on. On the first update of each game: a
+    // brand-new character (turn 0) drops all spell pins, resuming another
+    // character drops pins tagged with a different name, and the remaining
+    // ones get tagged with this character. The drop runs once per game, so a
+    // pin made at turn 0 survives; new pins are tagged on the next update.
+    var pins_checked = false;
+    function reset_spell_pins(player)
     {
-        if (new_char_checked || player.turn == null) return;
-        new_char_checked = true;
-        if (Number(player.turn) === 0 && macros().length)
+        if (player.turn == null || !player.name) return;
+        var first = !pins_checked;
+        pins_checked = true;
+        var fresh = first && Number(player.turn) === 0, changed = false;
+        var list = macros().filter(function (m) {
+            if (!m || !m.spell) return true;
+            var keep = !first
+                || (!fresh && (!m.char || m.char === player.name));
+            if (!keep) changed = true;
+            return keep;
+        }).map(function (m) {
+            if (!m.spell || m.char) return m;
+            changed = true;
+            return $.extend({}, m, { char: player.name });
+        });
+        if (changed)
         {
             editing = -1;
-            set_macros([]);
+            set_macros(list);
         }
     }
 
     // Lifecycle ---------------------------------------------------------------
 
     api.on("game_init", function () {
-        new_char_checked = false;
+        pins_checked = false;
         apply_mode();
         build();
         watch_stack();
