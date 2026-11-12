@@ -647,10 +647,13 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         // would run as commands ("altar" -> a = abilities). No prompt: Esc
         // clears whatever ate it and Ctrl+F is tried once more, else give up.
         var token = ++find_token;
+        // a popup only while another layout is open (a results list),
+        // otherwise an input in the message pane (msgwin_get_line)
         function prompt_up()
         {
             return !!document.querySelector(
-                "#ui-stack .msgwin-get-line input");
+                "#ui-stack .msgwin-get-line input,"
+                + " #messages .game_message input");
         }
         function attempt(tries_left)
         {
