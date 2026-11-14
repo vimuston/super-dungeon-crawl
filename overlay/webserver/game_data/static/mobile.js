@@ -37,6 +37,8 @@
 //
 // Options:
 //   "mobile"         auto / on / off. Auto = touch screen or the wrapper.
+//   "mobile_fight_btn" / "mobile_explore_btn"
+//                    show (default) or hide each thumb button.
 //   "msg_fade"       seconds the message bubble stays up.
 //   "mobile_zoom"    tile zoom step, gesture-only (pinch with 2.5D off;
 //                    with 2.5D on the tiles stay at Fit and pinch drives
@@ -82,6 +84,14 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         api.settings.mobile_auto_v2 = true;
         api.save();
     }
+    // the Fight / Explore thumb buttons can be hidden one by one (the
+    // quick-use bar, no longer cropped on that side, takes the freed room)
+    api.register_option({ key: "mobile_fight_btn", label: "Fight button",
+                          default: true,
+                          choices: [[true, "Show"], [false, "Hide"]] });
+    api.register_option({ key: "mobile_explore_btn", label: "Explore button",
+                          default: true,
+                          choices: [[true, "Show"], [false, "Hide"]] });
     api.register_option({ key: "msg_fade", label: "Message fade (s)",
                           default: 5, range: { min: 2, max: 15, step: 1 } });
     // Stock webtiles shrinks tiles until a 17-cell diameter fits, which is
@@ -152,9 +162,19 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     // the mobile UI keeps that; with it off, use stock webtiles' fixed 860px
     // page, which the desktop game layout expects.
     var DESKTOP_VIEWPORT = "width=860, initial-scale=1.0";
+    // body classes for the show / hide options (mobile.css)
+    function apply_prefs()
+    {
+        var b = document.body && document.body.classList;
+        if (!b) return;
+        b.toggle("sdc-m-nofight", api.get("mobile_fight_btn") === false);
+        b.toggle("sdc-m-noexplore", api.get("mobile_explore_btn") === false);
+    }
+
     function apply_mode()
     {
         var on = active();
+        apply_prefs();
         if (document.body)
             document.body.classList.toggle("sdc-mobile", on);
         document.documentElement.classList.toggle("sdc-mobile", on);
@@ -2512,6 +2532,8 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             apply_mode();
             api.command("relayout");
         }
+        else if (key === "mobile_fight_btn" || key === "mobile_explore_btn")
+            apply_prefs();
         else if (key === "mobile_zoom" || key === "depth")
             api.command("relayout");
         else if (key === "mobile_macros")

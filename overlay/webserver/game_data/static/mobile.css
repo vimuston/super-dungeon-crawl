@@ -498,6 +498,9 @@ body.sdc-mobile.sdc-qb-armed .sdc-m-big {
     pointer-events: none;
 }
 body.sdc-hud.sdc-mapview .sdc-m-big { display: none; }
+/* hidden in the settings (mobile_fight_btn / mobile_explore_btn) */
+body.sdc-mobile.sdc-m-nofight #sdc_m_fight,
+body.sdc-mobile.sdc-m-noexplore #sdc_m_explore { display: none; }
 
 /* map view exit, bottom-centre (only while the X map is up) */
 #sdc_m_mapclose { display: none; }
