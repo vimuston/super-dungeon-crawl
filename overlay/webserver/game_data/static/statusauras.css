@@ -1,4 +1,4 @@
-/* statusauras.js: haste/slow, invisibility, Ozo's Armour, Death's Door.
+/* statusauras.js: haste/slow, Ozo's Armour, Death's Door.
    Lives in the shared aura layer (z-index 4). transform / opacity only
    (plus static gradients); --cw / --ch are set on each aura root. */
 .sdc-aura .sa-tile {
@@ -30,29 +30,6 @@
     opacity: 0;
 }
 .sa-ghost2 { background: rgba(120, 130, 190, 0.2); }
-
-/* invisibility: scanline outline shimmer */
-.sa-invis {
-    border: 1px solid rgba(160, 230, 255, 0.55);
-    border-radius: 12%;
-    overflow: hidden;
-    background: repeating-linear-gradient(0deg, rgba(160, 230, 255, 0.22) 0 1px,
-                                          transparent 1px 3px);
-    mix-blend-mode: screen;
-    animation: sa-flick 1.3s steps(1, end) infinite;
-}
-.sa-invis.sa-still { animation: none; opacity: 0.5; }
-.sa-invis.sa-still .sa-sweep { display: none; }
-.sa-sweep {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    height: 25%;
-    background: linear-gradient(180deg, transparent, rgba(200, 245, 255, 0.5),
-                                transparent);
-    animation: sa-sweep 1.1s linear infinite;
-}
 
 /* Ozo's Armour: the player tile glows icy (round glow, frost twinkles) */
 .sa-ozo b { position: absolute; border-radius: 50%; pointer-events: none; }
@@ -128,15 +105,6 @@
     35%           { opacity: 1; transform: scale(1) rotate(45deg); }
 }
 @keyframes sa-pulse { from { opacity: 0.5; } to { opacity: 1; } }
-@keyframes sa-flick {
-    0% { opacity: 0.85; } 12% { opacity: 0.35; } 24% { opacity: 0.75; }
-    41% { opacity: 0.3; } 58% { opacity: 0.9; } 73% { opacity: 0.45; }
-    100% { opacity: 0.7; }
-}
-@keyframes sa-sweep {
-    from { transform: translateY(-100%); }
-    to { transform: translateY(400%); }
-}
 @keyframes sa-ecg {
     0% { transform: translateX(0); opacity: 0; }
     10% { opacity: 1; }
@@ -145,7 +113,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .sa-haste-glow, .sa-invis, .sa-ecg-dot,
+    .sa-haste-glow, .sa-ecg-dot,
     .sa-ozo-glow, .sa-ozo-core { animation: none; }
     .sa-ozo-tw { animation: none; opacity: 0.5; }
 }

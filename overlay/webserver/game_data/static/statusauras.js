@@ -1,4 +1,4 @@
-// Status auras on the X1 engine (statusfx.js): haste / slow, invisibility,
+// Status auras on the X1 engine (statusfx.js): haste / slow,
 // Ozo's Armour (icy glow), Death's Door and
 // Sublimation of Blood. No regeneration effect lives here.
 //
@@ -7,8 +7,9 @@
 //                                          trails behind the player tile
 //   slow     "Slow" (also "Fast+Slow")     api.grade desaturate/cool tint and
 //                                          two laggy ghosts trailing the player
-//   invis    "Invis" ONLY                  scanline-outline flicker shimmer on
-//                                          the player tile (no other invis fx)
+//   invis    no aura: the player sprite is drawn translucent here (cell
+//            renderer hook) and ripples like heat haze in alive.js; "You
+//            flicker for a moment." stutters it solid/translucent (~1.3 s)
 //   ozo      Ozo's Armour = icy armour has NO status light, so it runs on
 //            messages: "A film of ice covers your body!" / "Your icy armour
 //            thickens." start it; "Your icy armour melts away.", "...
@@ -26,9 +27,84 @@
 // Reduced motion: static tile glows, no streaks/ghost lag/bursts/motes.
 // Layer: the shared "aura" layer (z-index 4). Transform/opacity animations only.
 // Debug: window.sdc_statusauras_test(name, seconds = 5)
-//   name: haste | slow | invis | ice | ddoor | sublimation
-define(["./sdc_api", "./fxkit", "./statusfx"], function (api, kit, statusfx) {
+//   name: haste | slow | ice | ddoor | sublimation | flicker (while invisible)
+define(["./sdc_api", "./fxkit", "./statusfx", "./cell_renderer",
+        "./dungeon_renderer", "./player", "./map_knowledge"],
+function (api, kit, statusfx, cell_renderer, dungeon_renderer, player,
+          map_knowledge) {
     "use strict";
+
+    // Invisibility: crawl only sends the "trans" flag for invisible monsters,
+    // so the player sprite stays opaque. Draw it translucent ourselves
+    // (cell_renderer already draws dolls at reduced alpha when cell.trans);
+    // alive.js adds the heat-haze ripple in the shader.
+    var invis_on = false;
+    var INVIS_ALPHA = 0.25;       // x stock 0.55 = ~0.14 opacity
+    (function () {
+        var proto = cell_renderer.DungeonCellRenderer.prototype;
+        var orig = proto.do_render_cell, orig_dp = proto.draw_player;
+        // stock trans alpha is 0.55; scale the doll parts further to ~0.14
+        proto.draw_player = function () {
+            if (!this.sdc_invis) return orig_dp.apply(this, arguments);
+            var a = this.ctx.globalAlpha;
+            this.ctx.globalAlpha = a * INVIS_ALPHA;
+            try { return orig_dp.apply(this, arguments); }
+            finally { this.ctx.globalAlpha = a; }
+        };
+        proto.do_render_cell = function (cx, cy, x, y, map_cell, cell) {
+            if (!invis_on || flick_solid || !cell || !player.pos
+                || cx !== player.pos.x
+                || cy !== player.pos.y || cell.trans)
+                return orig.apply(this, arguments);
+            cell.trans = 1;
+            this.sdc_invis = true;
+            try { return orig.apply(this, arguments); }
+            finally { delete cell.trans; this.sdc_invis = false; }
+        };
+    })();
+
+    function redraw_player()
+    {
+        if (player.pos && map_knowledge.get(player.pos.x, player.pos.y))
+            try { dungeon_renderer.render_loc(player.pos.x, player.pos.y); }
+            catch (e) { /* view not ready */ }
+    }
+
+    // "You flicker for a moment." (invisibility running out): the sprite
+    // stutters between solid and translucent for a moment
+    var flick_solid = false, flick_timer = null;
+    var FLICK = [70, 90, 60, 140, 50, 110, 80, 200, 60, 90, 120, 260];
+    function flicker()
+    {
+        if (flick_timer) clearTimeout(flick_timer);
+        var i = 0;
+        (function step() {
+            if (i >= FLICK.length || !invis_on)
+            {
+                flick_timer = null;
+                if (flick_solid) { flick_solid = false; redraw_player(); }
+                return;
+            }
+            flick_solid = !flick_solid;
+            redraw_player();
+            flick_timer = setTimeout(step, FLICK[i++]);
+        })();
+    }
+    kit.on_message(function (text) {
+        if (/You flicker for a moment/i.test(text) && !kit.reduced())
+            flicker();
+    });
+
+    function invis_check(pl)
+    {
+        var on = (pl.status || []).some(function (st) {
+            return /^invis/i.test(st.light || "");
+        });
+        if (on === invis_on) return;
+        invis_on = on;
+        redraw_player();
+    }
+    api.on("hud_update", invis_check);
 
     var defs = {};                 // id -> definition (also used by the tester)
     var burst = { n: 0, cap: 24 }; // live elements outside any aura root
@@ -188,31 +264,6 @@ define(["./sdc_api", "./fxkit", "./statusfx"], function (api, kit, statusfx) {
             });
         },
         cleanup: function () { api.grade("slow", null); }
-    });
-
-    // S2: invisibility (shimmer only) ---------------------------------------------
-
-    def({
-        id: "invis",
-        match: /^invis/,
-        start: function (ctx) {
-            var d = ctx.data;
-            d.el = tile(ctx, "sa-invis" + (kit.reduced() ? " sa-still" : ""));
-            var sweep = document.createElement("div");
-            sweep.className = "sa-sweep";
-            d.el.appendChild(sweep);
-        },
-        frame: function (ctx, t) {
-            var a = ctx.anchor, d = ctx.data;
-            if (!a) { place(d.el, null); return; }
-            sync_vars(ctx, a);
-            if (!kit.reduced() && t - (d.jt || 0) > 90)
-            {
-                d.jt = t;
-                d.jx = Math.random() < 0.25 ? kit.rnd(-2, 2) : 0;
-            }
-            place(d.el, a, d.jx || 0, 0);
-        }
     });
 
     // S4: Ozo's Armour ----------------------------------------------------------------
@@ -391,7 +442,8 @@ define(["./sdc_api", "./fxkit", "./statusfx"], function (api, kit, statusfx) {
 
     window.sdc_statusauras_test = function (name, seconds) {
         if (name === "sublimation") { sublimate(); return; }
-        var id = { haste: "haste", slow: "slow", invis: "invis",
+        if (name === "flicker") { flicker(); return; }
+        var id = { haste: "haste", slow: "slow",
                    ice: "ozo", ddoor: "ddoor" }[name];
         var d = id && defs[id];
         if (!d) return;
