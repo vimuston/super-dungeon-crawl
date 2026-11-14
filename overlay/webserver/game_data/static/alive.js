@@ -29,7 +29,8 @@
 //     quicker as it drops); under half HP a lub-dub heartbeat pulse; you lean
 //     a hair toward the nearest awake hostile; haste quickens and slow slows
 //     the rhythm; berserk heaves with a tremor; confusion sways; poison
-//     gives a queasy shimmer and a faint green pallor; paralysed = still.
+//     gives a queasy shimmer and a faint green pallor; invisibility makes
+//     your (translucent) sprite ripple like heat haze; paralysed = still.
 //   Environment
 //     water           travelling ripples with soft caustic glints (deep
 //                     water: slower, larger swell)
@@ -278,6 +279,7 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
     var stats = { builds: 0, build_ms: 0, uploads_requested: 0 };
     var t_last = 0, t_init = 0, t_lag = 0;   // t_lag: time-scale hook
     var ph_breath = 0, ph_heart = 0;
+    var invis_amt = 0;            // eased 0..1 while the "Invis" light is on
     var lean = [0, 0];
     var startle = 0, quake = 0;
     // pose pushed by effect modules every frame they animate:
@@ -548,7 +550,8 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
         u_alive_view: new Float32Array(2), u_alive_cells: new Float32Array(2),
         u_alive_t: new Float32Array(1), u_alive_mood: f4(), u_alive_wind: f4(),
         u_alive_amp0: f4(), u_alive_amp1: f4(), u_alive_pl: f4(),
-        u_alive_pl2: f4(), u_alive_pl3: f4(), u_alive_rip0: f4(),
+        u_alive_pl2: f4(), u_alive_pl3: f4(), u_alive_pl4: f4(),
+        u_alive_rip0: f4(),
         u_alive_rip1: f4(), u_alive_rip2: f4(),
         u_alive_ripw: new Float32Array(3), u_alive_twitch: f4(),
     };
@@ -609,6 +612,15 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
         U.u_alive_pl2.set([lean[0] + kx, lean[1] + ky, sway,
                            Math.max(tremor, kt)]);
         U.u_alive_pl3.set([sick, startle, quake * 0.6, ks]);
+
+        // invisible: the (already translucent) player sprite ripples like
+        // heat haze; fades in/out over ~0.4 s
+        var inv = (player.status || []).some(function (st) {
+            return /^invis/i.test(st.light || "");
+        }) ? 1 : 0;
+        invis_amt += (inv - invis_amt) * Math.min(1, dt * 5);
+        if (invis_amt < 0.001) invis_amt = 0;
+        U.u_alive_pl4.set([invis_amt, 0, 0, 0]);
     }
 
     function update_twitch(t)

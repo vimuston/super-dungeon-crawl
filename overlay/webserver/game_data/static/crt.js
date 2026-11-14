@@ -728,6 +728,13 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "      d.x += sin(wp.y * 11.0 + T * 2.3) * 0.008 * u_alive_pl3.x * win * P;",
         "      a_mul *= mix(vec3(1.0), vec3(0.93, 1.05, 0.9), u_alive_pl3.x * win * (0.6 + 0.4 * sin(T * 1.3)) * P);",
         "    }",
+        // invisible: heat-haze ripple through the translucent sprite
+        "    if (u_alive_pl4.x > 0.0) {",
+        "      float iv = u_alive_pl4.x * win * P;",
+        "      d.x += (sin(f.y * 12.0 - T * 2.6) * 0.010 + sin(f.y * 29.0 + T * 4.1) * 0.003) * iv;",
+        "      d.y += sin(f.x * 9.0 + T * 2.0) * 0.004 * iv;",
+        "      a_mul *= 1.0 + 0.04 * sin(f.y * 12.0 - T * 2.6 + 1.2) * iv;",
+        "    }",
         // --- creatures ---
         "  } else if (st > 0.5) {",
         "    float C = u_alive_amp0.x;",
@@ -857,7 +864,8 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "uniform vec4 u_alive_amp1;", // magic, glints, ripples, player
         "uniform vec4 u_alive_pl;",   // breath phase, depth, heartbeat, beat phase
         "uniform vec4 u_alive_pl2;",  // lean.xy, confusion sway, berserk tremor
-        "uniform vec4 u_alive_pl3;",  // sickness, startle, quake
+        "uniform vec4 u_alive_pl3;",  // sickness, startle, quake, squash
+        "uniform vec4 u_alive_pl4;",  // invisibility (0..1)
         "uniform vec4 u_alive_rip0;", // ripple: map x, y, age s, strength
         "uniform vec4 u_alive_rip1;",
         "uniform vec4 u_alive_rip2;",
