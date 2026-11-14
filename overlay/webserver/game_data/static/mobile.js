@@ -31,6 +31,9 @@
 //   - map view (X, or a Find result): tap the cursor = travel there; tap
 //     elsewhere = move the cursor there (tap it again to travel). The < / >
 //     buttons beside Close map jump the cursor to the next up / down stairs.
+//   - blink targeting ("Blink to where?", "Hop to where?"): the cells you
+//     can land on are tinted; tap one to go there. A tap anywhere else does
+//     nothing (crawl would cancel the blink).
 //
 // Options:
 //   "mobile"         auto / on / off. Auto = touch screen or the wrapper.
@@ -1533,6 +1536,13 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             ev.preventDefault();
             swipe(t.dx, t.dy);
         }
+        else if (aim.on)
+        {
+            // ours alone: only valid cells reach crawl
+            ev.preventDefault();
+            ev.stopImmediatePropagation();
+            aim_tap(t.target, t.x, t.y);
+        }
         // plain tap: the browser's synthesized mouse events do the click
     }
 
@@ -1690,6 +1700,125 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         }
         send_keys(keys);
     }
+
+    // Blink targeting -------------------------------------------------------
+    // crawl's targeter takes a click as "select here"; a cell it can't use
+    // (wall, monster, unseen, behind glass, your own tile) ends the prompt
+    // as a cancel, and the scroll's choice is lost to a fat finger. While a
+    // "<Verb> to where?" prompt is up, crawl marks every seen cell it would
+    // refuse as out of range (TILE_FLAG_OOR, option darken_beyond_range), so
+    // the rest are exactly the valid landing spots: tint those and only let
+    // taps on them through.
+    var AIM_RE = /^\w+ to where\?$/;
+    var AIM_TINT = "102, 240, 255";
+    var aim = { on: false };
+
+    function targeting()
+    {
+        var g = window.game;
+        return !!g && typeof g.can_target === "function" && g.can_target();
+    }
+
+    // the prompt is the last message, or followed by its "Press: ..." help
+    function aim_prompt()
+    {
+        var ms = document.querySelectorAll("#messages .game_message");
+        for (var i = ms.length - 1; i >= Math.max(0, ms.length - 3); i--)
+        {
+            var t = msg_text(ms[i]);
+            if (AIM_RE.test(t)) return true;
+            if (!/^Press:/.test(t)) return false;
+        }
+        return false;
+    }
+
+    function aim_ok(x, y)
+    {
+        if (player.pos && x === player.pos.x && y === player.pos.y)
+            return false;
+        var mc = map_knowledge.get(x, y);
+        if (!mc || !mc.t || !map_knowledge.visible(mc)) return false;
+        return !enums.prepare_bg_flags(mc.t.bg || 0).OOR;
+    }
+
+    function redraw_view()
+    {
+        var v = renderer.view;
+        if (!v || !renderer.cols) return;
+        for (var y = v.y; y < v.y + renderer.rows; y++)
+            for (var x = v.x; x < v.x + renderer.cols; x++)
+                renderer.render_grid_cell(x, y);
+    }
+
+    function set_aim(on)
+    {
+        if (aim.on === on) return;
+        aim.on = on;
+        redraw_view();
+    }
+
+    // every frame: a blink prompt opened or closed? Once seen the tint stays
+    // until the prompt ends (moving the cursor prints descriptions under it).
+    function aim_poll()
+    {
+        if (!active() || !targeting())
+            set_aim(false);
+        else if (!aim.on && aim_prompt())
+            set_aim(true);
+    }
+
+    function aim_tap(target, px, py)
+    {
+        var cell = cell_at(target, px, py);
+        if (!cell) return;
+        if (!aim_ok(cell.x, cell.y))
+        {
+            if (navigator.vibrate) navigator.vibrate([15, 40, 15]);
+            return;
+        }
+        buzz();
+        var loc = { x: cell.x, y: cell.y };
+        renderer.last_sent_cursor = loc;
+        comm.send_message("target_cursor", loc);
+        comm.send_message("click_cell", { x: loc.x, y: loc.y, button: 1 });
+    }
+
+    // Tint drawn into the dungeon canvas as each cell renders (so it goes
+    // through the CRT warp and the 2.5D view): a soft fill, and an outline
+    // on the edges that border a cell you can't blink to.
+    function draw_aim(r, cx, cy, x, y)
+    {
+        var s = r.scaled_size(), w = s.width, h = s.height, ctx = r.ctx;
+        var lw = Math.max(1, Math.round(w / 16));
+        ctx.save();
+        ctx.fillStyle = "rgba(" + AIM_TINT + ", 0.16)";
+        ctx.fillRect(x, y, w, h);
+        ctx.fillStyle = "rgba(" + AIM_TINT + ", 0.7)";
+        if (!aim_ok(cx, cy - 1)) ctx.fillRect(x, y, w, lw);
+        if (!aim_ok(cx, cy + 1)) ctx.fillRect(x, y + h - lw, w, lw);
+        if (!aim_ok(cx - 1, cy)) ctx.fillRect(x, y, lw, h);
+        if (!aim_ok(cx + 1, cy)) ctx.fillRect(x + w - lw, y, lw, h);
+        ctx.restore();
+    }
+
+    (function () {
+        // render_cursors ends every cell render (DungeonCellRenderer)
+        var proto = renderer;
+        while (proto && !Object.prototype.hasOwnProperty.call(proto,
+                                                              "render_cursors"))
+            proto = Object.getPrototypeOf(proto);
+        if (!proto || proto.render_cursors.sdc_aim) return;
+        var orig = proto.render_cursors;
+        proto.render_cursors = function (cx, cy, x, y) {
+            if (aim.on && this.ctx && aim_ok(cx, cy))
+            {
+                try { draw_aim(this, cx, cy, x, y); }
+                catch (e) { api.warn("mobile aim tint", e); }
+            }
+            return orig.apply(this, arguments);
+        };
+        proto.render_cursors.sdc_aim = true;
+    })();
 
     renderer.handle_mouse = function (ev)
     {
@@ -1850,6 +1979,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
                                      + " sdc-m-find sdc-m-macros");
     });
     api.on("frame", place_bubble);
+    api.on("frame", aim_poll);
     api.on("setting", function (key) {
         if (key === "mobile")
         {
