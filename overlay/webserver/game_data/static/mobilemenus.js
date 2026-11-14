@@ -29,12 +29,14 @@
 //     a second tap or Choose picks it.
 //   - character overview (%): a card sheet (XL ring, HP/MP bars, stat grid,
 //     resistance pips, tappable equipment, status chips), parsed from the
-//     text; "Text view" shows the text with its columns stacked.
+//     text; "Text view" shows the text with its columns stacked. Tapping a
+//     passive / status / mutation chip shows its description.
 //   - text prompts: OK / Cancel / Keyboard buttons; numeric prompts (skill
 //     targets) get an on-screen number pad instead of the keyboard.
 //
 // Option "mobile_menus": auto (with the mobile UI) / on / off.
-define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
+define(["jquery", "comm", "./sdc_api", "./player", "./sdc_descs"],
+function ($, comm, api, player, descs) {
     "use strict";
 
     api.register_option({ key: "mobile_menus", label: "Mobile menus",
@@ -1568,11 +1570,131 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
             var chips = el("div", "sdc-mm-chips");
             var none = /^no /.test(s.text);
             (none ? [s.text] : s.text.replace(/\.$/, "").split(/,\s*/)).filter(Boolean).forEach(function (t) {
-                chips.appendChild(el("span", "sdc-mm-chip2" + (none ? " none" : ""), t));
+                var chip = el("span", "sdc-mm-chip2" + (none ? " none" : " tap"), t);
+                if (!none)
+                    chip.addEventListener("click", function (ev) {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        buzz();
+                        show_chip_desc(s.key, t);
+                    });
+                chips.appendChild(chip);
             });
             c.appendChild(chips);
         });
         return root;
+    }
+
+    // Passive / status / mutation chips: tap to describe -------------------------
+    // Statuses use the light descriptions webtiles sends with the player
+    // message (matched by their short text); passives, mutations and banes
+    // use crawl's own description db, bundled as sdc_descs.js
+    // (scripts/gen_descs.py), plus the mutation's text for its level, like
+    // examining it in the innate abilities menu (A).
+
+    var SPEED_DESC = {
+        "very quick": "You move much faster than normal.",
+        "quick": "You move faster than normal.",
+        "slow": "You move slower than normal.",
+        "very slow": "You move much slower than normal."
+    };
+
+    function unwrap(s)
+    {
+        return String(s || "").replace(/\r/g, "").split(/\n\s*\n/)
+            .map(function (p) { return p.replace(/\s*\n\s*/g, " ").trim(); })
+            .filter(Boolean).join("\n\n");
+    }
+
+    function status_desc(text)
+    {
+        var lc = text.toLowerCase(), hit = null;
+        ((player && player.status) || []).some(function (st) {
+            if (st.text && st.text.toLowerCase() === lc) { hit = st; return true; }
+            return false;
+        });
+        if (hit && hit.desc)
+        {
+            var title = $("<div>").html(hit.light || "").text() || text;
+            return { title: title, sub: text, body: unwrap(hit.desc) };
+        }
+        if (SPEED_DESC[lc])
+            return { title: text, sub: "Movement speed", body: SPEED_DESC[lc] };
+        // text-only statuses have no light, so no description is sent
+        if (/^studying /.test(lc))
+            return { title: "Studying", sub: text, body: "You are studying a "
+                     + "manual: the skills it covers gain extra experience "
+                     + "until it is used up." };
+        return null;
+    }
+
+    function mut_desc(text)
+    {
+        // "(x 2)" suppressed by form, "[x 1]" transient, "x 1[+1]" partly so
+        var s = text.trim(), note = [];
+        if (/^\(.*\)$/.test(s)) { s = s.slice(1, -1); note.push("suppressed by your form"); }
+        if (/^\[.*\]$/.test(s)) { s = s.slice(1, -1); note.push("transient"); }
+        var m = /^(.*?)(?: (\d+)(?:\[\+(\d+)\])?)?$/.exec(s);
+        var name = m[1].toLowerCase();
+        var lvl = Number(m[2] || 1) + Number(m[3] || 0);
+        if (m[3]) note.push(m[3] + " transient level" + (m[3] === "1" ? "" : "s"));
+        var bane = name.replace(/^the /, "");
+        var have = (descs.levels[name] || []).filter(Boolean);
+        var line = have[Math.min(lvl, have.length) - 1] || descs.fake[name] || "";
+        var body = descs.mut[name] || descs.bane[bane] || "";
+        if (!line && !body) return null;
+        // only multi-level mutations carry a level number in the A: line
+        var sub = descs.bane[bane] && !descs.mut[name] ? "Bane"
+            : m[2] && have.length > 1 ? "Level " + lvl + " of " + have.length : "";
+        if (note.length) sub += (sub ? " · " : "") + note.join(", ");
+        return { title: m[1], sub: sub, line: line, body: body };
+    }
+
+    function passive_desc(text)
+    {
+        var name = text.replace(/\s*\(.*\)\s*$/, "").trim().toLowerCase();
+        var body = descs.passive[name];
+        var extra = /\(([^)]*)\)\s*$/.exec(text);
+        return body ? { title: name, sub: extra ? extra[1] : "Passive effect",
+                        body: body } : null;
+    }
+
+    function close_chip_desc()
+    {
+        $(".sdc-mm-desc").remove();
+    }
+
+    function show_chip_desc(key, text)
+    {
+        var d = null;
+        try
+        {
+            d = key === "@" ? status_desc(text)
+                : key === "A" ? mut_desc(text)
+                : key === "%" ? passive_desc(text) : null;
+        }
+        catch (e) { api.warn("mobilemenus chip desc", e); }
+        if (!d) d = { title: text, body: "No description found." };
+        close_chip_desc();
+        var back = el("div", "sdc-mm-desc");
+        var box = el("div", "sdc-mm-descbox");
+        box.appendChild(el("h3", "", d.title.charAt(0).toUpperCase() + d.title.slice(1)));
+        if (d.sub) box.appendChild(el("div", "sdc-mm-descsub", d.sub));
+        if (d.line) box.appendChild(el("p", "sdc-mm-descline", d.line));
+        (d.body || "").split("\n\n").filter(Boolean).forEach(function (p) {
+            box.appendChild(el("p", "", p));
+        });
+        var bar = el("div", "sdc-mm-keys");
+        bar.appendChild(btn("Close", "", close_chip_desc));
+        box.appendChild(bar);
+        back.appendChild(box);
+        // any tap closes it, and never reaches the sheet below
+        back.addEventListener("click", function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            close_chip_desc();
+        });
+        document.body.appendChild(back);
     }
 
     // Text prompts ----------------------------------------------------------------
