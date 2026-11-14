@@ -71,6 +71,21 @@ define(["jquery", "./sdc_api"], function ($, api) {
         sync_height();
     }
 
+    // The observer's own resizes (vitals width, --sdc-corner-h) would re-trigger
+    // it in the same frame, which browsers report as "ResizeObserver loop
+    // completed with undelivered notifications" (a toast in the Android app).
+    // Syncing on the next frame breaks that loop.
+    var sync_pending = false;
+    function sync_later()
+    {
+        if (sync_pending) return;
+        sync_pending = true;
+        window.requestAnimationFrame(function () {
+            sync_pending = false;
+            sync();
+        });
+    }
+
     function place()
     {
         document.body.setAttribute("data-sdc-hud-pos", POSITION);
@@ -85,7 +100,7 @@ define(["jquery", "./sdc_api"], function ($, api) {
         if (window.ResizeObserver)
         {
             if (!resize_observer)
-                resize_observer = new window.ResizeObserver(sync);
+                resize_observer = new window.ResizeObserver(sync_later);
             resize_observer.disconnect();
             [stats, corner].forEach(function (n) {
                 if (n) resize_observer.observe(n);
