@@ -690,11 +690,104 @@ body.sdc-mobile.sdc-m-macros #sdc_m_macros {
 .sdc-m-on { opacity: 1; border-color: var(--sdc-accent);
             background: color-mix(in srgb, var(--sdc-accent) 18%, transparent); }
 .sdc-m-btn.sdc-m-emoji { font-size: 22px; line-height: 1; padding: 4px 6px; }
-#sdc_m_macros .sdc-m-form input.sdc-m-iconin {
-    flex: 0 0 64px;
-    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji",
-                 var(--stat-font);
+/* macro form: name, keys, then what the button shows (with a preview of
+   the pinned button) and the tile picker */
+#sdc_m_macros .sdc-m-form input {
+    flex: 1 1 calc(100% - 52px);
+    box-sizing: border-box;
 }
+.sdc-m-flabel {
+    flex: 0 0 46px;
+    align-self: center;
+    font: 10px/1.1 var(--stat-font);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--sdc-accent);
+    opacity: 0.75;
+}
+.sdc-m-frow {
+    flex-basis: 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+}
+.sdc-m-seg { display: flex; }
+.sdc-m-seg .sdc-m-btn { border-radius: 0; min-width: 0; padding: 4px 9px; }
+.sdc-m-seg .sdc-m-btn:first-child { border-radius: 3px 0 0 3px; }
+.sdc-m-seg .sdc-m-btn:last-child { border-radius: 0 3px 3px 0; }
+.sdc-m-seg .sdc-m-btn + .sdc-m-btn { border-left-width: 0; }
+.sdc-m-prev { margin-left: auto; flex: none; }
+.sdc-m-prev .sdc-m-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 48px;
+    height: 48px;
+    min-width: 0;
+    min-height: 0;
+    padding: 0 3px;
+    border-radius: 50%;
+    font-size: 10px;
+    overflow: hidden;
+    text-align: center;
+    word-break: break-word;
+}
+.sdc-m-prev .sdc-m-btn.sdc-m-emoji { font-size: 22px; padding: 0; }
+.sdc-m-prev .sdc-m-imgbtn .sdc-m-mimg { width: 34px; height: 34px; }
+.sdc-m-pick { flex-basis: 100%; min-width: 0; }
+/* tile categories: one scrolling row of chips, then the search */
+.sdc-m-chips {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+    touch-action: pan-x;
+}
+.sdc-m-chips::-webkit-scrollbar { display: none; }
+.sdc-m-chips .sdc-m-btn {
+    flex: none;
+    min-width: 0;
+    min-height: 30px;
+    padding: 2px 10px;
+    border-radius: 15px;
+    font-size: 11px;
+    white-space: nowrap;
+}
+#sdc_m_macros .sdc-m-form input.sdc-m-psearch {
+    display: block;
+    width: 100%;
+    margin: 2px 0;
+}
+.sdc-m-pick > .sdc-m-hint { margin: 2px 0 4px; }
+.sdc-m-pmore { grid-column: 1 / -1; height: 8px; }
+.sdc-m-pgrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+    gap: 3px;
+    max-height: 168px;
+    overflow-y: auto;
+    padding: 3px;
+    border: 1px solid var(--sdc-accent-dim);
+    background: rgba(0, 0, 0, 0.45);
+    touch-action: pan-y;
+}
+.sdc-m-pcell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 38px;
+    padding: 0;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    touch-action: manipulation;
+}
+.sdc-m-pcell.sdc-m-on { border-color: var(--sdc-accent);
+    background: color-mix(in srgb, var(--sdc-accent) 18%, transparent); }
+.sdc-m-pcell canvas { width: 32px; height: 32px; image-rendering: pixelated; }
 
 /* yes/no answer buttons in the message bubble */
 .sdc-m-yn {
