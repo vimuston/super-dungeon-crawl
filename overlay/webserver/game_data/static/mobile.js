@@ -298,11 +298,14 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         return btn;
     }
 
-    function buzz()
+    // Chrome logs "Blocked call to navigator.vibrate" (not catchable) until the
+    // page has had a real activation (touchstart doesn't count), so wait for it.
+    function buzz(pattern)
     {
         try
         {
-            if (navigator.vibrate) navigator.vibrate(12);
+            var ua = navigator.userActivation; if (ua && !ua.hasBeenActive) return;
+            if (navigator.vibrate) navigator.vibrate(pattern || 12);
         }
         catch (e) { /* vibration blocked or unsupported: just skip it */ }
     }
@@ -2213,7 +2216,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         if (!cell) return;
         if (!aim_ok(cell.x, cell.y))
         {
-            if (navigator.vibrate) navigator.vibrate([15, 40, 15]);
+            buzz([15, 40, 15]);
             return;
         }
         buzz();
