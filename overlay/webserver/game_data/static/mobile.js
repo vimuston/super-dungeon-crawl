@@ -135,9 +135,10 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             || (coarse && "ontouchstart" in document.documentElement);
     }
 
-    // The server's client.html forces width=860, which makes phones zoom out
-    // and scroll. Remember it so turning the mobile UI off restores it.
-    var stock_viewport = null;
+    // client.html lays the (responsive) lobby out at device width. In game,
+    // the mobile UI keeps that; with it off, use stock webtiles' fixed 860px
+    // page, which the desktop game layout expects.
+    var DESKTOP_VIEWPORT = "width=860, initial-scale=1.0";
     function apply_mode()
     {
         var on = active();
@@ -151,12 +152,10 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             meta.name = "viewport";
             document.head.appendChild(meta);
         }
-        if (stock_viewport === null)
-            stock_viewport = meta.content || "";
         meta.content = on
             ? "width=device-width, initial-scale=1, maximum-scale=1,"
               + " user-scalable=no, viewport-fit=cover"
-            : stock_viewport;
+            : DESKTOP_VIEWPORT;
         if (!on)
             close_all();
     }
