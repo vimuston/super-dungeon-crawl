@@ -20,7 +20,9 @@
 //   - messages: the message pane is hidden; new messages show in a small
 //     translucent bubble bottom-left above the bottom bar that fades out.
 //     Tap the bubble for the recent log (or to answer --more--). Text
-//     prompts bring the pane back automatically. y/n prompts get Yes / No buttons;
+//     prompts bring the pane back automatically. y/n prompts get Yes / No buttons,
+//     targeting prompts (invisibility with monsters in view, targeted
+//     scrolls, aimed spells) Confirm / Cancel;
 //     lettered choices in the log (Gozag's merchants and potions, Nemelex's
 //     Draw Three, ally orders, Hepliaklqana's ancestor) get one button each.
 //   - big thumb buttons: Fight (Tab) bottom-left, Explore (o) bottom-right.
@@ -1166,6 +1168,27 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             || /\(y\/n\)/i.test(text);
     }
 
+    // Targeting prompts (crawl's direction chooser) that wait for a confirm
+    // rather than y/n: quaffing invisibility with monsters in view
+    // ("Confirm quaff"), targeted scrolls, aimed spells. They print a key
+    // hint line ("Press: ? - help, ..."), possibly followed by the cursor's
+    // description ("Confirm quaff: an orc"). Look mode (x) prints one too,
+    // but with describe / travel: no buttons there. Enter selects and Esc
+    // cancels in every targeter.
+    var TARGET_HINT_RE = /Press: \? - help/;
+    function targeting_pending()
+    {
+        var n = recent.length;
+        for (var i = n - 1; i >= 0 && i >= n - 2; i--)
+        {
+            var t = recent[i].textContent;
+            if (!TARGET_HINT_RE.test(t)) continue;
+            if (/v - describe|\. - travel/.test(t)) return false;
+            return i === n - 1 || /\S: \S/.test(recent[n - 1].textContent);
+        }
+        return false;
+    }
+
     function show_bubble()
     {
         if (!active()) return;
@@ -1183,7 +1206,8 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             return;
         }
         bubble.innerHTML = "";
-        var pinned = !!choices || prompt_pending();
+        var aiming = !choices && !more_pending() && targeting_pending();
+        var pinned = !!choices || aiming || prompt_pending();
         recent.forEach(function (n) {
             var line = n.cloneNode(true);
             line.removeAttribute("id");
@@ -1200,6 +1224,14 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         }
         else if (choices)
             bubble.appendChild(choice_picker(choices));
+        else if (aiming)
+        {
+            var aim = document.createElement("div");
+            aim.className = "sdc-m-yn";
+            aim.appendChild(key_button("Confirm", "Enter", hide_now)[0]);
+            aim.appendChild(key_button("Cancel", "Esc", hide_now)[0]);
+            bubble.appendChild(aim);
+        }
         else if (pinned && YN_RE.test(last_text()))
         {
             // yes/no prompts: answer with a tap, no keyboard needed
