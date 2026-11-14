@@ -551,7 +551,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "vec3 a_add; vec3 a_mul;",
         "float awind(vec2 p) {",
         "  float s = dot(p, u_alive_wind.xy);",
-        "  float T = u_alive_t;",
+        "  FHP float T = u_alive_t;",
         "  float base = 0.5 * sin(T * 0.9 + s * 0.35) + 0.3 * sin(T * 1.7 + s * 0.8 + p.y * 0.3);",
         // gust bands travelling along the wind direction
         "  float g = 0.5 + 0.5 * sin(s * 0.16 - T * 0.5);",
@@ -568,7 +568,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "  return d / dist * env * sin(x * 5.0 / wid) * r.w * 0.045;",
         "}",
         "vec2 aflame(vec2 wp, float up, float h) {",
-        "  float T = u_alive_t;",
+        "  FHP float T = u_alive_t;",
         "  float n = vnoise(vec2(wp.x * 4.0, wp.y * 3.0 + T * 3.0));",
         "  return vec2(sin(T * 8.0 + wp.y * 10.0 + h * 6.0) * 0.012, (n - 0.5) * 0.05 * up);",
         "}",
@@ -579,9 +579,9 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "  vec2 tc = (ci + 0.5) / u_alive_cells;",
         "  vec4 A = floor(texture2D(u_alive, tc) * 255.0 + 0.5);",
         "  vec4 B = floor(texture2D(u_alive, tc + vec2(0.0, 1.0 / u_alive_cells.y)) * 255.0 + 0.5);",
-        "  float T = u_alive_t;",
-        "  vec2 w = ci + u_alive_view;",       // map cell (phases are world-anchored)
-        "  vec2 wp = w + f;",                  // continuous map position
+        "  FHP float T = u_alive_t;",
+        "  FHP vec2 w = ci + u_alive_view;",       // map cell (phases are world-anchored)
+        "  FHP vec2 wp = w + f;",                  // continuous map position
         "  float h = hash(w);",
         "  float win = sin(3.1416 * f.x) * sin(3.1416 * f.y);",
         "  float yw = smoothstep(0.0, 0.22, f.y);",
@@ -828,12 +828,21 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
 
     var FRAG = [
         "precision mediump float;",
+        // FHP = highp where the GPU has it. Phone GPUs run mediump as 16-bit
+        // floats: a clock in seconds then advances in 0.25 s steps after ~4
+        // min (2 s after ~34), so anything driven by time or world coords
+        // (living tiles, fog edge, noise) must use it
+        "#ifdef GL_FRAGMENT_PRECISION_HIGH",
+        "#define FHP highp",
+        "#else",
+        "#define FHP mediump",
+        "#endif",
         "uniform sampler2D u_tex;",
         "uniform float u_pxs;",   // integer device px per CSS px (mask/scanline pitch)
         "uniform vec2 u_res;",      // output size in device px
         "uniform vec2 u_texel;",    // 1 / source size
         "uniform float u_curve;",
-        "uniform float u_time;",
+        "uniform FHP float u_time;",
         "uniform float u_danger;",
         // berserk fx (berserk.js via api.get_fx)
         "uniform vec4 u_fx;",         // rage, heartbeat, shock radius, shock amp
@@ -857,7 +866,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "uniform float u_alive_amt;", // 0 = off
         "uniform vec2 u_alive_cells;",// cols, rows
         "uniform vec2 u_alive_view;", // map coords of the top-left cell
-        "uniform float u_alive_t;",   // seconds (wraps hourly)
+        "uniform FHP float u_alive_t;",   // seconds (wraps hourly)
         "uniform vec4 u_alive_mood;", // tempo, unrest, wall ooze, field warp
         "uniform vec4 u_alive_wind;", // dir.xy, strength, gustiness
         "uniform vec4 u_alive_amp0;", // creatures, liquids, wind, flames
@@ -886,13 +895,6 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "uniform sampler2D u_fog;",   // unexplored mask (fogedge.js), R = never seen
         "uniform float u_fog_amt;",   // 0 = off, 1 = default, 2 = max reach
         "uniform vec2 u_fog_cells;",  // cols, rows
-        // fogedge runs in highp where the GPU has it: phone GPUs really do
-        // mediump as 16-bit floats, which wrecks world-coord + time noise
-        "#ifdef GL_FRAGMENT_PRECISION_HIGH",
-        "#define FHP highp",
-        "#else",
-        "#define FHP mediump",
-        "#endif",
         "uniform FHP vec2 u_fog_view;",   // map coords of the top-left cell
         "uniform FHP float u_fog_t;",     // seconds (wraps hourly)
         "varying vec2 v_uv;",
@@ -912,9 +914,10 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "  if (d_clean > 0.5) { vec4 k = texture2D(u_depth_clean, uv); if (k.a > 0.01) c = k.rgb / k.a; }",
         "  return c;",
         "}",
-        "float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }",
-        "float vnoise(vec2 p) {",
-        "  vec2 i = floor(p), f = fract(p);",
+        "float hash(FHP vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }",
+        "float vnoise(FHP vec2 p) {",
+        "  FHP vec2 i = floor(p);",
+        "  vec2 f = fract(p);",
         "  f = f * f * (3.0 - 2.0 * f);",
         "  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),",
         "             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);",
@@ -1488,7 +1491,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         gl.uniform2f(uni.u_res, w, h);
         gl.uniform2f(uni.u_texel, 1 / dungeon.width, 1 / dungeon.height);
         gl.uniform1f(uni.u_curve, curve());
-        gl.uniform1f(uni.u_time, t / 1000);
+        gl.uniform1f(uni.u_time, (t % 3600000) / 1000);   // wraps hourly
         gl.uniform1f(uni.u_danger,
             document.body.classList.contains("sdc-hp-danger") ? 1 : 0);
         // berserk fx store (api.set_fx); all zero when idle
