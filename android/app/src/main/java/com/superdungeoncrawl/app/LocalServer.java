@@ -524,6 +524,12 @@ public class LocalServer {
             cmd.add(new File(workdir, "morgue").getAbsolutePath());
             new File(workdir, "rcs/player.macro").mkdirs();
             new File(workdir, "morgue").mkdirs();
+            // Crawl makes its bones dirs by mkdir-ing every path component
+            // from /, and mkdir("/data/user") is EACCES (not EEXIST) for an
+            // app, so it never gets one: no ghosts, and an "Unable to open
+            // bones file" error on entering a necropolis. Make them here.
+            for (String mode : new String[] {"", "sprint/", "descent/"})
+                new File(workdir, "saves/" + mode + "bones").mkdirs();
             try {
                 process = new ProcessBuilder(cmd).directory(workdir)
                     .redirectErrorStream(false).start();
