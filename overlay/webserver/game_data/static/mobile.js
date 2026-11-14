@@ -1464,7 +1464,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     {
         if (pinch)
         {
-            ev.preventDefault();
+            if (ev.cancelable) ev.preventDefault();
             if (pinch.camera)
                 camera_move(ev);
             else if (ev.touches.length === 2 && !pinch.done)
@@ -1479,7 +1479,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             return;
         }
         if (!touch) return;
-        ev.preventDefault();
+        if (ev.cancelable) ev.preventDefault();
         var t = ev.touches[0];
         var dx = t.clientX - touch.x, dy = t.clientY - touch.y;
         if (!touch.moved && dx * dx + dy * dy > SLOP * SLOP)
@@ -1500,7 +1500,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             && $(ev.target).closest(".sdc-m-mapstair")[0];
         if (stair_btn)
         {
-            ev.preventDefault();
+            if (ev.cancelable) ev.preventDefault();
             ev.stopImmediatePropagation();
             $(stair_btn).trigger("click");
             return;
@@ -1516,7 +1516,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             else if (pinch.camera && (ev.touches.length === 1
                                       || pinch.mode === "persp"))
                 pinch.mode = "lifted";   // a finger up: stop moving
-            ev.preventDefault();
+            if (ev.cancelable) ev.preventDefault();
             return;
         }
         if (!touch) return;
@@ -1527,7 +1527,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         {
             // ours alone: no synthesized mouse events, no ui.js handlers
             // (registered after this one, so they never see it)
-            ev.preventDefault();
+            if (ev.cancelable) ev.preventDefault();
             ev.stopImmediatePropagation();
             if (t.moved)
                 swipe(t.dx, t.dy);
@@ -1536,23 +1536,23 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             return;
         }
         if (t.long)
-            ev.preventDefault();
+            if (ev.cancelable) ev.preventDefault();
         else if (more_pending())
         {
             // any tap or swipe answers --more--
-            ev.preventDefault();
+            if (ev.cancelable) ev.preventDefault();
             send_keys("Enter");
         }
         else if (t.moved)
         {
             // no synthesized click after a swipe
-            ev.preventDefault();
+            if (ev.cancelable) ev.preventDefault();
             swipe(t.dx, t.dy);
         }
         else if (aim.on)
         {
             // ours alone: only valid cells reach crawl
-            ev.preventDefault();
+            if (ev.cancelable) ev.preventDefault();
             ev.stopImmediatePropagation();
             aim_tap(t.target, t.x, t.y);
         }
