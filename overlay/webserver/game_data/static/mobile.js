@@ -41,12 +41,13 @@
 //   "mobile_zoom"    tile zoom step, gesture-only (pinch with 2.5D off;
 //                    with 2.5D on the tiles stay at Fit and pinch drives
 //                    the 2.5D zoom). Not in the settings panel.
-//   "mobile_macros"  [{label, keys, icon, pin, img?, spell?, char?}] macros
-//                    (Tools > Macros), kept across characters. Spell pins
-//                    (Pin in the spell menu, mobilemenus.js) add img (the
-//                    spell tile as a data URL), spell (its name: cast as z +
-//                    its current letter) and char (the character's name);
-//                    they are dropped for a new character or another one.
+//   "mobile_macros"  [{label, keys, icon, pin, img?, spell?, ability?, char?}]
+//                    macros (Tools > Macros), kept across characters. Spell
+//                    and ability pins (Pin in the spell / ability menu,
+//                    mobilemenus.js) add img (the tile as a data URL), spell
+//                    or ability (its name: used as z / a + its current
+//                    letter) and char (the character's name); they are
+//                    dropped for a new character or another one.
 //                    Migrated once from the old "mobile_buttons" list.
 //
 // Key specs (macros, tools): space-separated tokens. Named keys Tab,
@@ -248,18 +249,26 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         api.set("mobile_macros", list);
     }
 
-    // the keys a macro sends; a pinned spell is cast by its current letter
-    // (letters can be reassigned), falling back to the one it was pinned with
+    // the keys a macro sends; a pinned spell / ability is used by its
+    // current letter (letters can be reassigned), falling back to the one it
+    // was pinned with. Abilities: player.talents (all of them) or, from older
+    // binaries, player.abilities (god invocations only).
     function macro_keys(m)
     {
-        if (!m.spell || !Array.isArray(player.spells)) return m.keys;
-        for (var i = 0; i < player.spells.length; i++)
+        var name = m.spell || m.ability, cmd = m.spell ? "z" : "a";
+        var list = m.spell ? player.spells
+            : Array.isArray(player.talents) ? player.talents : player.abilities;
+        if (!name || !Array.isArray(list)) return m.keys;
+        for (var i = 0; i < list.length; i++)
         {
-            var x = player.spells[i];
-            if (x && x.name === m.spell && x.key) return "z" + x.key;
+            var x = list[i];
+            if (x && x.name === name && x.key) return cmd + x.key;
         }
         return m.keys;
     }
+
+    // a spell / ability pin (bound to the character it was pinned on)
+    function is_char_pin(m) { return !!(m && (m.spell || m.ability)); }
 
     function macro_img(m)
     {
@@ -547,7 +556,11 @@ function ($, comm, api, renderer, enums, options, player, view_data,
                                icon: icon.val().trim(),
                                pin: cur ? !!cur.pin : false });
             // edited keys: no longer resolved from the spell's name
-            if (cur && cur.spell && k !== cur.keys) delete m.spell;
+            if (is_char_pin(cur) && k !== cur.keys)
+            {
+                delete m.spell;
+                delete m.ability;
+            }
             var l = macros().slice();
             if (cur) l[editing] = m;
             else l.push(m);
@@ -1929,9 +1942,9 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         reset_spell_pins(player);
     });
 
-    // Macros persist across characters; spell pins (m.spell) belong to the
+    // Macros persist across characters; spell / ability pins belong to the
     // character they were pinned on. On the first update of each game: a
-    // brand-new character (turn 0) drops all spell pins, resuming another
+    // brand-new character (turn 0) drops all such pins, resuming another
     // character drops pins tagged with a different name, and the remaining
     // ones get tagged with this character. The drop runs once per game, so a
     // pin made at turn 0 survives; new pins are tagged on the next update.
@@ -1943,13 +1956,13 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         pins_checked = true;
         var fresh = first && Number(player.turn) === 0, changed = false;
         var list = macros().filter(function (m) {
-            if (!m || !m.spell) return true;
+            if (!is_char_pin(m)) return true;
             var keep = !first
                 || (!fresh && (!m.char || m.char === player.name));
             if (!keep) changed = true;
             return keep;
         }).map(function (m) {
-            if (!m.spell || m.char) return m;
+            if (!is_char_pin(m) || m.char) return m;
             changed = true;
             return $.extend({}, m, { char: player.name });
         });

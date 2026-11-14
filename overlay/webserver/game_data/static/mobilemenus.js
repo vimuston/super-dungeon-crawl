@@ -22,6 +22,9 @@
 //     just the gold line; the purchase confirm gets Yes / No.
 //   - shopping list ($): one card per entry (location, price). Tap =
 //     select it: Travel / Describe buttons.
+//   - abilities (a): one card per ability (name, cost, failure); Pin = a
+//     use shortcut among the pinned macros, like spells. Use / Describe
+//     ability buttons switch the menu mode.
 //   - innate abilities & mutations (A): wrapped cards, the legend's [] / ()
 //     markers as chips (future XL, transient, suppressed, bane), a Close bar.
 //   - character selection: a single scrolling list grouped by the stock
@@ -650,9 +653,9 @@ function ($, comm, api, player, descs) {
             });
             main.appendChild(meta);
             li.appendChild(main);
-            // known spells only: pin a cast shortcut with the macros
-            if (kind === "spell" && !in_lib && f.name)
-                li.appendChild(pin_button(f, canvas));
+            // known spells and abilities: pin a shortcut with the macros
+            if (!in_lib && f.name)
+                li.appendChild(pin_button(f, canvas, kind));
             if (kind === "spell")
             {
                 li.appendChild(btn("i", "sdc-mm-info", function () {
@@ -695,27 +698,32 @@ function ($, comm, api, player, descs) {
         });
     }
 
-    // Pin: a spell shortcut among the pinned macros (mobile.js draws them
-    // bottom-right). Stored in its "mobile_macros" option with the tile as
-    // an image and the spell's name, so it casts by the current letter.
-    function spell_pins()
+    // Pin: a spell or ability shortcut among the pinned macros (mobile.js
+    // draws them bottom-right). Stored in its "mobile_macros" option with the
+    // tile as an image and the spell's / ability's name (field "spell" or
+    // "ability"), so it is used by its current letter (z / a + letter).
+    var PIN_KIND = { spell: { cmd: "z", icon: "✶" },
+                     ability: { cmd: "a", icon: "✦" } };
+
+    function macro_list()
     {
         var l = api.get("mobile_macros");
         return Array.isArray(l) ? l : [];
     }
 
-    function pin_index(name)
+    function pin_index(kind, name)
     {
-        var l = spell_pins();
+        var l = macro_list();
         for (var i = 0; i < l.length; i++)
-            if (l[i] && l[i].spell === name && l[i].pin) return i;
+            if (l[i] && l[i][kind] === name && l[i].pin) return i;
         return -1;
     }
 
-    function pin_button(f, canvas)
+    function pin_button(f, canvas, kind)
     {
+        var pk = PIN_KIND[kind];
         var b = btn("Pin", "sdc-mm-pin", function () {
-            var l = spell_pins().slice(), i = pin_index(f.name);
+            var l = macro_list().slice(), i = pin_index(kind, f.name);
             if (i >= 0)
                 l.splice(i, 1);
             else
@@ -723,16 +731,18 @@ function ($, comm, api, player, descs) {
                 var img = "";
                 try { if (canvas) img = canvas.toDataURL("image/png"); }
                 catch (e) { img = ""; }
-                l.push({ label: f.name.slice(0, 12), keys: "z" + f.key,
-                         icon: img ? "" : "✶", img: img || undefined,
-                         spell: f.name, pin: true });
+                var m = { label: f.name.slice(0, 12), keys: pk.cmd + f.key,
+                          icon: img ? "" : pk.icon, img: img || undefined,
+                          pin: true };
+                m[kind] = f.name;
+                l.push(m);
             }
             api.set("mobile_macros", l);
             show(b);
         });
         function show(x)
         {
-            var on = pin_index(f.name) >= 0;
+            var on = pin_index(kind, f.name) >= 0;
             x.textContent = on ? "Pinned" : "Pin";
             x.classList.toggle("sdc-mm-on", on);
             x.setAttribute("aria-pressed", on ? "true" : "false");
