@@ -124,6 +124,8 @@ function ($, comm, client, api, player, enums, options, cr, util, fxkit) {
     {
         try
         {
+            // no buzz before the first real activation (Chrome logs a blocked call)
+            var ua = navigator.userActivation; if (ua && !ua.hasBeenActive) return;
             if (navigator.vibrate) navigator.vibrate(ms || 8);
         }
         catch (e) { /* vibration blocked or unsupported: just skip it */ }

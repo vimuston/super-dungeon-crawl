@@ -92,7 +92,12 @@ function ($, comm, api, player, descs) {
 
     function buzz()
     {
-        try { if (navigator.vibrate) navigator.vibrate(10); }
+        try
+        {
+            // no buzz before the first real activation (Chrome logs a blocked call)
+            var ua = navigator.userActivation; if (ua && !ua.hasBeenActive) return;
+            if (navigator.vibrate) navigator.vibrate(10);
+        }
         catch (e) { /* unsupported */ }
     }
 
