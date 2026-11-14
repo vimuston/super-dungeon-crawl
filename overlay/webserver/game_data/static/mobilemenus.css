@@ -367,7 +367,8 @@ body.sdc-mm #ui-stack .sdc-mm-cards .sdc-mm-pin {
     font-size: 12px !important;
 }
 body.sdc-mm #ui-stack .sdc-mm-pin.sdc-mm-on,
-body.sdc-mm #ui-stack .sdc-mm-tab.sdc-mm-on {
+body.sdc-mm #ui-stack .sdc-mm-tab.sdc-mm-on,
+body.sdc-mm #ui-stack .sdc-mm-abmode.sdc-mm-on {
     color: #000;
     background: var(--sdc-accent);
     border-color: var(--sdc-accent);

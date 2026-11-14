@@ -663,6 +663,38 @@ function ($, comm, api, player, descs) {
         });
     }
 
+    // Ability menu footer "[?] toggle between ability selection and
+    // description." -> Use ability / Describe ability. The title says which
+    // mode is on ("do what?" / "describe what?"); ? flips it.
+    function ability_modes(menu, more)
+    {
+        var bar = more.nextElementSibling;
+        if (!bar || !bar.classList.contains("sdc-mm-keys")) return;
+        if (!/toggle between ability/i.test(more.textContent)) return;
+        var title = menu.querySelector(".menu_title");
+        var desc = !!title && /describe what/i.test(title.textContent);
+        var btns = bar.querySelectorAll(":scope > .sdc-mm-abmode");
+        if (btns.length !== 2)
+        {
+            bar.innerHTML = "";
+            [["Use ability", false], ["Describe ability", true]]
+                .forEach(function (d) {
+                    var b = btn(d[0], "sdc-mm-abmode", function () {
+                        if (b.classList.contains("sdc-mm-on")) return;
+                        send_text("?");
+                    });
+                    b.setAttribute("data-desc", d[1] ? "1" : "0");
+                    bar.appendChild(b);
+                });
+            btns = bar.querySelectorAll(":scope > .sdc-mm-abmode");
+        }
+        btns.forEach(function (b) {
+            var on = (b.getAttribute("data-desc") === "1") === desc;
+            b.classList.toggle("sdc-mm-on", on);
+            b.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+    }
+
     // Pin: a spell shortcut among the pinned macros (mobile.js draws them
     // bottom-right). Stored in its "mobile_macros" option with the tile as
     // an image and the spell's name, so it casts by the current letter.
@@ -1867,6 +1899,8 @@ function ($, comm, api, player, descs) {
                 bar.appendChild(btn("Exit", "", function () { send_code(27); }));
                 more.classList.add("sdc-mm-hidden");
             }
+            if (more && menu.classList.contains("menu_ability"))
+                ability_modes(menu, more);
             category_button(menu);
             return;
         }
