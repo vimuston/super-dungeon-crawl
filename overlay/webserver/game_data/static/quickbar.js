@@ -152,7 +152,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
         if (!qb_touch.drag && dx * dx + dy * dy < TOUCH_SLOP * TOUCH_SLOP)
             return;
         qb_touch.drag = true;
-        ev.preventDefault();
+        if (ev.cancelable) ev.preventDefault();
         touch_until = Date.now() + 1000;
         var ok = scrub_slot(t.clientX, t.clientY) !== null;
         if (ok !== scrub_ok) dk_dirty = true;

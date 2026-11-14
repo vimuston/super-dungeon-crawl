@@ -641,7 +641,7 @@ function ($, comm, client, api, player, enums, options, cr, util, fxkit) {
     function on_start(ev)
     {
         if (!m || in_editor(ev)) return;
-        ev.preventDefault();
+        if (ev.cancelable) ev.preventDefault();
         ev.stopPropagation();
         if (m.editing) { close_editor(); return; }
         m.dragging = true;
@@ -667,7 +667,7 @@ function ($, comm, client, api, player, enums, options, cr, util, fxkit) {
     function on_move(ev)
     {
         if (!m || !m.dragging || in_editor(ev)) return;
-        ev.preventDefault();
+        if (ev.cancelable) ev.preventDefault();
         var p = pt(ev);
         hover(p[0], p[1]);
     }
@@ -675,7 +675,7 @@ function ($, comm, client, api, player, enums, options, cr, util, fxkit) {
     function on_end(ev)
     {
         if (!m || !m.dragging || in_editor(ev)) return;
-        ev.preventDefault();
+        if (ev.cancelable) ev.preventDefault();
         ev.stopPropagation();
         clearTimeout(m.press);
         if (ev.type === "touchcancel") { close(); return; }
