@@ -41,7 +41,12 @@ client_html.write_text(text, encoding="utf-8")
 patch(client_html, [
     ('<link rel="stylesheet" type="text/css" href="{{ static_url("style.css") }}">',
      '<link rel="stylesheet" type="text/css" href="{{ static_url("style.css") }}">\n'
-     '    <link rel="stylesheet" type="text/css" href="{{ static_url("sdc_loader.css") }}">'),
+     '    <link rel="stylesheet" type="text/css" href="{{ static_url("sdc_loader.css") }}">\n'
+     '    <link rel="stylesheet" type="text/css" href="{{ static_url("sdc_lobby.css") }}">'),
+    # responsive lobby: lay out at the device's width (mobile.js still sets
+    # its own viewport once a game is running)
+    ('<meta name="viewport" content="width=860, initial-scale=1.0">',
+     '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'),
 ])
 
 patch(game_data / "templates" / "game.html", [

@@ -1,0 +1,305 @@
+/* Lobby (templates/client.html, banner.html, game_links.html; linked by
+   patch_client.py). One responsive layout for phones and desktops: a top
+   account bar, the title, a grid of game cards and the running-games list.
+   client.html's viewport is width=device-width (patch_client.py), so this
+   page lays out at the phone's real width instead of a zoomed-out 860px. */
+
+:root {
+    --sdc-accent: #3ac8bc;
+    --sdc-accent-dim: #1d5f5a;
+    --sdc-accent-deep: #0b2a2a;
+    --sdc-gold: #f2e83a;
+    --sdc-text: #e6e6e6;
+    --sdc-muted: #8c9a99;
+    --sdc-panel: #050f0f;
+}
+
+#lobby {
+    box-sizing: border-box;
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+             max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    color: var(--sdc-text);
+    -webkit-text-size-adjust: 100%;
+}
+
+#lobby *, #lobby *::before, #lobby *::after { box-sizing: border-box; }
+
+#lobby a:link, #lobby a:visited { color: var(--sdc-accent); }
+#lobby a:hover { color: #7fe9df; }
+
+/* Account bar ------------------------------------------------------------ */
+
+#lobby .login_placeholder {
+    border-bottom: 1px solid var(--sdc-accent-deep);
+    padding-bottom: 10px;
+}
+
+#lobby #login {
+    float: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px 14px;
+    text-align: left;
+    font-size: 14px;
+}
+
+#lobby #login_message:empty { display: none; }
+#lobby #login_message { color: var(--sdc-muted); }
+
+/* jQuery's show() leaves an inline display: block */
+#lobby #login_form:not([style*="none"]) { display: flex !important; }
+#lobby #login_form {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+}
+
+/* the stock markup separates the links with a literal "|" text node */
+#lobby #login .extra_links { font-size: 0; line-height: 1.9; }
+#lobby #login .extra_links a { font-size: 14px; margin-right: 14px; }
+#lobby #login .extra_links a:last-child { margin-right: 0; }
+
+/* Inputs, buttons, dialogs (shared with the account dialogs) -------------- */
+
+#lobby .text, #prompt .text {
+    background: #000;
+    color: var(--sdc-text);
+    border: 1px solid var(--sdc-accent-dim);
+    padding: 6px 8px;
+    min-height: 36px;
+    font-size: 16px;            /* below 16px iOS zooms the page on focus */
+    max-width: 100%;
+}
+#lobby .text:focus, #prompt .text:focus {
+    outline: none;
+    border-color: var(--sdc-accent);
+    box-shadow: 0 0 0 2px var(--sdc-accent-deep);
+}
+
+#lobby .button, #prompt .button {
+    background: var(--sdc-accent-deep);
+    color: var(--sdc-text);
+    border: 1px solid var(--sdc-accent);
+    padding: 6px 14px;
+    min-height: 36px;
+    font-size: 15px;
+    cursor: pointer;
+}
+#lobby .button:hover, #prompt .button:hover { background: var(--sdc-accent-dim); }
+
+#lobby .floating_dialog {
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    overflow: auto;
+    padding: 16px;
+    border: 1px solid var(--sdc-accent);
+    box-shadow: 0 0 0 3px var(--sdc-accent-deep);
+    line-height: 1.6;
+}
+#lobby .floating_dialog label { max-width: 100%; }
+#lobby #rc_file_contents {
+    width: min(80ch, calc(100vw - 58px));
+    height: min(60vh, 34em);
+    font-size: 14px;
+}
+
+#prompt > div {
+    box-sizing: border-box;
+    width: min(34em, calc(100vw - 24px));
+    margin-left: calc(min(34em, calc(100vw - 24px)) / -2);
+}
+
+/* Banner ---------------------------------------------------------------- */
+
+#banner { text-align: center; }
+
+.sdc-banner { padding: clamp(10px, 3vh, 28px) 0 clamp(4px, 1vh, 12px); }
+
+.sdc-banner-title {
+    display: block;
+    /* the art is ~square: keep it short enough that the cards stay in view */
+    width: min(66vw, 36vh, 380px);
+    min-width: 180px;
+    height: auto;
+    margin: 0 auto;
+    image-rendering: pixelated;
+}
+
+.sdc-banner-hello {
+    margin: 10px 0 0;
+    color: var(--sdc-muted);
+    font-size: 15px;
+    letter-spacing: 0.04em;
+}
+.sdc-banner-hello b { color: var(--sdc-gold); }
+
+#account_restricted {
+    border: 1px solid #a55b00;
+    padding: 10px 12px;
+    color: #f0c080;
+}
+
+/* Game cards ------------------------------------------------------------- */
+
+#play_now { padding-top: 6px; }
+
+#lobby .sdc-section-title {
+    margin: 18px 0 10px;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--sdc-accent);
+}
+
+.sdc-games {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
+    gap: 12px;
+}
+
+.sdc-game {
+    display: flex;
+    flex-direction: column;
+    background: var(--sdc-panel);
+    border: 2px solid var(--sdc-accent-deep);
+    transition: border-color 0.12s, box-shadow 0.12s;
+}
+.sdc-game:hover, .sdc-game:focus-within {
+    border-color: var(--sdc-accent);
+    box-shadow: 0 0 12px rgba(58, 200, 188, 0.25);
+}
+
+#lobby .sdc-game-play {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 76px;
+    padding: 14px 16px;
+    color: var(--sdc-text);
+    font-weight: normal;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+}
+#lobby a.sdc-game-play:active { background: var(--sdc-accent-deep); }
+
+.sdc-game-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.sdc-game-name {
+    font-size: 18px;
+    font-weight: bold;
+    color: #fff;
+}
+
+.sdc-game-tag {
+    flex: none;
+    padding: 2px 7px;
+    border: 1px solid currentColor;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--sdc-accent);
+}
+
+.sdc-game-desc {
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--sdc-muted);
+}
+
+.sdc-game-continue { border-color: #4a4512; }
+.sdc-game-continue:hover, .sdc-game-continue:focus-within {
+    border-color: var(--sdc-gold);
+    box-shadow: 0 0 12px rgba(242, 232, 58, 0.25);
+}
+.sdc-game-continue .sdc-game-tag { color: var(--sdc-gold); }
+.sdc-game-continue .sdc-game-desc { color: var(--sdc-text); }
+
+.sdc-game-full { opacity: 0.5; }
+.sdc-game-full:hover { border-color: var(--sdc-accent-deep); box-shadow: none; }
+.sdc-game-full .sdc-game-tag { color: var(--sdc-muted); }
+
+#lobby .sdc-game-rc {
+    align-self: flex-start;
+    margin: -4px 0 0;
+    padding: 4px 16px 12px;
+    font-size: 13px;
+    font-weight: normal;
+    color: var(--sdc-muted);
+}
+#lobby .sdc-game-rc:hover { color: var(--sdc-accent); }
+
+/* Running games ---------------------------------------------------------- */
+
+#play_now + br { display: none; }
+
+#lobby_body {
+    margin-top: 28px;
+    text-align: left;
+    overflow-x: auto;
+}
+#lobby_body > span {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--sdc-accent);
+}
+
+#player_list {
+    border-collapse: collapse;
+    font-size: 14px;
+    line-height: 1.3;
+}
+#player_list th {
+    color: var(--sdc-muted);
+    font-weight: normal;
+    border-bottom: 1px solid var(--sdc-accent-deep);
+}
+#player_list th, #player_list td { padding: 6px 6px; }
+#player_list tr:hover { background-color: var(--sdc-accent-deep); }
+
+/* Phones ------------------------------------------------------------------ */
+
+@media (max-width: 640px) {
+    #lobby #login { justify-content: flex-start; font-size: 13px; gap: 4px 12px; }
+    #lobby #login .extra_links a { font-size: 13px; margin-right: 12px; }
+    .sdc-game-name { font-size: 17px; }
+    #lobby #login_form:not([style*="none"]) { display: grid !important; }
+    #lobby #login_form {
+        grid-template-columns: auto 1fr;
+        width: 100%;
+    }
+    #lobby #login_form .text { width: 100%; min-width: 0; }
+    #lobby #login_form .button { grid-column: 1 / -1; }
+
+    #player_list .game_id, #player_list .turn, #player_list .dur,
+    #player_list .idle_time, #player_list .spectator_count,
+    #player_list .milestone_col { display: none; }
+
+    #lobby #register label, #lobby #forgot label,
+    #lobby #reset_pw label, #lobby #chpw_form label {
+        float: none;
+        display: block;
+        width: auto;
+    }
+    #lobby #change_cur_password, #lobby #change_new_password,
+    #lobby #change_repeat_password { float: none; }
+    #lobby .floating_dialog .text { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sdc-game { transition: none; }
+}

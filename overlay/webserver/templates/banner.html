@@ -1,0 +1,9 @@
+<div class="sdc-banner">
+  <img class="sdc-banner-title" src="/static/sdc_title.png"
+       alt="Super Dungeon Crawl: Stone Soup">
+{% if username %}
+  <p class="sdc-banner-hello">Welcome back, <b>{{ username }}</b></p>
+{% else %}
+  <p class="sdc-banner-hello">Log in to play</p>
+{% end %}
+</div>

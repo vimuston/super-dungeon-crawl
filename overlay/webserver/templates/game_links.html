@@ -1,0 +1,55 @@
+{% comment Super Dungeon Crawl lobby: one card per game instead of the stock inline
+   link list. Keeps the stock hooks: "#play-<id>" links and .edit_rc_link
+   with data-game_id (client.js binds both). Styled by static/sdc_lobby.css. %}
+<h2 class="sdc-section-title">Play</h2>
+<div class="sdc-games">
+{% try %}
+    {% set rcs = set() %}
+    {% for id in games %}
+        {% set info = save_info[id] %}
+        {% set off = disabled(info) %}
+        {% if info is None %}
+            {% set state, tag, desc = "loading", "", "Checking save…" %}
+        {% elif info == "" %}
+            {% set state, tag, desc = "new", "New", "Start a new character" %}
+        {% elif off %}
+            {% set state, tag, desc = "full", "Slot full", "Another mode is using this save slot" %}
+        {% elif info == "[playing]" %}
+            {% set state, tag, desc = "playing", "Playing", "Game in progress" %}
+        {% else %}
+            {% set desc = info[1:-1] if info.startswith("[") and info.endswith("]") else info %}
+            {% set desc = desc.split(", ", 1)[1] if ", " in desc else desc %}
+            {% set state, tag, desc = "continue", "Continue", desc[:1].upper() + desc[1:] %}
+        {% end %}
+    <div class="sdc-game sdc-game-{{ state }}">
+        {% if off %}<span class="sdc-game-play" aria-disabled="true">{% else %}<a class="sdc-game-play" href="#play-{{ id }}">{% end %}
+            <span class="sdc-game-head">
+                <span class="sdc-game-name">{{ games[id]["name"] }}</span>
+                {% if tag %}<span class="sdc-game-tag">{{ tag }}</span>{% end %}
+            </span>
+            <span class="sdc-game-desc">{{ desc }}</span>
+        {% if off %}</span>{% else %}</a>{% end %}
+        {% if games[id]["rcfile_path"] not in rcs %}
+            {% set rcs.add(games[id]["rcfile_path"]) %}
+        <a href="javascript:" class="edit_rc_link sdc-game-rc"
+           data-game_id="{{ id }}">Edit RC</a>
+        {% end %}
+    </div>
+    {% end %}
+{% except %}
+{% comment simpler fallback, as in the stock template, if anything above fails %}
+    {% set rcs = set() %}
+    {% for id in games %}
+    <div class="sdc-game sdc-game-new">
+        <a class="sdc-game-play" href="#play-{{ id }}">
+            <span class="sdc-game-head"><span class="sdc-game-name">{{ games[id]["name"] }}</span></span>
+        </a>
+        {% if games[id]["rcfile_path"] not in rcs %}
+            {% set rcs.add(games[id]["rcfile_path"]) %}
+        <a href="javascript:" class="edit_rc_link sdc-game-rc"
+           data-game_id="{{ id }}">Edit RC</a>
+        {% end %}
+    </div>
+    {% end %}
+{% end %}
+</div>
