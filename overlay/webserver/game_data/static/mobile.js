@@ -1437,18 +1437,75 @@ function ($, comm, api, renderer, enums, options, player, view_data,
                  ["int", "Int", "Intelligence", "I"],
                  ["dex", "Dex", "Dexterity", "D"]];
 
-    function stat_picker()
+    // The prompt locks the screen until a stat is chosen: crawl ignores
+    // every other key there, but a tap would still move the bubble on to
+    // the next message and leave the choice reachable only by keyboard.
+    // So the picker stays up (whatever messages follow) over a dimmed
+    // veil, and every touch / click outside the bubble is swallowed. It
+    // unlocks on a card tap or once the stats actually go up (a keyboard
+    // answer); a reload re-prompts and so locks again.
+    var stat_lock = null;   // {node, text, gain, sum} while the prompt waits
+
+    function stat_sum()
+    {
+        return STATS.reduce(function (a, s) {
+            return a + (Number(player[s[0]]) || 0)
+                     + (Number(player[s[0] + "_max"]) || 0);
+        }, 0);
+    }
+
+    function lock_stats(node)
     {
         // "a dramatic increase" = Divine attributes (+4), otherwise +2
         var gain = recent.some(function (n) {
             return /dramatic increase in your attributes/i.test(n.textContent);
         }) ? 4 : 2;
+        stat_lock = { node: node, text: msg_text(node), gain: gain,
+                      sum: stat_sum() };
+        close_all();
+        toggle_log(false);
+        if (!document.getElementById("sdc_m_veil"))
+            $("<div id='sdc_m_veil'>").appendTo(document.body);
+        document.body.classList.add("sdc-m-statlock");
+    }
+
+    function unlock_stats()
+    {
+        if (!stat_lock) return;
+        stat_done = stat_lock.node;
+        stat_lock = null;
+        $("#sdc_m_veil").remove();
+        if (document.body)
+            document.body.classList.remove("sdc-m-statlock");
+    }
+    var stat_done = null;   // the prompt line already answered
+
+    // capture on window: runs before the dungeon touch handlers (document)
+    function stat_guard(ev)
+    {
+        if (!stat_lock) return;
+        var bubble = document.getElementById("sdc_m_bubble");
+        if (bubble && bubble.contains(ev.target)) return;
+        if (ev.cancelable) ev.preventDefault();
+        ev.stopPropagation();
+    }
+    ["touchstart", "touchmove", "touchend", "mousedown", "mouseup", "click",
+     "pointerdown", "pointerup", "contextmenu", "wheel"].forEach(function (t) {
+        window.addEventListener(t, stat_guard,
+                                { capture: true, passive: false });
+    });
+
+    function stat_picker(gain)
+    {
         var box = document.createElement("div");
         box.className = "sdc-m-statpick";
         STATS.forEach(function (s) {
             var cur = Number(player[s[0]]);
             var max = Number(player[s[0] + "_max"]);
-            var b = key_button("", s[3], hide_now);
+            var b = key_button("", s[3], function () {
+                unlock_stats();
+                hide_now();
+            });
             b.addClass("sdc-m-stat").attr("aria-label", "Increase " + s[2]);
             b.append($("<span class='sdc-m-stat-name'>").text(s[1]));
             if (isFinite(cur))
@@ -1640,6 +1697,24 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         if (!active()) return;
         var bubble = document.getElementById("sdc_m_bubble");
         if (!bubble) return;
+        var last = recent[recent.length - 1];
+        if (!stat_lock && last && last !== stat_done && last.isConnected
+            && STAT_RE.test(last.textContent))
+            lock_stats(last);
+        if (stat_lock)
+        {
+            clearTimeout(fade_timer);
+            bubble.innerHTML = "";
+            var q = document.createElement("div");
+            q.className = "sdc-m-line";
+            q.textContent = stat_lock.text;
+            bubble.appendChild(q);
+            bubble.appendChild(stat_picker(stat_lock.gain));
+            bubble.classList.remove("sdc-m-fade");
+            bubble.classList.add("sdc-m-show", "sdc-m-prompt");
+            place_bubble();
+            return;
+        }
         var choices = !more_pending() && letter_choices();
         // only the question above the buttons (the list may be longer
         // than the bubble keeps)
@@ -1687,8 +1762,6 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             yn.appendChild(key_button("No", "n", hide_now)[0]);
             bubble.appendChild(yn);
         }
-        else if (pinned && STAT_RE.test(last_text()))
-            bubble.appendChild(stat_picker());
         bubble.classList.remove("sdc-m-fade");
         bubble.classList.add("sdc-m-show");
         bubble.classList.toggle("sdc-m-prompt", pinned);
@@ -1704,6 +1777,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
 
     function hide_bubble(now)
     {
+        if (stat_lock) return;
         clearTimeout(fade_timer);
         var bubble = document.getElementById("sdc_m_bubble");
         if (!bubble) return;
@@ -2370,6 +2444,12 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         try { update_defenses(player); }
         catch (e) { console.error("sdc: mobile defenses", e); }
         reset_spell_pins(player);
+        // answered from the keyboard: the stats went up
+        if (stat_lock && stat_sum() > stat_lock.sum)
+        {
+            unlock_stats();
+            hide_bubble(true);
+        }
     });
 
     // Macros persist across characters; spell / ability pins belong to the
@@ -2407,6 +2487,8 @@ function ($, comm, api, renderer, enums, options, player, view_data,
 
     api.on("game_init", function () {
         pins_checked = false;
+        unlock_stats();
+        stat_done = null;
         apply_mode();
         build();
         watch_stack();
@@ -2418,6 +2500,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             msg_observer.disconnect();
         clearTimeout(fade_timer);
         cancel_touch();
+        unlock_stats();
         $(document.body).removeClass("sdc-m-open sdc-m-tools sdc-m-log"
                                      + " sdc-m-find sdc-m-macros");
     });

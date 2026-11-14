@@ -823,6 +823,22 @@ body.sdc-mobile.sdc-m-macros #sdc_m_macros {
 .sdc-m-stat-new { font-size: 18px; text-shadow: 0 0 6px var(--sdc-accent-dim); }
 .sdc-m-stat-max { font-size: 10px; opacity: 0.6; }
 
+/* the stat prompt locks the screen (mobile.js): the bubble stays visible
+   (even where it is normally hidden) above a veil that dims the rest */
+#sdc_m_veil { display: none; }
+body.sdc-mobile.sdc-m-statlock #sdc_m_veil {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 3290;
+    background: rgba(0, 0, 0, 0.45);
+}
+body.sdc-mobile.sdc-m-statlock #sdc_m_bubble#sdc_m_bubble.sdc-m-show {
+    display: block !important;
+    z-index: 3300;
+    max-width: min(92vw, 420px);
+}
+
 /* lettered choices from the message log (Gozag's merchants, ...): one
    full-width row each, letter chip / name / price */
 .sdc-m-choices {
