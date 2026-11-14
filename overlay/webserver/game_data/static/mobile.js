@@ -5,9 +5,9 @@
 //   - vitals: the HP/MP panel shrinks to a small pill (top-left). Tapping
 //     it enlarges the layout (name line + full stats card); a second tap
 //     opens the character sheet (%) and shrinks it back to the pill.
-//   - macros (Tools > Macros): user-defined key sequences, each with an
-//     optional emoji shown in place of the label; pinned ones stack
-//     bottom-right above Explore.
+//   - macros (Tools > Macros): user-defined key sequences; each button
+//     shows its name or a game tile (picked from a built-in tile picker);
+//     pinned ones stack bottom-right above Explore.
 //   - quick row (top-right, left of Tools): Items (i), Spells (I; the
 //     Memorise list M when no spell is known yet) and Skills (m). The
 //     spell popup itself has Known / Learn tabs (mobilemenus.js).
@@ -42,12 +42,17 @@
 //                    with 2.5D on the tiles stay at Fit and pinch drives
 //                    the 2.5D zoom). Not in the settings panel.
 //   "mobile_macros"  [{label, keys, icon, pin, img?, spell?, ability?, char?}]
-//                    macros (Tools > Macros), kept across characters. Spell
-//                    and ability pins (Pin in the spell / ability menu,
-//                    mobilemenus.js) add img (the tile as a data URL), spell
-//                    or ability (its name: used as z / a + its current
-//                    letter) and char (the character's name); they are
-//                    dropped for a new character or another one.
+//                    macros (Tools > Macros), kept across characters. The
+//                    button face is img (a tile as a PNG data URL), else
+//                    icon (an emoji or glyph: older macros and glyph-mode
+//                    pins; the form keeps but no longer sets one), else
+//                    label.
+//                    Spell and ability pins
+//                    (Pin in the spell / ability menu, mobilemenus.js) add
+//                    img (the tile as a data URL), spell or ability (its
+//                    name: used as z / a + its current letter) and char (the
+//                    character's name); they are dropped for a new
+//                    character or another one.
 //                    Migrated once from the old "mobile_buttons" list.
 //
 // Key specs (macros, tools): space-separated tokens. Named keys Tab,
@@ -57,9 +62,11 @@
 // The wrapper (android/) calls window.sdcBack() for the back button and
 // exposes window.SdcNative ({isLocal(), manageSaves()}).
 define(["jquery", "comm", "./sdc_api", "./dungeon_renderer", "./enums", "./options",
-        "./player", "./view_data", "./map_knowledge"],
+        "./player", "./view_data", "./map_knowledge", "./cell_renderer",
+        "./util", "./tileinfo-gui", "./tileinfo-main", "./tileinfo-feat",
+        "./tileinfo-icons"],
 function ($, comm, api, renderer, enums, options, player, view_data,
-          map_knowledge) {
+          map_knowledge, cr, util, gui, main, feat, icons) {
     "use strict";
 
     api.register_option({ key: "mobile", label: "Mobile UI", default: "auto",
@@ -513,34 +520,452 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         panel.append(macro_form());
     }
 
-    // icon + label + keys inputs; typing here must not reach the game
+    // Icon picker -------------------------------------------------------------
+    // A macro button shows one face: its name (text) or a game tile. Tiles
+    // are grouped in categories (chips) with a name search: All, Actions (hand-picked action and command icons), Yours
+    // (the character's spells, abilities and items), then every tile of the
+    // gui, main (items), feat (dungeon) and icons sheets, sorted by name
+    // prefix (gui by index range). Nothing from the player sheet (monsters,
+    // paper doll parts). A picked tile is stored as a PNG data URL, like
+    // spell pins.
+
+
+    // [sheet, tile name, label]: the Actions category (action icons, then
+    // the GUI command icons)
+    var CMD_TILES = [
+        ["gui", "RANGED_WEAPONS_ON", "Fire"], ["main", "MI_ARROW1", "Fire"],
+        ["main", "MI_ARROW", "Quiver"], ["gui", "THROWING_ON", "Throw"],
+        ["gui", "POLEARMS_ON", "Reach (v)"],
+        ["main", "WPN_HALBERD", "Reach (v)"],
+        ["gui", "CMD_WAIT", "Wait"], ["gui", "CMD_REST", "Rest"],
+        ["gui", "CMD_EXPLORE", "Explore"], ["gui", "CMD_AUTOFIGHT", "Fight"],
+        ["gui", "CMD_SEARCH_STASHES", "Find"], ["gui", "CMD_DISPLAY_MAP", "Map"],
+        ["gui", "CMD_INTERLEVEL_TRAVEL", "Travel"],
+        ["gui", "CMD_CAST_SPELL", "Cast"],
+        ["gui", "CMD_MEMORISE_SPELL", "Memorise"],
+        ["gui", "CMD_USE_ABILITY", "Ability"],
+        ["gui", "CMD_DISPLAY_INVENTORY", "Inventory"], ["gui", "CMD_DROP", "Drop"],
+        ["gui", "CMD_DISPLAY_SKILLS", "Skills"],
+        ["gui", "CMD_DISPLAY_CHARACTER_STATUS", "Character"],
+        ["gui", "CMD_DISPLAY_RELIGION", "Religion"],
+        ["gui", "CMD_DISPLAY_MUTATIONS", "Mutations"],
+        ["gui", "CMD_RESISTS_SCREEN", "Resists"],
+        ["gui", "CMD_KNOWN_ITEMS", "Known items"],
+        ["gui", "CMD_REPLAY_MESSAGES", "Messages"],
+        ["gui", "CMD_DISPLAY_OVERMAP", "Overview"],
+        ["gui", "CMD_MAP_FIND_UPSTAIR", "Up stairs"],
+        ["gui", "CMD_MAP_FIND_DOWNSTAIR", "Down stairs"],
+        ["gui", "CMD_MAP_FIND_ALTAR", "Altar"],
+        ["gui", "CMD_MAP_FIND_PORTAL", "Portal"],
+        ["gui", "CMD_MAP_FIND_STASH", "Stash"],
+        ["gui", "CMD_MAP_ADD_WAYPOINT", "Waypoint"],
+        ["gui", "CMD_MAP_EXCLUDE_AREA", "Exclude"],
+        ["gui", "CMD_LOOKUP_HELP", "Help"],
+        ["gui", "CMD_SAVE_GAME_NOW", "Save"], ["gui", "CMD_GAME_MENU", "Menu"]];
+
+    // not yet sent (options arrive with the game): assume tiles
+    function tiles_on()
+    {
+        try { return options.get("tile_display_mode") !== "glyphs"; }
+        catch (e) { return true; }
+    }
+
+    var SHEETS = { gui: gui, main: main, feat: feat, icons: icons };
+
+    function draw_sheet(r, sheet, idx)
+    {
+        if (sheet === "gui") r.draw_gui(idx, 0, 0);
+        else if (sheet === "main") r.draw_main(idx, 0, 0);
+        else if (sheet === "feat") r.draw_dngn(idx, 0, 0);
+        else r.draw_icon(idx, 0, 0);
+    }
+
+    // pickable tiles: {name, draw: fn(renderer)}
+    function sheet_tile(sheet, idx, name)
+    {
+        return { name: name, draw: function (r) { draw_sheet(r, sheet, idx); } };
+    }
+
+    function own_tiles()
+    {
+        var out = [];
+        function add_gui(list)
+        {
+            (Array.isArray(list) ? list : []).forEach(function (x) {
+                if (x && x.name && typeof x.tile === "number" && x.tile >= 0
+                    && typeof x.tex === "number")
+                    out.push({ name: x.name, draw: function (r) {
+                        r.draw_from_texture(x.tile, 0, 0, x.tex, 0, 0,
+                                            undefined, false);
+                    } });
+            });
+        }
+        add_gui(player.spells);
+        add_gui(Array.isArray(player.talents) ? player.talents
+                : player.abilities);
+        Object.keys(player.inv || {}).forEach(function (k) {
+            var it = player.inv[k];
+            if (!it || !it.quantity || !Array.isArray(it.tile)
+                || !it.tile.length) return;
+            out.push({ name: it.name || "item", draw: function (r) {
+                it.tile.forEach(function (t) { r.draw_main(t, 0, 0); });
+            } });
+        });
+        return out;
+    }
+
+    function action_tiles()
+    {
+        return CMD_TILES.filter(function (c) {
+            return typeof SHEETS[c[0]][c[1]] === "number";
+        }).map(function (c) {
+            return sheet_tile(c[0], SHEETS[c[0]][c[1]], c[2]);
+        });
+    }
+
+    var TILE_CATS = [
+        ["all", "All"], ["actions", "Actions"], ["own", "Yours"],
+        ["spells", "Spells"], ["abilities", "Abilities"], ["skills", "Skills"],
+        ["weapons", "Weapons"], ["armour", "Armour"], ["items", "Items"],
+        ["jewellery", "Jewellery"], ["artefacts", "Artefacts"],
+        ["dungeon", "Dungeon"], ["effects", "Effects"],
+        ["mutations", "Mutations"], ["characters", "Species & jobs"]];
+
+    // main sheet: name prefix -> category
+    var MAIN_CATS = {
+        WPN: "weapons", MI: "weapons", ARM: "armour", KITE: "armour",
+        TOWER: "armour", THELM: "armour", DEEP: "armour", IRON: "armour",
+        RING: "jewellery", AMU: "jewellery", UNRAND: "artefacts",
+        CLOUD: "effects" };
+    ["WAND", "FOOD", "SCR", "SCROLL", "POT", "POTION", "GIZMO", "BOOK",
+     "STAFF", "ROD", "ORB", "MISC", "RUNE", "GEM", "TALISMAN", "BAUBLE",
+     "GOLD"].forEach(function (p) { MAIN_CATS[p] = "items"; });
+    // icons sheet: UI furniture, not status icons
+    var ICON_SKIP = new RegExp("^(MASK|CURSOR\\d*|TUTORIAL|DISABLED|NUM\\d*"
+                               + "|TRAVEL|MDAM|ITEM|NEW|ELLIPSIS|MESH|OOR"
+                               + "|MORE|TODO|ERROR)(_|$)");
+
+    // "WPN_LONG_SWORD" -> "long sword" (strip: drop the type prefix)
+    function nice_name(n, strip)
+    {
+        if (strip) n = n.replace(/^[A-Z]+\d*_/, "");
+        return n.replace(/_/g, " ").toLowerCase();
+    }
+
+    var catalog = null;     // category -> [tile], built on first use
+    function tile_catalog()
+    {
+        if (catalog) return catalog;
+        var c = {}, seen = {};
+        TILE_CATS.forEach(function (k) { c[k[0]] = []; });
+        // one tile per name (numbered variants and aliases dropped)
+        function add(cat, sheet, n, label)
+        {
+            var idx = SHEETS[sheet][n];
+            var base = sheet + ":" + n.replace(/_?\d+$/, "");
+            if (seen[base] || seen[sheet + "#" + idx]) return;
+            seen[base] = seen[sheet + "#" + idx] = true;
+            c[cat].push(sheet_tile(sheet, idx, label));
+        }
+        function each(sheet, fn)
+        {
+            var m = SHEETS[sheet] || {};
+            Object.keys(m).forEach(function (n) {
+                if (typeof m[n] === "number" && !/^TILE|_MAX$/.test(n))
+                    fn(n, m[n]);
+            });
+        }
+        // gui: player and monster spells, then the skill icons (_ON,
+        // _FOCUS, ... blocks), then prefixed groups
+        var lo = gui.AIRSTRIKE, sk0 = gui.FIGHTING_ON,
+            sk1 = gui.FIGHTING_FOCUS;
+        each("gui", function (n, v) {
+            if (v >= lo && v < sk0)
+                add("spells", "gui", n, nice_name(n));
+            else if (v >= sk0 && v < sk1)
+            {
+                if (/_ON$/.test(n))
+                    add("skills", "gui", n, nice_name(n.replace(/_ON$/, "")));
+            }
+            else if (/^(ABILITY|NEMELEX)_/.test(n))
+                add("abilities", "gui", n, nice_name(n, true));
+            else if (/^MUT_/.test(n))
+                add("mutations", "gui", n, nice_name(n, true));
+            else if (/^SP_|^JOB_(?!RECOMMENDED)/.test(n))
+                add("characters", "gui", n, nice_name(n, true));
+        });
+        each("main", function (n) {
+            var p = n.split("_")[0].replace(/^GOLD\d+$/, "GOLD");
+            if (MAIN_CATS[p])
+                add(MAIN_CATS[p], "main", n, nice_name(n, true));
+        });
+        each("feat", function (n) {
+            if (/^(DNGN|SHOP)_/.test(n))
+                add("dungeon", "feat", n, nice_name(n, true));
+        });
+        each("icons", function (n) {
+            if (!ICON_SKIP.test(n))
+                add("effects", "icons", n, nice_name(n));
+        });
+        catalog = c;
+        return c;
+    }
+
+    function tiles_in(cat)
+    {
+        if (cat === "actions") return action_tiles();
+        if (cat === "own") return own_tiles();
+        if (cat !== "all") return tile_catalog()[cat] || [];
+        var out = action_tiles().concat(own_tiles());
+        TILE_CATS.slice(3).forEach(function (k) {
+            out = out.concat(tile_catalog()[k[0]]);
+        });
+        return out;
+    }
+
+    // a canvas with the tile drawn, or null (tile sheet not ready)
+    function tile_canvas(t)
+    {
+        var c = document.createElement("canvas");
+        try
+        {
+            var r = new cr.DungeonCellRenderer();
+            util.init_canvas(c, r.cell_width, r.cell_height);
+            c.style.width = "";
+            c.style.height = "";
+            r.init(c);
+            t.draw(r);
+            return c;
+        }
+        catch (e) { return null; }
+    }
+
+    // the macro's face as a pinned button would show it
+    function face_preview(st)
+    {
+        var b = $("<span class='sdc-m-btn'>");
+        if (st.face === "tile" && st.img)
+            b.addClass("sdc-m-imgbtn").append(
+                $("<img class='sdc-m-mimg' alt=''>").attr("src", st.img));
+        else if (st.face === "text" && st.icon)
+            b.addClass("sdc-m-emoji").text(st.icon);
+        else
+            b.text(st.label() || "Name");
+        return b;
+    }
+
+    // name + keys inputs, the face choice and its picker; typing here must
+    // not reach the game
     function macro_form()
     {
         var cur = editing >= 0 ? macros()[editing] : null;
         if (!cur) editing = -1;
         var form = $("<form class='sdc-m-form'>");
-        var icon = $("<input type='text' class='sdc-m-iconin'"
-                     + " placeholder='Emoji' maxlength='16'>");
-        var label = $("<input type='text' placeholder='Label' maxlength='12'>");
+        var label = $("<input type='text' placeholder='Name' maxlength='12'>");
         var keys = $("<input type='text' placeholder='Keys, e.g. za or Ctrl+F'>");
         if (cur)
         {
-            icon.val(cur.icon || "");
             label.val(cur.label);
             keys.val(cur.keys);
         }
-        form.append(icon, label, keys,
-                    $("<button type='submit' class='sdc-m-btn'>")
-                        .text(cur ? "Save" : "Add"));
+        var st = {
+            face: cur && cur.img ? "tile" : "text",
+            // an older macro's emoji: kept until a tile or the name replaces it
+            icon: cur && !cur.img ? cur.icon || "" : "",
+            img: cur && cur.img || "",
+            tiles: "all",
+            q: "",
+            label: function () {
+                return label.val().trim() || keys.val().trim();
+            },
+        };
+
+        var prev = $("<div class='sdc-m-prev'>");
+        var seg = $("<div class='sdc-m-seg' role='radiogroup'>");
+        var pick = $("<div class='sdc-m-pick'>");
+        function refresh()
+        {
+            prev.empty().append(face_preview(st));
+            seg.children().each(function () {
+                var on = $(this).data("face") === st.face;
+                $(this).toggleClass("sdc-m-on", on)
+                    .attr("aria-checked", on ? "true" : "false");
+            });
+        }
+        function choice(face, text)
+        {
+            return $("<button type='button' class='sdc-m-btn' role='radio'>")
+                .text(text).data("face", face)
+                .on("click", function (ev) {
+                    ev.preventDefault();
+                    buzz();
+                    st.face = face;
+                    render_pick();
+                    refresh();
+                });
+        }
+        seg.append(choice("text", "Text"), choice("tile", "Tile"));
+
+        function cell(content, title, on, fn)
+        {
+            return $("<button type='button' class='sdc-m-pcell'>")
+                .append(content).toggleClass("sdc-m-on", !!on)
+                .attr({ title: title, "aria-label": title })
+                .on("click", function (ev) {
+                    ev.preventDefault();
+                    buzz();
+                    fn();
+                    pick.children(".sdc-m-pgrid").children()
+                        .removeClass("sdc-m-on");
+                    $(this).addClass("sdc-m-on");
+                    refresh();
+                });
+        }
+        // keys typed in a picker input stay out of the game; Enter does not
+        // submit the macro form
+        function shield(input)
+        {
+            return input.attr({ autocomplete: "off", autocapitalize: "off",
+                                autocorrect: "off", spellcheck: "false" })
+                .on("keydown keypress keyup input", function (ev) {
+                    ev.stopPropagation();
+                    if (ev.type === "keydown" && ev.key === "Enter")
+                        ev.preventDefault();
+                });
+        }
+        var obs = null;     // loads more grid cells while scrolling
+        function render_pick()
+        {
+            if (obs) obs.disconnect();
+            obs = null;
+            pick.empty();
+            if (st.face === "text" && st.icon)
+            {
+                pick.append($("<div class='sdc-m-hint'>").text(
+                    "The button shows its emoji. Pick a tile instead, or:"),
+                    small_button("Show the name", "Show the name instead",
+                                 function () {
+                                     st.icon = "";
+                                     render_pick();
+                                     refresh();
+                                 }));
+                return;
+            }
+            if (st.face === "text")
+            {
+                pick.append($("<div class='sdc-m-hint'>").text(
+                    "The button shows its name."));
+                return;
+            }
+            var grid = $("<div class='sdc-m-pgrid'>");
+            if (!tiles_on())
+            {
+                pick.append($("<div class='sdc-m-hint'>").text(
+                    "Tiles need the tile display mode (not glyphs)."));
+                return;
+            }
+            var chips = $("<div class='sdc-m-chips'>");
+            TILE_CATS.forEach(function (k) {
+                chips.append($("<button type='button' class='sdc-m-btn'>")
+                    .text(k[1]).data("cat", k[0])
+                    .toggleClass("sdc-m-on", st.tiles === k[0])
+                    .on("click", function (ev) {
+                        ev.preventDefault();
+                        buzz();
+                        st.tiles = k[0];
+                        chips.children().each(function () {
+                            $(this).toggleClass("sdc-m-on",
+                                                $(this).data("cat") === k[0]);
+                        });
+                        fill();
+                    }));
+            });
+            var timer = null;
+            var search = shield($("<input type='search' class='sdc-m-psearch'"
+                                  + " placeholder='Search tiles'>"));
+            search.val(st.q).on("input", function () {
+                st.q = search.val();
+                clearTimeout(timer);
+                timer = setTimeout(fill, 150);
+            });
+            var count = $("<div class='sdc-m-hint'>");
+            pick.append(chips, search, count, grid);
+
+            // draws the list in batches as the grid scrolls; the PNG is made
+            // only for the tile that gets picked
+            function fill()
+            {
+                if (obs) obs.disconnect();
+                obs = null;
+                grid.empty();
+                grid[0].scrollTop = 0;
+                var q = $.trim(st.q || "").toLowerCase();
+                var list = tiles_in(st.tiles).filter(function (t) {
+                    return !q || t.name.toLowerCase().indexOf(q) >= 0;
+                });
+                count.text(list.length ? list.length + " tiles"
+                           : st.tiles === "own" && !q ? "Nothing to show yet."
+                           : "No tiles match.");
+                var i = 0, more = $("<div class='sdc-m-pmore'>");
+                function pick_fn(c)
+                {
+                    return function () {
+                        try { st.img = c.toDataURL("image/png"); }
+                        catch (e) { /* unreadable canvas: keep the old one */ }
+                    };
+                }
+                function batch()
+                {
+                    more.detach();
+                    var end = Math.min(list.length, i + 64);
+                    for (; i < end; i++)
+                    {
+                        var c = tile_canvas(list[i]);
+                        if (c)
+                            grid.append(cell(c, list[i].name, false,
+                                             pick_fn(c)));
+                    }
+                    if (i < list.length) grid.append(more);
+                    else if (obs) obs.disconnect();
+                }
+                batch();
+                if (i < list.length && window.IntersectionObserver)
+                {
+                    obs = new IntersectionObserver(function (es) {
+                        if (es.some(function (e) { return e.isIntersecting; }))
+                            batch();
+                    }, { root: grid[0], rootMargin: "120px" });
+                    obs.observe(more[0]);
+                }
+            }
+            fill();
+            // the chosen chip in view (only the chip row scrolls)
+            var on = chips.children(".sdc-m-on")[0];
+            if (on) chips[0].scrollLeft = Math.max(0, on.offsetLeft - 40);
+        }
+
+        form.append(
+            $("<label class='sdc-m-flabel'>").text("Name"), label,
+            $("<label class='sdc-m-flabel'>").text("Keys"), keys,
+            $("<div class='sdc-m-frow'>").append(
+                $("<span class='sdc-m-flabel'>").text("Button shows"),
+                seg, prev),
+            pick,
+            $("<button type='submit' class='sdc-m-btn'>")
+                .text(cur ? "Save" : "Add"));
         if (cur)
             form.append(small_button("Cancel", "Cancel editing", function () {
                 editing = -1;
                 render_macros();
             }));
         form.append($("<div class='sdc-m-hint'>").text(
-            "Emoji (optional) replaces the label on the button. Keys: Tab Esc"
-            + " Enter Space Bksp, Ctrl+X, or characters. 📌 pins a"
-            + " macro on screen."));
+            "Keys: Tab Esc Enter Space Bksp, Ctrl+X, or characters. The name"
+            + " is always shown in this list; 📌 pins a macro on screen."));
+        render_pick();
+        refresh();
+        label.add(keys).on("input", function () {
+            if ((st.face === "text" && !st.icon) || !st.img) refresh();
+        });
         form.find("input").attr({ autocomplete: "off", autocapitalize: "off",
                                   autocorrect: "off", spellcheck: "false" })
             .on("keydown keypress keyup input", function (ev) {
@@ -553,8 +978,10 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             if (!k) return;
             var m = $.extend({}, cur || {},
                              { label: label.val().trim() || k, keys: k,
-                               icon: icon.val().trim(),
+                               icon: st.face === "text" ? st.icon : "",
                                pin: cur ? !!cur.pin : false });
+            if (st.face === "tile" && st.img) m.img = st.img;
+            else delete m.img;
             // edited keys: no longer resolved from the spell's name
             if (is_char_pin(cur) && k !== cur.keys)
             {
