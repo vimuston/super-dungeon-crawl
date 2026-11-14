@@ -1354,7 +1354,11 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
                 d.status.push(in_status);
                 return;
             }
-            if (in_status && /^\s+\S/.test(t))
+            // crawl's linebreak_string wraps without indenting: until the
+            // list's closing "." any plain (non-columned) line continues it
+            if (in_status && t.trim()
+                && (/^\s+\S/.test(t)
+                    || (!/\.$/.test(in_status.text) && !/\S {2,}\S/.test(t))))
             {
                 in_status.text += " " + t.trim();
                 return;
@@ -1563,7 +1567,7 @@ define(["jquery", "comm", "./sdc_api"], function ($, comm, api) {
             var c = card("sdc-mm-stt", STATUS_LABEL[s.key] || s.key);
             var chips = el("div", "sdc-mm-chips");
             var none = /^no /.test(s.text);
-            (none ? [s.text] : s.text.replace(/\.$/, "").split(/,\s*/)).forEach(function (t) {
+            (none ? [s.text] : s.text.replace(/\.$/, "").split(/,\s*/)).filter(Boolean).forEach(function (t) {
                 chips.appendChild(el("span", "sdc-mm-chip2" + (none ? " none" : ""), t));
             });
             c.appendChild(chips);
