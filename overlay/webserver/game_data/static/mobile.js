@@ -26,8 +26,11 @@
 //     lettered choices in the log (Gozag's merchants and potions, Nemelex's
 //     Draw Three, ally orders, Hepliaklqana's ancestor) get one button each.
 //   - big thumb buttons: Fight (Tab) bottom-left, Explore (o) bottom-right.
-//   - dungeon touch: tap = click a tile (travel / attack), swipe = one step
-//     in 8 directions (a long swipe runs), long-press = describe.
+//   - dungeon touch: tap = click a tile (travel / attack), long-press =
+//     describe. With "Thumbstick movement" on, a swipe = one step in 8
+//     directions: a d-pad fades in where the finger went down, the
+//     direction under the finger lights up and can be changed until the
+//     finger lifts; back in the centre it cancels. Off, swipes don't move.
 //   - map view (X, or a Find result): tap the cursor = travel there; tap
 //     elsewhere = move the cursor there (tap it again to travel). The < / >
 //     buttons beside Close map jump the cursor to the next up / down stairs.
@@ -39,6 +42,7 @@
 //   "mobile"         auto / on / off. Auto = touch screen or the wrapper.
 //   "mobile_fight_btn" / "mobile_explore_btn"
 //                    show (default) or hide each thumb button.
+//   "mobile_stick"   swipes show the thumbstick d-pad (default off).
 //   "msg_fade"       seconds the message bubble stays up.
 //   "mobile_zoom"    tile zoom step, gesture-only (pinch with 2.5D off;
 //                    with 2.5D on the tiles stay at Fit and pinch drives
@@ -92,6 +96,12 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     api.register_option({ key: "mobile_explore_btn", label: "Explore button",
                           default: true,
                           choices: [[true, "Show"], [false, "Hide"]] });
+    api.register_option({ key: "mobile_stick", label: "Thumbstick movement",
+                          default: false,
+                          choices: [[false, "Off"], [true, "On"]],
+                          hint: ["Swipes step with a d-pad (touch screens)",
+                                 "Swipe anywhere to step with a d-pad; slide "
+                                 + "to aim, back to the centre to cancel"] });
     api.register_option({ key: "msg_fade", label: "Message fade (s)",
                           default: 5, range: { min: 2, max: 15, step: 1 } });
     // Stock webtiles shrinks tiles until a 17-cell diameter fits, which is
@@ -2013,6 +2023,8 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         }
         touch.dx = dx;
         touch.dy = dy;
+        if (touch.moved && stick_on())
+            stick_show(touch.x, touch.y, dx, dy);
     }
 
     function on_touchend(ev)
@@ -2054,7 +2066,10 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             if (ev.cancelable) ev.preventDefault();
             ev.stopImmediatePropagation();
             if (t.moved)
-                swipe(t.dx, t.dy);
+            {
+                if (stick_on()) move_gesture(t);
+                else swipe(t.dx, t.dy);
+            }
             else if (!t.long)
                 map_tap(t.target, t.x, t.y);
             return;
@@ -2069,9 +2084,10 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         }
         else if (t.moved)
         {
-            // no synthesized click after a swipe
+            // no synthesized click after a swipe; it only moves with the
+            // thumbstick on
             if (ev.cancelable) ev.preventDefault();
-            swipe(t.dx, t.dy);
+            if (stick_on()) move_gesture(t);
         }
         else if (aim.on)
         {
@@ -2088,12 +2104,120 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         if (touch && touch.timer)
             clearTimeout(touch.timer);
         touch = null;
+        stick_hide();
     }
 
+    function sector_of(dx, dy)
+    {
+        return (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
+    }
+
+    // a finished thumbstick swipe: one step the picked way
+    function move_gesture(t)
+    {
+        var sector = stick_sector(t.dx, t.dy);
+        if (sector >= 0) send_keys(DIRS[sector]);   // centre: cancelled
+    }
+
+    // Thumbstick d-pad ----------------------------------------------------------
+    // Drawn centred on the touch-down point once a touch turns into a swipe;
+    // the finger's offset from there picks one of 8 directions (lit wedge
+    // and arrow). Inside STICK_DEAD nothing is picked (lifting there
+    // cancels). pointer-events none: the touch handlers above do the work.
+
+    var STICK_PAD = 62;         // px radius of the pad disc
+    var STICK_DEAD = SLOP;      // px around the centre that picks nothing
+    var STICK_BOX = STICK_PAD + 12;     // half the element's size
+    var stick_el = null, stick_key = "";
+
+    function stick_on()
+    {
+        return api.get("mobile_stick") === true;
+    }
+
+    function stick_sector(dx, dy)
+    {
+        return dx * dx + dy * dy < STICK_DEAD * STICK_DEAD
+            ? -1 : sector_of(dx, dy);
+    }
+
+    function pt(r, a)
+    {
+        return (r * Math.cos(a)).toFixed(1) + "," + (r * Math.sin(a)).toFixed(1);
+    }
+
+    function stick_build()
+    {
+        var S = STICK_BOX, h = Math.PI / 8;
+        var r0 = STICK_DEAD, r1 = STICK_PAD - 2;
+        var svg = ["<svg viewBox='" + -S + " " + -S + " " + 2 * S + " "
+                   + 2 * S + "' aria-hidden='true'>",
+                   "<circle class='pad' r='" + STICK_PAD + "'/>"];
+        // one group per sector, drawn pointing right (+x) and rotated to its
+        // angle (i * 45deg, clockwise on screen): a wedge and the arrow
+        for (var i = 0; i < 8; i++)
+        {
+            var diag = i % 2 === 1;
+            var tip = diag ? 46 : 50, base = tip - (diag ? 10 : 13),
+                w = diag ? 7 : 9;
+            svg.push("<g class='dir' transform='rotate(" + i * 45 + ")'>"
+                + "<path class='wedge' d='M" + pt(r0, -h) + " L" + pt(r1, -h)
+                + " A" + r1 + "," + r1 + " 0 0 1 " + pt(r1, h)
+                + " L" + pt(r0, h) + " A" + r0 + "," + r0 + " 0 0 0 "
+                + pt(r0, -h) + "Z'/>"
+                + "<path class='arrow' d='M" + tip + ",0 L" + base + "," + -w
+                + " L" + base + "," + w + "Z'/>"
+                + "</g>");
+        }
+        svg.push("<circle class='hub' r='" + (STICK_DEAD - 4) + "'/>",
+                 "<circle class='knob' r='9'/>", "</svg>");
+        stick_el = document.createElement("div");
+        stick_el.id = "sdc_m_stick";
+        stick_el.innerHTML = svg.join("");
+        document.body.appendChild(stick_el);
+    }
+
+    function stick_show(x, y, dx, dy)
+    {
+        if (!stick_el || !stick_el.isConnected) stick_build();
+        var S = STICK_BOX, m = STICK_PAD + 4;
+        // keep the pad on screen; the offset still counts from where the
+        // finger went down
+        var cx = Math.max(m, Math.min(window.innerWidth - m, x)),
+            cy = Math.max(m, Math.min(window.innerHeight - m, y));
+        stick_el.style.left = (cx - S) + "px";
+        stick_el.style.top = (cy - S) + "px";
+        // the knob follows the finger, held on the pad's rim
+        var d = Math.sqrt(dx * dx + dy * dy),
+            k = d > STICK_PAD ? STICK_PAD / d : 1;
+        var knob = stick_el.querySelector(".knob");
+        knob.setAttribute("cx", (dx * k).toFixed(1));
+        knob.setAttribute("cy", (dy * k).toFixed(1));
+        var sector = stick_sector(dx, dy), key = String(sector);
+        if (key !== stick_key)
+        {
+            // a light tick when the pick changes mid-swipe
+            if (stick_key && sector >= 0) buzz(6);
+            stick_key = key;
+            var dirs = stick_el.querySelectorAll(".dir");
+            for (var i = 0; i < dirs.length; i++)
+                dirs[i].classList.toggle("on", i === sector);
+            stick_el.classList.toggle("sdc-m-idle", sector < 0);
+        }
+        stick_el.classList.add("sdc-m-show");
+    }
+
+    // fades out (mobile.css), keeping the last pick lit on the way
+    function stick_hide()
+    {
+        if (stick_el) stick_el.classList.remove("sdc-m-show");
+        stick_key = "";
+    }
+
+    // map view: a swipe moves the map cursor (a long one jumps further)
     function swipe(dx, dy)
     {
-        var sector = Math.round(Math.atan2(dy, dx) / (Math.PI / 4));
-        var key = DIRS[(sector + 8) % 8];
+        var key = DIRS[sector_of(dx, dy)];
         // a long swipe (over a third of the short screen side) runs
         var run = Math.sqrt(dx * dx + dy * dy)
             > Math.min(window.innerWidth, window.innerHeight) / 3;

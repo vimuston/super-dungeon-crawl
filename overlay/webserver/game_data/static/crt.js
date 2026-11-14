@@ -182,7 +182,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
                      "fogedge_amount"]],
         ["Interface", ["turn_counter", "#Mobile", "mobile", "mobile_menus",
                        "mobile_fight_btn", "mobile_explore_btn",
-                       "quickbar_show",
+                       "quickbar_show", "mobile_stick",
                        "msg_fade", "#Travel", "explore_delay",
                        "offscreen_arrows"]],
         ["Other", []]
@@ -195,7 +195,8 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         msg_fade: ["mobile", "off"],
         mobile_fight_btn: ["mobile", "off"],
         mobile_explore_btn: ["mobile", "off"],
-        quickbar_show: ["mobile", "off"]
+        quickbar_show: ["mobile", "off"],
+        mobile_stick: ["mobile", "off"]
     };
 
     function refresh_deps(panel, key)
