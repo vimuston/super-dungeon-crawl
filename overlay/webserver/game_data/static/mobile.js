@@ -1597,12 +1597,14 @@ function ($, comm, api, renderer, enums, options, player, view_data,
 
     // dungeon_feature_type values (TAG_MAJOR_VERSION 34) whose stairs
     // direction (terrain.cc feat_stair_direction) is up; down is the same
-    // for the down stairs, hatches, branch / portal entrances, Abyss and Pan
-    // gates. Shops and altars count as "down" there but aren't stairs.
+    // for the down stairs, hatches, branch / portal entrances, Abyss gates
+    // (54 enter, 55 exit, 61 exit through, 132 abyssal stair), Pan gates and
+    // transporters (171). Shops and altars count as "down" there but aren't
+    // stairs.
     var STAIRS_UP = [46, 47, 48, 49, 60, 62, 67, 175, 194, 210, 217, 222]
         .concat(range(86, 102), range(149, 159), range(198, 201));
     var STAIRS_DOWN = [42, 43, 44, 45, 54, 55, 57, 58, 59, 61, 63, 64, 66,
-                       132, 174, 193, 209, 216, 221]
+                       132, 171, 174, 193, 209, 216, 221]
         .concat(range(50, 53), range(69, 85), range(139, 148));
     function range(a, b)
     {
