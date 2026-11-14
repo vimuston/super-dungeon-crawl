@@ -2040,7 +2040,10 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             return;
         }
         if (t.long)
+        {
+            // braces: an unbraced nested if would capture the else chain
             if (ev.cancelable) ev.preventDefault();
+        }
         else if (more_pending())
         {
             // any tap or swipe answers --more--
