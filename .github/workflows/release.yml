@@ -14,7 +14,7 @@ name: Release builds
 #   ANDROID_KEYSTORE_BASE64   base64 of a .jks keystore
 #   ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
 #
-# Google Play (see docs/google-play.md): the android job also builds the
+# Google Play: the android job also builds the
 # Play bundle (.aab, kept as the android-play workflow artifact). With the
 # secret PLAY_SERVICE_ACCOUNT_JSON set, a tag push uploads it to Play too:
 # track from the variable PLAY_TRACK (default internal), release status from

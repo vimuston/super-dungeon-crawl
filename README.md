@@ -369,9 +369,7 @@ the patches and client hooks against upstream crawl, the Android Java).
 
 `.github/workflows/release.yml` builds everything from one pinned crawl commit:
 the server packages (x86-64 on `ubuntu-22.04`, arm64 on `ubuntu-22.04-arm`),
-the APK (plus the Google Play bundle, `.aab`) and the Windows exe. Releasing
-on Google Play is covered step by step in
-[docs/google-play.md](docs/google-play.md).
+the APK (plus the Google Play bundle, `.aab`) and the Windows exe.
 
 - Push a tag `v*` (for example `git tag v2.0.0 && git push origin v2.0.0`) to
   build and publish a GitHub Release with all four files.
