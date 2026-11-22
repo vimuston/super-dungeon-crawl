@@ -1,5 +1,49 @@
 # Changelog
 
+## v1.7.0 (2026-11-22)
+
+A big update for phone players: an always-on d-pad for careful step-by-step
+play, a lobby that keeps several characters (seeded games too) going side by
+side, and a one-tap character dump. Settings are sorted into Game, Controls,
+Effects and Interface tabs, and the game has a new torch-lit icon.
+
+### Added
+- Always-on d-pad, a third touch control scheme next to Tap to move and
+  Thumbstick. Press a direction to step, hold it to run; the centre waits a
+  turn, rests when held, and confirms while aiming. Its size and position
+  (left, middle, right) are adjustable, and Fight, Explore, the quick-use bar
+  and pinned macros move to fit around it.
+  ([#102](https://github.com/vimuston/super-dungeon-crawl/issues/102))
+- A Controls settings tab (also Tools > Controls) with the control scheme, the
+  d-pad options, an opacity slider for the on-screen controls, and show/hide
+  switches for Fight, Explore and the quick-use bar.
+- Several saved characters on every build. The lobby lists every saved
+  character to continue and a New game card per mode (normal, seeded, sprint,
+  descent) that asks for a name, on the web server, the Windows app and the
+  Android app alike.
+  ([#103](https://github.com/vimuston/super-dungeon-crawl/issues/103))
+- Dump # on the phone % sheet writes your morgue file and copies the character
+  dump to the clipboard, ready to paste anywhere. If the copy is blocked, the
+  text is shown with a Copy button.
+  ([#103](https://github.com/vimuston/super-dungeon-crawl/issues/103))
+- A new Torchlight icon, an amber @ in a torch glow, for the Android launcher
+  (themed icons included), the browser tab and the Windows app.
+
+### Changed
+- Settings now have Game, Controls, Effects and Interface tabs. Screen, 2.5D
+  and Effects are merged into Effects; auto-explore delay and empty-slot pickup
+  moved to Game. The CRT filter is simply On or Off; chroma bleed and the
+  perspective slider are gone (drag or swipe sets perspective in game). Your
+  old settings carry over.
+- "Hotbar: select first" is now "Quick-use bar: select first".
+- Android: Tools > Saves export/import is gone; the lobby's saved characters
+  replace it.
+- Android: the app targets Android 16, and Back works on Android 13 and newer.
+
+### Fixed
+- In the Android app the HP/MP bars line up with the Items / Spells / Skills
+  buttons instead of sitting above them.
+
 ## v1.6.2 (2026-11-22)
 
 A small fix release for phone play. The explored map is readable again,
