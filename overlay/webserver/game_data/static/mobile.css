@@ -515,6 +515,24 @@ body.sdc-mobile #sdc_m_explore {
     right: calc(12px + env(safe-area-inset-right));
 }
 body.sdc-mobile .sdc-m-big:active { opacity: 1; transform: scale(0.95); }
+/* "UI opacity" (ui_opacity): the on-screen buttons and the quick-use bar
+   (canvas, frame, captions, god abilities, dock, selection ring, minimised
+   placeholder) fade together, on top of their own resting / pressed
+   opacity; the HP/MP panel is left alone */
+body.sdc-mobile.sdc-m-uialpha #action-panel,
+body.sdc-mobile.sdc-m-uialpha #action-panel-placeholder,
+body.sdc-mobile.sdc-m-uialpha #sdc_qb_ab,
+body.sdc-mobile.sdc-m-uialpha #sdc_qb_frame,
+body.sdc-mobile.sdc-m-uialpha #sdc_qb_caps,
+body.sdc-mobile.sdc-m-uialpha #sdc_qb_dock,
+body.sdc-mobile.sdc-m-uialpha #sdc_qb_sel,
+body.sdc-mobile.sdc-m-uialpha #sdc_m_toolbtn,
+body.sdc-mobile.sdc-m-uialpha #sdc_m_quick,
+body.sdc-mobile.sdc-m-uialpha .sdc-m-big,
+body.sdc-mobile.sdc-m-uialpha #sdc_m_pin,
+body.sdc-mobile.sdc-m-uialpha #sdc_m_dpad {
+    filter: opacity(var(--sdc-ui-alpha, 1));
+}
 /* the quick-use bar is cropped between these two; while a finger
    magnifies it (or a "select first" pick is armed) the whole bar shows
    and they step aside (quickbar.js) */

@@ -69,9 +69,10 @@ glowing trail.
 ### Mobile layout
 
 On phones (and in the Android app) the client becomes a touch game rather
-than a shrunken desktop page: tap to travel or attack, swipe to step,
-long-press to describe. Long-press your character for the **orb menu**, a ring
-of orbs you slide onto to fan out spells, wands and abilities. Messages appear
+than a shrunken desktop page: tap to travel or attack, swipe or use the
+on-screen d-pad to step, long-press to describe. Long-press your character
+for the **orb menu**, a ring of orbs you slide onto to fan out spells, wands
+and abilities. Messages appear
 in a fading bubble, the quick-use bar sits at the very bottom, your own macros
 can be pinned on screen, y/n
 questions get real buttons, and the menus (skills, spells, character
@@ -192,9 +193,16 @@ The same toggles are the icon buttons above the minimap. The settings panel
 covers the HUD layout, splash text, CRT filter strength, living tiles, the
 2.5D view and the individual effects.
 
-**Touch** (phones and the Android app): tap a tile to travel or attack, swipe
-for one step (a long swipe runs), long-press to describe; any tap continues
-past `--more--`. Tap the HP/MP pill (top-left) to enlarge it to the full
+**Touch** (phones and the Android app): tap a tile to travel or attack,
+long-press to describe; any tap continues past `--more--`. Tools > Controls
+picks how else you move: nothing more (Tap to move), swipes with a thumbstick,
+or an always-on **d-pad** (press a direction to step, hold to run; the centre
+waits, or rests when held, and confirms while aiming). The d-pad's size and
+position (left, middle, right) are adjustable, and Fight and Explore resize
+to fit beside it. The same tab shows or hides Fight, Explore and the
+quick-use bar, and sets the UI opacity of the on-screen buttons (the top-right
+row, Fight, Explore, pinned macros, the d-pad and the quick-use bar; not the
+HP/MP panel). Tap the HP/MP pill (top-left) to enlarge it to the full
 stats card. Tools (top-right) has the menus, the on-screen keyboard and zoom
 (or pinch the dungeon). Tools > Macros defines your own key sequences, each
 with an optional emoji in place of its label; pin a macro to keep it on
