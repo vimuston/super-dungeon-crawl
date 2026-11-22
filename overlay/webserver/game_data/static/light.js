@@ -375,6 +375,26 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, view_data,
         em_n++;
     }
 
+    // A lone cloud glows at full strength, but inside a cloud field every
+    // cell's light overlaps its neighbours', so a big poison cloud summed to
+    // a glare that hid the monsters in it (issue #84). Scale each cloud
+    // light down by how many same-class clouds surround it (fully inside a
+    // field: about a quarter).
+    function cloud_density_f(x, y, c)
+    {
+        var n = 0;
+        for (var dy = -1; dy <= 1; dy++)
+        {
+            for (var dx = -1; dx <= 1; dx++)
+            {
+                if (!dx && !dy) continue;
+                var t = map_knowledge.get(x + dx, y + dy).t;
+                if (t && t.cloud && tile_class(t.cloud) === c) n++;
+            }
+        }
+        return 1 / (1 + 0.4 * n);
+    }
+
     // Aura cells (Shining One halo, silence) form a square or disc; fade them
     // out radially from the centre so the glow reads as a soft disc.
     var halo_x = [], halo_y = [], halo_n = 0;
@@ -443,7 +463,8 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, view_data,
                              && (c = tile_class(t.mcache[0][0])))
                         push(x, y, c, 1);
                 }
-                if (t.cloud && (c = tile_class(t.cloud))) push(x, y, c, 1);
+                if (t.cloud && (c = tile_class(t.cloud)))
+                    push(x, y, c, cloud_density_f(x, y, c));
                 if (t.halo == enums.HALO_RANGE)
                 {
                     halo_x[halo_n] = x; halo_y[halo_n] = y; halo_n++;
