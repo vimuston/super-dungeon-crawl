@@ -73,7 +73,7 @@ function ($, comm, client, api, player, enums, options, cr, util, fxkit) {
         ["Pick up", "g"], ["Map", "X"], ["Rest", "5"], ["Wait", "s"],
         ["Look", "x"], ["Travel", "G"], ["Explore", "o"], ["Fight", "Tab"],
         ["Fire", "f"], ["Quaff", "q"], ["Read", "r"],
-        ["Inventory", "i"], ["Find", "Ctrl+F"], ["Up <", "<"],
+        ["Inventory", "i"], ["Drop", "d"], ["Find", "Ctrl+F"], ["Up <", "<"],
         ["Down >", ">"], ["Pray", "p"], ["Character", "%"],
     ];
 

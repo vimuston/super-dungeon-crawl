@@ -88,3 +88,21 @@ patch(game_data / "static" / "game.js", [
      "    });\n\n"
      "    // ugly circular reference breaking"),
 ])
+
+patch(game_data / "static" / "menu.js", [
+    # a menu that gets shorter while open (Tab to the next category in a
+    # multi-select drop / inventory menu) kept its old scroll and hover
+    # indices, and scrolling to the missing item threw "Cannot read
+    # properties of undefined (reading 'index')"
+    ("        if (menu.last_hovered > menu.items.length)\n"
+     "            menu.last_hovered = -1; // sanity check\n",
+     "        if (menu.last_hovered >= menu.items.length)\n"
+     "            menu.last_hovered = -1; // sanity check\n"
+     "        if (menu.first_visible >= menu.items.length\n"
+     "            || menu.last_visible >= menu.items.length)\n"
+     "        {\n"
+     "            menu.first_visible = 0;\n"
+     "            menu.last_visible = Math.max(0, menu.items.length - 1);\n"
+     "            menu.anchor_last = false;\n"
+     "        }\n"),
+])
