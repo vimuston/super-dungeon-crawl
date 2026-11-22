@@ -569,3 +569,9 @@ body.sdc-qb-dock #sdc_qb_sel { display: none !important; }
     background: var(--sdc-accent);
     text-shadow: none;
 }
+
+/* hidden in the settings on the mobile UI (quickbar_show) */
+body.sdc-mobile.sdc-qb-off #action-panel,
+body.sdc-mobile.sdc-qb-off #action-panel-placeholder,
+body.sdc-mobile.sdc-qb-off #sdc_qb_ab,
+body.sdc-mobile.sdc-qb-off #sdc_qb_dock { display: none !important; }

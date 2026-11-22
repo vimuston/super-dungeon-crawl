@@ -1396,9 +1396,19 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
 
     // frame ----------------------------------------------------------------
 
+    // Option "quickbar_show": the mobile UI can hide the whole bar (and its
+    // minimised "+" placeholder); quickbar.css keys off body.sdc-qb-off, and
+    // sync_frame() then sees a hidden canvas and drops the frame, captions
+    // and god ability slots with it. Desktop always shows it.
+    api.register_option({ key: "quickbar_show", label: "Quick-use bar",
+                          default: true,
+                          choices: [[true, "Show"], [false, "Hide"]] });
+
     function apply()
     {
         document.body.setAttribute("data-sdc-quickbar", "bottom");
+        document.body.classList.toggle("sdc-qb-off",
+                                       api.get("quickbar_show") === false);
         sync_frame();
     }
 
@@ -1561,6 +1571,11 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
             apply();
         }
         if (key === "quickbar_confirm") sel_clear();
+        if (key === "quickbar_show")
+        {
+            sel_clear();
+            apply();
+        }
     });
     api.on("hud_update", function () {
         sync_frame();
@@ -1600,6 +1615,7 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
         dk_cursor = null;
         document.body.removeAttribute("data-sdc-quickbar");
         document.body.removeAttribute("data-sdc-qbcap");
+        document.body.classList.remove("sdc-qb-off");
     });
 
     return {};

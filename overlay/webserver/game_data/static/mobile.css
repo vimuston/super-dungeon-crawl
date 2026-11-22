@@ -498,6 +498,9 @@ body.sdc-mobile.sdc-qb-armed .sdc-m-big {
     pointer-events: none;
 }
 body.sdc-hud.sdc-mapview .sdc-m-big { display: none; }
+/* hidden in the settings (mobile_fight_btn / mobile_explore_btn) */
+body.sdc-mobile.sdc-m-nofight #sdc_m_fight,
+body.sdc-mobile.sdc-m-noexplore #sdc_m_explore { display: none; }
 
 /* map view exit, bottom-centre (only while the X map is up) */
 #sdc_m_mapclose { display: none; }
@@ -874,3 +877,58 @@ body.sdc-mobile.sdc-m-statlock #sdc_m_bubble#sdc_m_bubble.sdc-m-show {
 .sdc-m-choice-poor { opacity: 0.45; }
 .sdc-m-choice-cur { border-color: var(--sdc-accent); }
 .sdc-m-choices .sdc-m-yn { margin-top: 2px; }
+
+/* thumbstick d-pad (mobile_stick): fades in where a swipe starts, the
+   picked direction lit. Placed and lit by mobile.js
+   (148px = 2 * STICK_BOX). */
+#sdc_m_stick { display: none; }
+body.sdc-mobile #sdc_m_stick {
+    display: block;
+    position: fixed;
+    width: 148px;
+    height: 148px;
+    z-index: 9;
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(0.85);
+    transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--sdc-accent) 35%, transparent));
+}
+body.sdc-mobile #sdc_m_stick.sdc-m-show {
+    opacity: 1;
+    transform: scale(1);
+    transition: opacity 0.12s ease-out, transform 0.12s ease-out;
+}
+#sdc_m_stick svg { display: block; width: 100%; height: 100%; overflow: visible; }
+#sdc_m_stick .pad {
+    fill: rgba(2, 10, 5, 0.5);
+    stroke: color-mix(in srgb, var(--sdc-accent) 55%, transparent);
+    stroke-width: 2;
+}
+#sdc_m_stick .wedge {
+    fill: transparent;
+    stroke: color-mix(in srgb, var(--sdc-accent) 14%, transparent);
+    stroke-width: 1;
+}
+#sdc_m_stick .arrow { fill: var(--sdc-accent); opacity: 0.4; }
+#sdc_m_stick .dir.on .wedge {
+    fill: color-mix(in srgb, var(--sdc-accent) 30%, transparent);
+    stroke: var(--sdc-accent);
+}
+#sdc_m_stick .dir.on .arrow { opacity: 1; }
+#sdc_m_stick .hub {
+    fill: none;
+    stroke: color-mix(in srgb, var(--sdc-accent) 30%, transparent);
+    stroke-width: 1;
+}
+#sdc_m_stick .knob {
+    fill: color-mix(in srgb, var(--sdc-accent) 45%, transparent);
+    stroke: var(--sdc-accent);
+    stroke-width: 1.5;
+}
+/* back in the centre: nothing picked, lifting cancels */
+#sdc_m_stick.sdc-m-idle .knob { fill: transparent; opacity: 0.6; }
+@media (prefers-reduced-motion: reduce) {
+    body.sdc-mobile #sdc_m_stick,
+    body.sdc-mobile #sdc_m_stick.sdc-m-show { transform: none; transition: opacity 0.1s; }
+}

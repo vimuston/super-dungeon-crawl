@@ -181,6 +181,8 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         ["Effects", ["alive", "combat_text", "ranged_feel", "splash",
                      "fogedge_amount"]],
         ["Interface", ["turn_counter", "#Mobile", "mobile", "mobile_menus",
+                       "mobile_fight_btn", "mobile_explore_btn",
+                       "quickbar_show", "mobile_stick",
                        "msg_fade", "#Travel", "explore_delay",
                        "offscreen_arrows"]],
         ["Other", []]
@@ -190,7 +192,11 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         bleed_amount: ["chroma_bleed", false], scan_sweep: ["filter", "off"],
         depth_persp: ["depth", false], depth_rot_lock: ["depth", false],
         depth_height: ["depth", false],
-        msg_fade: ["mobile", "off"]
+        msg_fade: ["mobile", "off"],
+        mobile_fight_btn: ["mobile", "off"],
+        mobile_explore_btn: ["mobile", "off"],
+        quickbar_show: ["mobile", "off"],
+        mobile_stick: ["mobile", "off"]
     };
 
     function refresh_deps(panel, key)
