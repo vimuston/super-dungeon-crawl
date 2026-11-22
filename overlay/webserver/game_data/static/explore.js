@@ -15,7 +15,7 @@ define(["comm", "./sdc_api"], function (comm, api) {
                                  "Higher = slower, to watch the map fill in"] });
 
     api.register_option({ key: "slot_pickup", label: "Pick up gear for empty slots",
-                          default: "aux", tab: "Interface",
+                          default: "aux",
                           choices: [["off", "Off"], ["aux", "Aux armour"],
                                     ["all", "+ Shield, body"]],
                           hint: ["Auto-pick up armour for slots you have nothing worn in",

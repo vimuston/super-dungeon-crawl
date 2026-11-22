@@ -184,14 +184,15 @@ relay has gone stale: `wsl --shutdown`, then `run.cmd` again.
 | Alt+M  | minimap                                     |
 | Alt+L  | monster list (under the minimap)            |
 | Alt+S  | stats card                                  |
-| Alt+C  | CRT filter: curved → flat → off             |
+| Alt+C  | CRT filter on/off                           |
 | Alt+H  | CRT HUD ↔ classic webtiles layout           |
 | Alt+P  | 2.5D view on/off                            |
 | Alt+O  | settings panel (all options)                |
 
 The same toggles are the icon buttons above the minimap. The settings panel
-covers the HUD layout, splash text, CRT filter strength, living tiles, the
-2.5D view and the individual effects.
+has four tabs: Game (auto-explore pace, picking up gear for empty slots),
+Controls, Effects (CRT filter, 2.5D view, living tiles, splash text and the
+other effects) and Interface.
 
 **Touch** (phones and the Android app): tap a tile to travel or attack,
 long-press to describe; any tap continues past `--more--`. Tools > Controls
@@ -392,7 +393,7 @@ stops the build; `SDC_ALLOW_PATCH_FAIL=1` builds without it instead.
 - `autopickup-slots.patch` (`dat/defaults/autopickup_exceptions.txt`, data
   only, no rebuild): the default "pick up armour for empty slots" autopickup
   function reads the `sdc_slot_pickup` option (`off` / `aux` / `all`), which
-  the settings panel sends (Interface, "Pick up gear for empty slots"). `all`
+  the settings panel sends (Game, "Pick up gear for empty slots"). `all`
   adds shields/orbs and body armour to crawl's default aux armour. Crawl reads
   the file at game start, so copying it into a running install is enough.
 

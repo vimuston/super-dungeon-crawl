@@ -3,7 +3,7 @@
 //
 // Hotkeys (Alt+key is never sent to crawl):
 //   Alt+M  minimap on/off          Alt+L  monster list on/off
-//   Alt+S  stats card on/off       Alt+C  CRT filter: curved / flat / off
+//   Alt+S  stats card on/off       Alt+C  CRT filter on/off
 //   Alt+H  CRT HUD layout <-> classic webtiles layout
 //   Alt+O  settings panel (options registered by the feature modules)
 //
@@ -24,19 +24,29 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
     arguments[arguments.length - 1](["./sdc_local"], function () {},
                                     function () {});
 
-    var FILTER_MODES = ["curved", "flat", "off"];
+    // Dropped options, migrated before register_option() would reset an
+    // invalid choice: flat CRT -> on (curved), chroma bleed off -> strength 0
+    (function (s) {
+        if (s.filter !== "flat" && s.chroma_bleed === undefined)
+            return;
+        if (s.filter === "flat")
+            s.filter = "curved";
+        if (s.chroma_bleed === false)
+            s.bleed_amount = 0;
+        delete s.chroma_bleed;
+        api.save();
+    })(api.settings);
+
+    // "on" is the curved screen; the old flat mode was dropped
+    var FILTER_MODES = ["curved", "off"];
     api.register_option({ key: "hud", default: true });
     api.register_option({ key: "filter", label: "CRT filter", default: "off",
-                          choices: FILTER_MODES.map(function (m) {
-                              return [m, m]; }) });
+                          choices: [["curved", "On"], ["off", "Off"]] });
     api.register_option({ key: "curve_amount", label: "Curvature",
                           default: "high",
                           choices: [["subtle", "Subtle"], ["low", "Low"],
                                     ["medium", "Medium"], ["high", "High"],
                                     ["max", "Max"]] });
-    api.register_option({ key: "chroma_bleed", label: "Chroma bleed",
-                          default: true,
-                          choices: [[true, "On"], [false, "Off"]] });
     api.register_option({ key: "bleed_amount", label: "Bleed strength",
                           default: 100,
                           range: { min: 0, max: 100, step: 5 } });
@@ -181,24 +191,23 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
     // PANEL_DEPENDS greys a row out while its parent setting has the given
     // value. The open tab is remembered in settings.panel_tab.
     var PANEL_TABS = [
-        ["Screen", ["#CRT", "filter", "curve_amount", "chroma_bleed",
-                    "bleed_amount", "scan_sweep"]],
-        ["2.5D", ["depth", "depth_persp", "depth_rot_lock", "depth_height"]],
-        ["Effects", ["alive", "combat_text", "ranged_feel", "splash",
-                     "fogedge_amount"]],
-        ["Interface", ["turn_counter", "#Mobile", "mobile", "mobile_menus",
-                       "msg_fade", "#Travel", "explore_delay",
-                       "offscreen_arrows"]],
+        ["Game", ["#Travel", "explore_delay", "#Items", "slot_pickup"]],
         ["Controls", ["#Movement", "mobile_controls", "dpad_size", "dpad_pos",
                       "#Buttons", "ui_opacity", "mobile_fight_btn",
                       "mobile_explore_btn", "quickbar_show",
                       "quickbar_confirm"]],
+        ["Effects", ["#CRT", "filter", "curve_amount", "bleed_amount",
+                     "scan_sweep", "#2.5D", "depth", "depth_rot_lock",
+                     "depth_height", "#Visual effects", "alive", "combat_text",
+                     "ranged_feel", "splash", "fogedge_amount"]],
+        ["Interface", ["turn_counter", "offscreen_arrows", "#Mobile",
+                       "mobile", "mobile_menus", "msg_fade"]],
         ["Other", []]
     ];
     var PANEL_DEPENDS = {
-        curve_amount: ["filter", "off"], chroma_bleed: ["filter", "off"],
-        bleed_amount: ["chroma_bleed", false], scan_sweep: ["filter", "off"],
-        depth_persp: ["depth", false], depth_rot_lock: ["depth", false],
+        curve_amount: ["filter", "off"], bleed_amount: ["filter", "off"],
+        scan_sweep: ["filter", "off"],
+        depth_rot_lock: ["depth", false],
         depth_height: ["depth", false],
         msg_fade: ["mobile", "off"],
         mobile_fight_btn: ["mobile", "off"],
@@ -1494,7 +1503,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         gl.uniform1f(uni.u_aspect, dungeon.width / Math.max(1, dungeon.height));
         var crt_on = settings.filter !== "off";
         gl.uniform1f(uni.u_crt, crt_on ? 1 : 0);
-        gl.uniform1f(uni.u_bleed, !crt_on || settings.chroma_bleed === false ? 0
+        gl.uniform1f(uni.u_bleed, !crt_on ? 0
                      : Math.max(0, Math.min(1, (settings.bleed_amount || 0) / 100)));
 
         update_alive(t);
