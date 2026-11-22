@@ -72,7 +72,7 @@
 // as characters ("za" = z then a).
 //
 // The wrapper (android/) calls window.sdcBack() for the back button and
-// exposes window.SdcNative ({isLocal(), manageSaves()}).
+// exposes window.SdcNative ({isLocal(), loadSettings(), saveSettings()}).
 define(["jquery", "comm", "./sdc_api", "./dungeon_renderer", "./enums", "./options",
         "./player", "./view_data", "./map_knowledge", "./cell_renderer",
         "./util", "./tileinfo-gui", "./tileinfo-main", "./tileinfo-feat",
@@ -1126,9 +1126,6 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             api.command("panel:controls");
         });
         action("Settings", function () { close_all(); api.command("panel"); });
-        if (window.SdcNative && window.SdcNative.isLocal
-            && window.SdcNative.isLocal())
-            action("Saves", function () { window.SdcNative.manageSaves(); });
     }
 
     // Find panel ---------------------------------------------------------------

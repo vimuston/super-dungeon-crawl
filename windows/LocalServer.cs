@@ -12,7 +12,9 @@ namespace SuperDungeonCrawl;
 /// The webtiles server, cut down to one local player (the desktop twin of
 /// android/.../LocalServer.java): serves the bundled client over
 /// http://127.0.0.1:port/ and runs crawl, through crawlhost.exe, for the
-/// page's WebSocket. No accounts, lobby, spectators or chat.
+/// page's WebSocket. No accounts, spectators or chat; the lobby lists the
+/// saved characters (one save per character name and slot) and the modes,
+/// as the same JSON the webtiles server sends (static/sdc_lobby.js).
 ///
 /// Access control: any web page in a browser can reach 127.0.0.1 too. Every
 /// launch makes a random token; the page URL carries it (?k=...), index.html
@@ -42,7 +44,8 @@ sealed class LocalServer
     public int Port => ((IPEndPoint)listener.LocalEndpoint).Port;
     public bool GameRunning { get { lock (gate) return process != null; } }
     public bool PageConnected { get { lock (gate) return ws != null; } }
-    public event Action<string> GameEnded;
+    string lastPlayed;   // "<mode>~<name>", for the old "#play-local"
+    readonly Dictionary<string, (DateTime, Dictionary<string, object>)> saveInfo = new();
 
     public LocalServer(string webDir, string hostExe, string crawlExe, string workDir)
     {
@@ -405,7 +408,11 @@ sealed class LocalServer
         switch (type)
         {
             case "play":
-                Play();
+                Play(root.TryGetProperty("game_id", out var g) && g.ValueKind == JsonValueKind.String
+                     ? g.GetString() : null);
+                break;
+            case "go_lobby":
+                GoLobby();
                 break;
             case "input":
             {
@@ -421,7 +428,7 @@ sealed class LocalServer
                 ToHost("I" + Convert.ToHexString(Encoding.UTF8.GetBytes(data.ToString())).ToLowerInvariant());
                 break;
             }
-            case "pong": case "go_lobby": case "login": case "token_login":
+            case "pong": case "login": case "token_login":
             case "set_login_cookie": case "forget_login_cookie": case "chat_msg": case "watch":
                 break; // server/lobby messages with nothing to do here
             default:
@@ -479,10 +486,171 @@ sealed class LocalServer
         return p;
     }
 
-    void Play()
+    // ---- lobby ----
+
+    // game id (crawl mode), lobby label, crawl option
+    static readonly (string id, string label, string opt)[] Modes =
+    {
+        ("normal", "Dungeon Crawl", null),
+        ("seeded", "Seeded", "-seed"),
+        ("descent", "Descent", "-descent"),
+        ("tutorial", "Tutorial", "-tutorial"),
+        ("sprint", "Sprint", "-sprint"),
+    };
+
+    static bool GoodName(string n) =>
+        n.Length is > 0 and <= 20
+        && n.All(c => c < 128 && (char.IsLetterOrDigit(c) || c == '-' || c == '_'));
+
+    void GoLobby()
     {
         lock (gate)
         {
+            if (process != null)
+            {
+                // like webtiles: leaving the game saves it; the lobby follows
+                // once crawl has exited (Pump)
+                try { processIn?.Close(); } catch (IOException) { }
+                processIn = null;
+                return;
+            }
+        }
+        SendMsg("go_lobby"); // the page shows the lobby on this
+        _ = Task.Run(() => SendLobby());
+    }
+
+    void SendLobby(string error = null)
+    {
+        SendMsg("html", ("id", Q("banner")), ("content", Q(
+            "<div class=\"sdc-banner\"><img class=\"sdc-banner-title\" src=\"/static/sdc_title.png\""
+            + " alt=\"Super Dungeon Crawl: Stone Soup\"></div>")));
+        var data = new Dictionary<string, object>
+        {
+            ["user"] = "player",
+            ["local"] = true,
+            ["chars"] = SavedCharacters(),
+            ["modes"] = Modes.Select(m => new Dictionary<string, object>
+                { ["game"] = m.id, ["mode"] = m.id, ["label"] = m.label, ["rc"] = false }).ToList(),
+        };
+        if (error != null)
+            data["error"] = error;
+        string html = "<div id=\"sdc-lobby-data\" hidden data-lobby=\""
+            + WebUtility.HtmlEncode(JsonSerializer.Serialize(data)) + "\"></div>";
+        SendMsg("set_game_links", ("content", Q(html)));
+    }
+
+    /// <summary>Every save file (saves/, saves/sprint/, saves/descent/), with
+    /// crawl's description of it.</summary>
+    List<Dictionary<string, object>> SavedCharacters()
+    {
+        var list = new List<Dictionary<string, object>>();
+        foreach (string sub in new[] { "", "sprint", "descent" })
+        {
+            string dir = Path.Combine(workDir, "saves", sub);
+            if (!Directory.Exists(dir))
+                continue;
+            foreach (string file in Directory.GetFiles(dir, "*.cs").OrderBy(f => f))
+            {
+                string name = Path.GetFileNameWithoutExtension(file);
+                var info = SaveInfo(file);
+                string mode = info?.GetValueOrDefault("game_type") as string;
+                if (string.IsNullOrEmpty(mode))
+                    mode = sub == "" ? "normal" : sub;
+                string game = Modes.Any(m => m.id == mode) ? mode : "normal";
+                list.Add(new Dictionary<string, object>
+                {
+                    ["name"] = name,
+                    ["mode"] = mode,
+                    ["game"] = game,
+                    ["desc"] = info?.GetValueOrDefault("short_desc") as string ?? "",
+                    ["playing"] = info != null && info.GetValueOrDefault("loadable") is false,
+                });
+            }
+        }
+        return list;
+    }
+
+    /// <summary>crawl -save-json for one save file, cached by its mtime.</summary>
+    Dictionary<string, object> SaveInfo(string file)
+    {
+        DateTime mtime = File.GetLastWriteTimeUtc(file);
+        lock (saveInfo)
+            if (saveInfo.TryGetValue(file, out var c) && c.Item1 == mtime)
+                return c.Item2;
+        Dictionary<string, object> info = null;
+        try
+        {
+            var psi = new ProcessStartInfo(crawlExe)
+            {
+                WorkingDirectory = workDir,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = new UTF8Encoding(false),
+            };
+            foreach (var a in new[] { "-dir", CygPath(workDir) + "/", "-save-json", CygPath(file) })
+                psi.ArgumentList.Add(a);
+            psi.Environment["PATH"] = Path.GetDirectoryName(hostExe) + ";" + psi.Environment["PATH"];
+            psi.Environment["CYGWIN"] = "nodosfilewarning";
+            using var p = Process.Start(psi);
+            _ = p.StandardError.ReadToEndAsync();
+            var output = p.StandardOutput.ReadToEndAsync();
+            if (!p.WaitForExit(15000))
+            {
+                try { p.Kill(); } catch { }
+                return null;
+            }
+            using var doc = JsonDocument.Parse(output.Result);
+            foreach (var slot in doc.RootElement.EnumerateObject())
+            {
+                info = new Dictionary<string, object>();
+                foreach (var kv in slot.Value.EnumerateObject())
+                    info[kv.Name] = kv.Value.ValueKind switch
+                    {
+                        JsonValueKind.True => true,
+                        JsonValueKind.False => false,
+                        JsonValueKind.String => kv.Value.GetString(),
+                        _ => null,
+                    };
+                break;
+            }
+        }
+        catch (Exception e) { Log("save-json: " + e.Message); }
+        if (info != null && info.GetValueOrDefault("loadable") is true)
+            lock (saveInfo) saveInfo[file] = (mtime, info);
+        return info;
+    }
+
+    /// <summary>"&lt;mode&gt;~&lt;name&gt;" (or a bare mode) to crawl's mode
+    /// arguments; null for an unknown mode or a bad name.</summary>
+    static string[] PlayArgs(string gameId, out string name)
+    {
+        name = null;
+        if (gameId == null)
+            return null;
+        string mode = gameId;
+        int sep = gameId.IndexOf('~');
+        if (sep >= 0)
+        {
+            mode = gameId[..sep];
+            name = gameId[(sep + 1)..];
+        }
+        name ??= "player";
+        if (!GoodName(name))
+            return null;
+        var m = Modes.FirstOrDefault(x => x.id == mode);
+        if (m.id == null)
+            return null;
+        return m.opt == null ? Array.Empty<string>() : new[] { m.opt };
+    }
+
+    void Play(string gameId)
+    {
+        lock (gate)
+        {
+            if (gameId == "local")
+                gameId = lastPlayed; // the old "#play-local": the last game
             if (process != null)
             {
                 // page reloaded mid-game: resend the client, then have crawl
@@ -492,6 +660,16 @@ sealed class LocalServer
                 ToHost("S{\"msg\":\"spectator_joined\"}");
                 return;
             }
+            string[] modeArgs = PlayArgs(gameId, out string name);
+            if (modeArgs == null)
+            {
+                SendMsg("go_lobby");
+                string error = gameId == null ? null
+                    : "Character names are 1-20 letters, digits, - or _.";
+                _ = Task.Run(() => SendLobby(error));
+                return;
+            }
+            lastPlayed = gameId.Contains('~') ? gameId : gameId + "~" + name;
             exitReason = null;
             // The client first: the page queues game messages only once it has it.
             SendMsg("game_started");
@@ -499,7 +677,8 @@ sealed class LocalServer
             Directory.CreateDirectory(Path.Combine(workDir, "rcs", "player.macro"));
             Directory.CreateDirectory(Path.Combine(workDir, "morgue"));
             string rc = Path.Combine(workDir, "rcs", "player.rc");
-            var args = new List<string> { "-dir", CygPath(workDir) + "/", "-name", "player" };
+            var args = new List<string> { "-dir", CygPath(workDir) + "/", "-name", name };
+            args.AddRange(modeArgs);
             if (File.Exists(rc))
             {
                 args.Add("-rc");
@@ -563,7 +742,8 @@ sealed class LocalServer
             reason = exitReason ?? "unknown";
         }
         SendMsg("game_ended", ("reason", Q(reason)));
-        GameEnded?.Invoke(reason);
+        SendMsg("go_lobby");
+        SendLobby();
     }
 
     void Special(string json)

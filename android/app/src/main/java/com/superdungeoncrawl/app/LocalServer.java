@@ -16,17 +16,21 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * The webtiles server, cut down to one local player: serves the bundled
  * client over http://127.0.0.1:port/ and runs crawl (through crawlhost) for
  * the page's WebSocket. Mirrors what ws_handler.py / process_handler.py do
- * for a player, minus accounts, lobby, spectators and chat.
+ * for a player, minus accounts, spectators and chat. The lobby lists the
+ * saved characters (one save per character name and slot) and the modes, as
+ * the same JSON the webtiles server sends (static/sdc_lobby.js).
  *
  * Access control: other apps on the device and web pages in a browser can
  * reach 127.0.0.1 too. Every launch makes a random token; the page URL
@@ -57,6 +61,8 @@ public class LocalServer {
     private Writer processIn;
     private Socket ws;            // the page's socket (one at a time)
     private String exitReason;
+    private String lastPlayed;    // "<mode>~<name>"
+    private final Map<String, Object[]> saveInfo = new HashMap<>(); // file -> {mtime, info}
     private final Object lock = new Object();
     /** log message traffic to stdout (desktop testing) */
     public static boolean debug = false;
@@ -142,6 +148,13 @@ public class LocalServer {
                    + "Content-Length: 9\r\nConnection: close\r\n\r\nforbidden")
                   .getBytes(StandardCharsets.US_ASCII));
         out.flush();
+    }
+
+    /** What was played last, as "&lt;mode&gt;~&lt;name&gt;" (null if nothing yet). */
+    public String lastPlayed() {
+        synchronized (lock) {
+            return lastPlayed;
+        }
     }
 
     public boolean running() {
@@ -444,7 +457,10 @@ public class LocalServer {
         Map<?, ?> obj = (Map<?, ?>) parsed;
         Object type = obj.get("msg");
         if ("play".equals(type)) {
-            play();
+            Object id = obj.get("game_id");
+            play(id instanceof String ? (String) id : null);
+        } else if ("go_lobby".equals(type)) {
+            goLobby();
         } else if ("input".equals(type)) {
             // like process_handler: "input" goes to crawl's terminal
             StringBuilder data = new StringBuilder();
@@ -464,8 +480,7 @@ public class LocalServer {
             for (byte b : bytes)
                 hex.append(String.format("%02x", b & 0xff));
             toHost(hex.toString());
-        } else if ("pong".equals(type) || "go_lobby".equals(type)
-                   || "login".equals(type) || "token_login".equals(type)
+        } else if ("pong".equals(type) || "login".equals(type) || "token_login".equals(type)
                    || "set_login_cookie".equals(type)
                    || "forget_login_cookie".equals(type)
                    || "chat_msg".equals(type) || "watch".equals(type)) {
@@ -488,8 +503,155 @@ public class LocalServer {
         }
     }
 
-    private void play() {
+    // ---- lobby ----
+
+    /** game id (crawl mode), lobby label, crawl option */
+    private static final String[][] MODES = {
+        {"normal", "Dungeon Crawl", null},
+        {"seeded", "Seeded", "-seed"},
+        {"descent", "Descent", "-descent"},
+        {"tutorial", "Tutorial", "-tutorial"},
+        {"sprint", "Sprint", "-sprint"},
+    };
+
+    static boolean goodName(String n) {
+        if (n.isEmpty() || n.length() > 20)
+            return false;
+        for (int i = 0; i < n.length(); i++) {
+            char c = n.charAt(i);
+            if (!(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
+                  || c == '-' || c == '_'))
+                return false;
+        }
+        return true;
+    }
+
+    private static String[] mode(String id) {
+        for (String[] m : MODES)
+            if (m[0].equals(id))
+                return m;
+        return null;
+    }
+
+    private void goLobby() {
         synchronized (lock) {
+            if (process != null) {
+                // like webtiles: leaving the game saves it; the lobby
+                // follows once crawl has exited (pump)
+                try {
+                    if (processIn != null)
+                        processIn.close();
+                } catch (IOException ignored) {
+                }
+                processIn = null;
+                return;
+            }
+        }
+        sendMsg("go_lobby"); // the page shows the lobby on this
+        new Thread(() -> sendLobby(null), "lobby").start();
+    }
+
+    private static String attr(String s) {
+        return s.replace("&", "&amp;").replace("\"", "&quot;").replace("'", "&#39;")
+                .replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    private void sendLobby(String error) {
+        sendMsg("html", "id", Json.quote("banner"), "content", Json.quote(
+            "<div class=\"sdc-banner\"><img class=\"sdc-banner-title\""
+            + " src=\"/static/sdc_title.png\" alt=\"Super Dungeon Crawl: Stone Soup\"></div>"));
+        StringBuilder j = new StringBuilder("{\"user\":\"player\",\"local\":true,\"chars\":[");
+        boolean first = true;
+        for (String c : savedCharacters()) {
+            j.append(first ? "" : ",").append(c);
+            first = false;
+        }
+        j.append("],\"modes\":[");
+        for (int i = 0; i < MODES.length; i++)
+            j.append(i == 0 ? "" : ",")
+             .append("{\"game\":").append(Json.quote(MODES[i][0]))
+             .append(",\"mode\":").append(Json.quote(MODES[i][0]))
+             .append(",\"label\":").append(Json.quote(MODES[i][1]))
+             .append(",\"rc\":false}");
+        j.append(']');
+        if (error != null)
+            j.append(",\"error\":").append(Json.quote(error));
+        j.append('}');
+        sendMsg("set_game_links", "content", Json.quote(
+            "<div id=\"sdc-lobby-data\" hidden data-lobby=\"" + attr(j.toString()) + "\"></div>"));
+    }
+
+    /** Every save file (saves/, saves/sprint/, saves/descent/) as lobby JSON. */
+    private List<String> savedCharacters() {
+        List<String> out = new ArrayList<>();
+        for (String sub : new String[] {"", "sprint", "descent"}) {
+            File[] files = new File(new File(workdir, "saves"), sub).listFiles(
+                (d, n) -> n.endsWith(".cs"));
+            if (files == null)
+                continue;
+            Arrays.sort(files);
+            for (File f : files) {
+                String name = f.getName().substring(0, f.getName().length() - 3);
+                Map<?, ?> info = saveInfo(f);
+                Object gt = info != null ? info.get("game_type") : null;
+                String mode = gt instanceof String && !((String) gt).isEmpty()
+                              ? (String) gt : sub.isEmpty() ? "normal" : sub;
+                String game = mode(mode) != null ? mode : "normal";
+                Object desc = info != null ? info.get("short_desc") : null;
+                boolean playing = info != null && Boolean.FALSE.equals(info.get("loadable"));
+                out.add("{\"name\":" + Json.quote(name)
+                        + ",\"mode\":" + Json.quote(mode)
+                        + ",\"game\":" + Json.quote(game)
+                        + ",\"desc\":" + Json.quote(desc instanceof String ? (String) desc : "")
+                        + ",\"playing\":" + playing + "}");
+            }
+        }
+        return out;
+    }
+
+    /** crawl -save-json for one save file, cached by its mtime. */
+    private Map<?, ?> saveInfo(File f) {
+        long mtime = f.lastModified();
+        synchronized (saveInfo) {
+            Object[] c = saveInfo.get(f.getPath());
+            if (c != null && (Long) c[0] == mtime)
+                return (Map<?, ?>) c[1];
+        }
+        Map<?, ?> info = null;
+        try {
+            Process p = new ProcessBuilder(crawl.getAbsolutePath(),
+                    "-dir", workdir.getAbsolutePath() + "/",
+                    "-save-json", f.getAbsolutePath())
+                .directory(workdir).redirectErrorStream(false).start();
+            drain(p.getErrorStream());
+            p.getOutputStream().close();
+            byte[] out = readAll(p.getInputStream());
+            if (!p.waitFor(15, TimeUnit.SECONDS)) {
+                p.destroy();
+                return null;
+            }
+            Object parsed = Json.parse(new String(out, StandardCharsets.UTF_8));
+            if (parsed instanceof Map)
+                for (Object v : ((Map<?, ?>) parsed).values())
+                    if (v instanceof Map) {
+                        info = (Map<?, ?>) v;
+                        break;
+                    }
+        } catch (IOException | RuntimeException | InterruptedException e) {
+            if (debug)
+                System.out.println("save-json: " + e);
+        }
+        if (info != null && Boolean.TRUE.equals(info.get("loadable")))
+            synchronized (saveInfo) {
+                saveInfo.put(f.getPath(), new Object[] {mtime, info});
+            }
+        return info;
+    }
+
+    private void play(String gameId) {
+        synchronized (lock) {
+            if ("local".equals(gameId))
+                gameId = lastPlayed; // the old "#play-local": the last game
             if (process != null) {
                 // page reloaded mid-game: resend the client, then have
                 // crawl resend everything as it does for a new spectator
@@ -498,6 +660,21 @@ public class LocalServer {
                 toHost("S{\"msg\":\"spectator_joined\"}");
                 return;
             }
+            String name = "player";
+            String modeId = gameId;
+            if (gameId != null && gameId.indexOf('~') >= 0) {
+                modeId = gameId.substring(0, gameId.indexOf('~'));
+                name = gameId.substring(gameId.indexOf('~') + 1);
+            }
+            String[] mode = mode(modeId);
+            if (mode == null || !goodName(name)) {
+                sendMsg("go_lobby");
+                String error = gameId == null ? null
+                               : "Character names are 1-20 letters, digits, - or _.";
+                new Thread(() -> sendLobby(error), "lobby").start();
+                return;
+            }
+            lastPlayed = mode[0] + "~" + name;
             exitReason = null;
             // The client first: the page queues game messages only once it
             // has it. (crawl announces a client_path only when built with
@@ -512,7 +689,9 @@ public class LocalServer {
             cmd.add("-dir");
             cmd.add(workdir.getAbsolutePath() + "/");
             cmd.add("-name");
-            cmd.add("player");
+            cmd.add(name);
+            if (mode[2] != null)
+                cmd.add(mode[2]);
             File rc = new File(workdir, "rcs/player.rc");
             if (rc.exists()) {
                 cmd.add("-rc");
@@ -528,8 +707,8 @@ public class LocalServer {
             // from /, and mkdir("/data/user") is EACCES (not EEXIST) for an
             // app, so it never gets one: no ghosts, and an "Unable to open
             // bones file" error on entering a necropolis. Make them here.
-            for (String mode : new String[] {"", "sprint/", "descent/"})
-                new File(workdir, "saves/" + mode + "bones").mkdirs();
+            for (String dir : new String[] {"", "sprint/", "descent/"})
+                new File(workdir, "saves/" + dir + "bones").mkdirs();
             try {
                 process = new ProcessBuilder(cmd).directory(workdir)
                     .redirectErrorStream(false).start();
@@ -589,6 +768,8 @@ public class LocalServer {
             reason = exitReason != null ? exitReason : "unknown";
         }
         sendMsg("game_ended", "reason", Json.quote(reason));
+        sendMsg("go_lobby");
+        sendLobby(null);
         if (listener != null)
             listener.gameEnded(reason);
     }

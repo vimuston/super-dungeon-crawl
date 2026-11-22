@@ -42,7 +42,8 @@ patch(client_html, [
     ('<link rel="stylesheet" type="text/css" href="{{ static_url("style.css") }}">',
      '<link rel="stylesheet" type="text/css" href="{{ static_url("style.css") }}">\n'
      '    <link rel="stylesheet" type="text/css" href="{{ static_url("sdc_loader.css") }}">\n'
-     '    <link rel="stylesheet" type="text/css" href="{{ static_url("sdc_lobby.css") }}">'),
+     '    <link rel="stylesheet" type="text/css" href="{{ static_url("sdc_lobby.css") }}">\n'
+     '    <script src="{{ static_url("sdc_lobby.js") }}"></script>'),
     # our Torchlight @ instead of the stock Stone Soup favicon (SVG, a PNG for
     # browsers without SVG favicons, and a home-screen icon for iOS)
     ('<link rel="icon" href="/static/stone_soup_icon-32x32.png" type="image/png">',
@@ -53,6 +54,16 @@ patch(client_html, [
     # its own viewport once a game is running)
     ('<meta name="viewport" content="width=860, initial-scale=1.0">',
      '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'),
+])
+
+# lobby: saved characters and new-game cards are rendered from the JSON the
+# server puts in the game links (static/sdc_lobby.js), before client.js binds
+# the "Edit RC" links
+patch(game_data.parent / "static" / "scripts" / "client.js", [
+    ('$("#play_now").html(data.content);',
+     '$("#play_now").html(data.content);\n'
+     '        if (window.sdc_lobby)\n'
+     '            window.sdc_lobby.render($("#play_now"));'),
 ])
 
 patch(game_data / "templates" / "game.html", [

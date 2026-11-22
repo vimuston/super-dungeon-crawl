@@ -116,6 +116,22 @@ the Android APK and Linux server packages for x86-64 and arm64. Or build them
 yourself (see [Building](#building)). Saves move between builds made from the
 same crawl commit and patches, which every file of one release shares.
 
+### Saved characters
+
+Every build opens on the same lobby. **Continue** lists each saved character
+(name, level, species and background, and the mode for Sprint and Descent).
+**New game** has a card per mode (normal, Seeded, Descent, Tutorial, Sprint):
+pick one and name the character. Crawl keeps one save per name in each slot,
+and normal, Seeded and Tutorial share a slot while Sprint and Descent have
+their own, so a new character in a slot that's taken needs another name. You
+can keep as many characters going at once as you like. Names are 1-20
+letters, digits, `-` or `_`; saves from before this lobby are the character
+`player`.
+
+On a server with accounts a name belongs to the account that made it (and
+an account's own name to that account), so nobody can load someone else's
+character. The server records them in `rcs/<account>.sdc-chars`.
+
 ### Windows (standalone)
 
 `super-dungeon-crawl.exe` is self-contained: download it and run it. No WSL,
@@ -123,7 +139,8 @@ Python, .NET or server needed. On first start the game files unpack to
 `%LOCALAPPDATA%\SuperDungeonCrawl\game` (`--dir PATH` unpacks elsewhere).
 Saves, morgue files and `rcs/player.rc` live in its `crawl\` folder and
 survive updates. The game shows in its own window (WebView2, part of Windows
-10/11; F11 = fullscreen). Closing the window saves the game and exits.
+10/11; F11 = fullscreen). Save and quit, or dying, returns to the lobby;
+closing the window saves the game and exits.
 
 The exe isn't code-signed, so on first start Windows SmartScreen may warn
 about an unrecognised app: choose More info > Run anyway.
@@ -137,10 +154,9 @@ everything on the phone. It never connects to a server.
 
 - Fullscreen, the screen stays on, back = Esc (or closes the mobile
   overlays).
-- After a minute in the background the game is saved, and it resumes when
-  you come back.
-- Tools > Saves exports the save or imports one (`saves/player.cs` from
-  another install).
+- After a minute in the background the game is saved, and that character
+  resumes when you come back. Save and quit, or dying, returns to the lobby;
+  back in the lobby puts the app in the background.
 
 ### Linux server package
 
@@ -365,8 +381,8 @@ on Google Play is covered step by step in
   `ANDROID_KEYSTORE_BASE64` (base64 of a `.jks` file),
   `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`.
   Without them each release is signed with a throwaway debug key, and players
-  must uninstall the app before installing a newer release (export the save
-  first).
+  must uninstall the app (and lose its saves) before installing a newer
+  release.
 
 Make a keystore once with
 `keytool -genkeypair -keystore release.jks -alias sdc -keyalg RSA -keysize 4096 -validity 10000`
@@ -430,6 +446,9 @@ To revert them, `git checkout` those files in `$SDC_BUILD/crawl` and rebuild.
 ```
 overlay/                      copied over crawl-ref/source/
   webserver/config.yml        local server overrides (autologin, port)
+  webserver/server.py         stock server.py + sdc_chars.install()
+  webserver/sdc_chars.py      saved characters per account: lobby data, -name, name ownership
+  webserver/templates/        lobby banner and game links (the lobby data)
   webserver/game_data/static/
     crt.js                    core: HUD, WebGL CRT shader, hotkeys, settings panel
     sdc_api.js                shared settings / option registry / event bus
@@ -441,6 +460,7 @@ overlay/                      copied over crawl-ref/source/
     (+ bars, stats, toolbar, quickbar, crt_splash and the *fx effect modules)
   webserver/static/
     sdc_title.png, sdc_loader.css   loading screen (title art + progress bar)
+    sdc_lobby.js/.css         lobby: saved characters and new-game cards (all builds)
 patches/                      crawl source patches
 scripts/
   setup.sh, run.sh, apply.sh  local server: build, start, apply the client
@@ -448,7 +468,7 @@ scripts/
   apply_patches.sh            patches/ into a crawl checkout (every build)
   stage_client.sh             client + game data for the Android / Windows builds
   package-server.sh           Linux server tarball
-  patch_client.py             hooks crt.js into game.js / game.html, loader into client.html
+  patch_client.py             hooks crt.js into game.js / game.html, loader + lobby into client.html / client.js
   ensure_user.py              creates the autologin user
   deploy-static.sh            copy changed static files into the checkout
   build-android.sh            Android toolchain + APK

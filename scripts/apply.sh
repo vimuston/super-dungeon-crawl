@@ -12,6 +12,8 @@ git -C "$CRAWL" checkout -- \
   crawl-ref/source/webserver/game_data/static/menu.js \
   crawl-ref/source/webserver/game_data/templates/game.html \
   crawl-ref/source/webserver/templates/client.html \
+  crawl-ref/source/webserver/static/scripts/client.js \
+  crawl-ref/source/webserver/server.py \
   crawl-ref/source/webserver/templates/banner.html \
   crawl-ref/source/webserver/templates/game_links.html
 

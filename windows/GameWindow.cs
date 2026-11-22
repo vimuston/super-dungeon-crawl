@@ -14,7 +14,7 @@ sealed class GameWindow : Form
     readonly WebView2 view = new() { Dock = DockStyle.Fill, DefaultBackgroundColor = Color.Black };
     readonly LocalServer server;
     readonly string url;
-    bool fullscreen, closing;
+    bool fullscreen;
     FormWindowState restoreState;
 
     /// <summary>Set when WebView2 couldn't start (no runtime); the caller falls back.</summary>
@@ -32,33 +32,6 @@ sealed class GameWindow : Form
         MinimumSize = new Size(640, 400);
         Controls.Add(view);
         Load += async (_, _) => await Init();
-        server.GameEnded += GameEnded;
-    }
-
-    /// <summary>Save &amp; exit closes the window; quit, death or a crash goes
-    /// back to crawl's start menu (like the Android app).</summary>
-    void GameEnded(string reason)
-    {
-        if (closing || IsDisposed)
-            return;
-        try
-        {
-            BeginInvoke(async () =>
-            {
-                if (closing)
-                    return;
-                if (reason == "saved")
-                {
-                    Close();
-                    return;
-                }
-                await Task.Delay(1500);
-                if (!closing && view.CoreWebView2 != null)
-                    // the query makes it a fresh page load even if only the hash matched
-                    view.CoreWebView2.Navigate(url.Replace("/#", "/?t=" + Environment.TickCount64 + "#"));
-            });
-        }
-        catch (InvalidOperationException) { } // window handle already gone
     }
 
     async Task Init()
@@ -131,7 +104,6 @@ sealed class GameWindow : Form
         base.OnFormClosing(e);
         if (e.Cancel)
             return;
-        closing = true;
         Hide();                 // looks closed at once; crawl needs a moment to save
         server.Shutdown();
         view.Dispose();

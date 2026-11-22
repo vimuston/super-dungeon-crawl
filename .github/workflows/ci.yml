@@ -11,11 +11,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: JS syntax
         run: |
-          for f in overlay/webserver/game_data/static/*.js; do
+          for f in overlay/webserver/game_data/static/*.js overlay/webserver/static/*.js; do
             node --check "$f"
           done
       - name: Python syntax
-        run: python3 -m py_compile scripts/*.py overlay/webserver/crypt.py android/native/render_client.py
+        run: python3 -m py_compile scripts/*.py overlay/webserver/*.py android/native/render_client.py
       - name: Shell scripts
         run: shellcheck -S warning scripts/*.sh
 
