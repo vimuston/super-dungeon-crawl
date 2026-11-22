@@ -19,7 +19,9 @@
 //   "dpad_size"     key size in px (34..76)
 //   "dpad_pos"      left / middle / right
 // Its opacity is the mobile UI's "ui_opacity" (mobile.js / mobile.css).
-define(["jquery", "comm", "./sdc_api"],
+// "./mobile" only for its load order: its game_init handler (which rebuilds
+// Fight / Explore / the pinned macros) must run before ours places them.
+define(["jquery", "comm", "./sdc_api", "./mobile"],
 function ($, comm, api) {
     "use strict";
 
@@ -297,7 +299,8 @@ function ($, comm, api) {
                        "mobile_fight_btn",
                        "mobile_explore_btn", "quickbar_show", "mobile_macros"];
 
-    // after mobile.js (loaded first) has rebuilt the thumb buttons
+    // after mobile.js (a dependency, so its handler is registered first) has
+    // rebuilt the thumb buttons and the pinned macros
     api.on("game_init", function () {
         was_aiming = null;
         build();
