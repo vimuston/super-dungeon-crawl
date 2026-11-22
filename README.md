@@ -288,7 +288,7 @@ support. Build on an arm64 machine for an arm64 package.
 ```bash
 bash scripts/build-android.sh init        # one time: JDK 17, QEMU, Android SDK, Gradle
 bash scripts/crossbuild-android.sh build  # NDK, ncurses, crawl, bundled game data (~10 min)
-bash scripts/build-android.sh build       # -> dist/super-dungeon-crawl.apk
+bash scripts/build-android.sh build       # -> dist/super-dungeon-crawl.apk + .aab
 ```
 
 After client-only changes (JS/CSS), `crossbuild-android.sh stage` re-stages
@@ -352,7 +352,9 @@ the patches and client hooks against upstream crawl, the Android Java).
 
 `.github/workflows/release.yml` builds everything from one pinned crawl commit:
 the server packages (x86-64 on `ubuntu-22.04`, arm64 on `ubuntu-22.04-arm`),
-the APK and the Windows exe.
+the APK (plus the Google Play bundle, `.aab`) and the Windows exe. Releasing
+on Google Play is covered step by step in
+[docs/google-play.md](docs/google-play.md).
 
 - Push a tag `v*` (for example `git tag v2.0.0 && git push origin v2.0.0`) to
   build and publish a GitHub Release with all four files.
