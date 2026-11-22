@@ -638,8 +638,8 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, view_data,
 
     // Line of sight mask -----------------------------------------------------
     // White where the cell is currently in view, blurred so the edge of
-    // sight is soft. The shader lights the inside like a lantern and turns
-    // the remembered map outside cold and foggy.
+    // sight is soft. The shader lights the inside like a lantern; the
+    // remembered map outside keeps the stock tiles.
     var LOS_PX = 8;             // mask pixels per cell
     var los_raw = document.createElement("canvas");
     var los_soft = document.createElement("canvas");

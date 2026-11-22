@@ -1170,7 +1170,9 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "  glow += tap(uv + vec2(o.x, -o.y)) + tap(uv + vec2(-o.x, o.y));",
         "  glow /= 8.0;",
         "  col += glow * glow * 0.55 * u_crt;",
-        // --- line of sight: lantern-lit view vs. cold remembered map ---
+        // --- line of sight: lantern-lit view; the remembered map outside
+        // keeps the stock tiles (a cold, dimmed grade there hid the layout
+        // on a zoomed-out phone, issue #81) ---
         "  if (u_los_amt > 0.0) {",
         "    float los = texture2D(u_los, uv).r;",
         "    vec2 q = vec2(uv.x, 1.0 - uv.y);",               // y down like u_player
@@ -1181,16 +1183,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         // inside: richer colour, lantern warmth falling off from the player
         "    vec3 inside = mix(vec3(luma), col, 1.18) * (1.0 + 0.45 * lantern)",
         "                + vec3(0.10, 0.06, 0.02) * lantern;",
-        // outside: drained, cold, dimmer, with slow drifting fog
-        "    vec3 cold = mix(col, vec3(luma), 0.72) * vec3(0.58, 0.70, 0.98) * 0.62;",
-        "    vec2 fp = q * vec2(u_aspect, 1.0) * 5.0;",
-        "    float fog = vnoise(fp + vec2(u_time * 0.07, u_time * 0.03))",
-        "              * vnoise(fp * 0.5 - vec2(u_time * 0.02, 0.0));",
-        "    cold += vec3(0.05, 0.07, 0.11) * fog * (1.0 - clamp(u_fx.x, 0.0, 1.0));",
-        // berserk: the remembered map is red-dim like the rest, not cold blue
-        "    cold = mix(cold, mix(col, vec3(luma), 0.3) * vec3(1.05, 0.38, 0.3) * 0.85,",
-        "               clamp(u_fx.x, 0.0, 1.0));",
-        "    vec3 mixed = mix(cold, inside, los);",
+        "    vec3 mixed = mix(col, inside, los);",
         // faint warm rim where sight ends
         "    float rim = clamp(los * (1.0 - los) * 4.0, 0.0, 1.0);",
         "    mixed += vec3(0.16, 0.11, 0.05) * rim * 0.35;",
@@ -1479,8 +1472,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         else
             los = null;
         gl.uniform1i(uni.u_los, 2);
-        gl.uniform1f(uni.u_los_amt, los ? los.amount : 0);
-        gl.uniform2f(uni.u_player, los ? los.px : 0.5, los ? los.py : 0.5);
+        gl.uniform1f(uni.u_los_amt, los ? los.amount : 0);        gl.uniform2f(uni.u_player, los ? los.px : 0.5, los ? los.py : 0.5);
         gl.uniform1f(uni.u_aspect, dungeon.width / Math.max(1, dungeon.height));
         var crt_on = settings.filter !== "off";
         gl.uniform1f(uni.u_crt, crt_on ? 1 : 0);
