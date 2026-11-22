@@ -15,7 +15,7 @@ define(["jquery", "./player", "./util", "./enums", "./dungeon_renderer",
         "./statusfx", "./statusauras", "./summonfx", "./terrainfx", "./wandfx",
         "./beamfx", "./rangedfx", "./barfx", "./itemfx", "./godfx_support", "./godfx_dark",
         "./godfx_martial", "./godfx_odd",
-        "./alive", "./depth", "./fogedge", "./mobile", "./mobilemenus", "./orbmenu", "./explore", "./offscreen", "require"],
+        "./alive", "./depth", "./fogedge", "./mobile", "./dpad", "./mobilemenus", "./orbmenu", "./explore", "./offscreen", "require"],
 function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
     "use strict";
 
@@ -149,6 +149,12 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         api.register_command("toggle:" + k, function () { toggle(k); });
     });
     api.register_command("panel", function () { toggle_panel(); });
+    // the settings panel opened on its Controls tab (mobile Tools menu)
+    api.register_command("panel:controls", function () {
+        $("#sdc_panel").remove();
+        settings.panel_tab = "Controls";
+        toggle_panel();
+    });
     api.register_command("relayout", function () {
         apply_classes();
         if (relayout)
@@ -181,10 +187,12 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         ["Effects", ["alive", "combat_text", "ranged_feel", "splash",
                      "fogedge_amount"]],
         ["Interface", ["turn_counter", "#Mobile", "mobile", "mobile_menus",
-                       "mobile_fight_btn", "mobile_explore_btn",
-                       "quickbar_show", "mobile_stick",
                        "msg_fade", "#Travel", "explore_delay",
                        "offscreen_arrows"]],
+        ["Controls", ["#Movement", "mobile_controls", "dpad_size", "dpad_pos",
+                      "#Buttons", "ui_opacity", "mobile_fight_btn",
+                      "mobile_explore_btn", "quickbar_show",
+                      "quickbar_confirm"]],
         ["Other", []]
     ];
     var PANEL_DEPENDS = {
@@ -196,15 +204,25 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         mobile_fight_btn: ["mobile", "off"],
         mobile_explore_btn: ["mobile", "off"],
         quickbar_show: ["mobile", "off"],
-        mobile_stick: ["mobile", "off"]
+        mobile_controls: ["mobile", "off"],
+        quickbar_confirm: ["quickbar_show", false],
+        // a third entry "only": greyed unless the parent has that value
+        dpad_size: ["mobile_controls", "dpad", "only"],
+        dpad_pos: ["mobile_controls", "dpad", "only"],
+        ui_opacity: ["mobile", "off"]
     };
+
+    function dep_off(dep)
+    {
+        return dep[2] === "only" ? settings[dep[0]] !== dep[1]
+                                 : settings[dep[0]] === dep[1];
+    }
 
     function refresh_deps(panel, key)
     {
         panel.find(".sdc-sub[data-dep='" + key + "']").each(function () {
             var opt_key = $(this).data("opt");
-            var dep = PANEL_DEPENDS[opt_key];
-            $(this).toggleClass("off", settings[key] === dep[1]);
+            $(this).toggleClass("off", dep_off(PANEL_DEPENDS[opt_key]));
         });
     }
 
@@ -216,7 +234,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         if (dep)
         {
             row.addClass("sdc-sub").attr("data-dep", dep[0]).data("opt", opt.key);
-            row.toggleClass("off", settings[dep[0]] === dep[1]);
+            row.toggleClass("off", dep_off(dep));
         }
         if (opt.range)
         {

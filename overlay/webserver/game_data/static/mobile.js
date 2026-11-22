@@ -26,9 +26,10 @@
 //     scrolls, aimed spells) Confirm / Cancel;
 //     lettered choices in the log (Gozag's merchants and potions, Nemelex's
 //     Draw Three, ally orders, Hepliaklqana's ancestor) get one button each.
-//   - big thumb buttons: Fight (Tab) bottom-left, Explore (o) bottom-right.
+//   - big thumb buttons: Fight (Tab) bottom-left, Explore (o) bottom-right
+//     (with the d-pad scheme, dpad.js places them beside the pad).
 //   - dungeon touch: tap = click a tile (travel / attack), long-press =
-//     describe. With "Thumbstick movement" on, a swipe = one step in 8
+//     describe. With the Thumbstick scheme, a swipe = one step in 8
 //     directions: a d-pad fades in where the finger went down, the
 //     direction under the finger lights up and can be changed until the
 //     finger lifts; back in the centre it cancels. Off, swipes don't move.
@@ -43,7 +44,11 @@
 //   "mobile"         auto / on / off. Auto = touch screen or the wrapper.
 //   "mobile_fight_btn" / "mobile_explore_btn"
 //                    show (default) or hide each thumb button.
-//   "mobile_stick"   swipes show the thumbstick d-pad (default off).
+//   "mobile_controls" tap (default) / stick: swipes show the thumbstick
+//                    d-pad / dpad: the always-on d-pad (dpad.js).
+//   "ui_opacity"     20..100 %: the on-screen buttons (top-right row, Fight /
+//                    Explore, pinned macros, the d-pad) and the quick-use
+//                    bar, not the HP/MP panel.
 //   "msg_fade"       seconds the message bubble stays up.
 //   "mobile_zoom"    tile zoom step, gesture-only (pinch with 2.5D off;
 //                    with 2.5D on the tiles stay at Fit and pinch drives
@@ -97,12 +102,24 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     api.register_option({ key: "mobile_explore_btn", label: "Explore button",
                           default: true,
                           choices: [[true, "Show"], [false, "Hide"]] });
-    api.register_option({ key: "mobile_stick", label: "Thumbstick movement",
-                          default: false,
-                          choices: [[false, "Off"], [true, "On"]],
-                          hint: ["Swipes step with a d-pad (touch screens)",
-                                 "Swipe anywhere to step with a d-pad; slide "
-                                 + "to aim, back to the centre to cancel"] });
+    // How touch moves you: tap a tile to travel or attack (always on), plus
+    // swiping with the thumbstick, or the on-screen d-pad (dpad.js). The
+    // old on / off "mobile_stick" setting carries over once.
+    api.register_option({ key: "mobile_controls", label: "Control scheme",
+                          default: api.settings.mobile_stick === true
+                              ? "stick" : "tap",
+                          choices: [["tap", "Tap to move"],
+                                    ["stick", "Thumbstick"],
+                                    ["dpad", "D-pad"]],
+                          hint: ["How you move on touch screens",
+                                 "Tap a tile to travel there in every scheme. "
+                                 + "Thumbstick: swipe anywhere to step. "
+                                 + "D-pad: press the on-screen keys"] });
+    // the on-screen buttons (top-right row, Fight / Explore, pinned macros,
+    // the d-pad) and the quick-use bar fade together; the HP/MP panel stays
+    // as it is
+    api.register_option({ key: "ui_opacity", label: "UI opacity (%)",
+                          default: 100, range: { min: 20, max: 100, step: 5 } });
     api.register_option({ key: "msg_fade", label: "Message fade (s)",
                           default: 5, range: { min: 2, max: 15, step: 1 } });
     // Stock webtiles shrinks tiles until a 17-cell diameter fits, which is
@@ -180,6 +197,10 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         if (!b) return;
         b.toggle("sdc-m-nofight", api.get("mobile_fight_btn") === false);
         b.toggle("sdc-m-noexplore", api.get("mobile_explore_btn") === false);
+        var alpha = Math.max(20, Math.min(100, Number(api.get("ui_opacity"))
+                                              || 100)) / 100;
+        b.toggle("sdc-m-uialpha", alpha < 1);
+        document.body.style.setProperty("--sdc-ui-alpha", String(alpha));
     }
 
     function apply_mode()
@@ -1100,6 +1121,10 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             document.body.classList.add("sdc-m-map");
             close_all();
         });
+        action("Controls", function () {
+            close_all();
+            api.command("panel:controls");
+        });
         action("Settings", function () { close_all(); api.command("panel"); });
         if (window.SdcNative && window.SdcNative.isLocal
             && window.SdcNative.isLocal())
@@ -1874,7 +1899,8 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         var w = window.innerWidth, h = window.innerHeight;
         var bw = bubble.offsetWidth, bh = bubble.offsetHeight;
         var floor = h;
-        ["action-panel", "sdc_m_fight", "sdc_m_explore"].forEach(function (id) {
+        ["action-panel", "sdc_m_fight", "sdc_m_explore",
+         "sdc_m_dpad"].forEach(function (id) {
             var el = document.getElementById(id);
             // not offsetParent: it is null for position:fixed elements
             var r = el && window.getComputedStyle(el).display !== "none"
@@ -2174,7 +2200,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
 
     function stick_on()
     {
-        return api.get("mobile_stick") === true;
+        return api.get("mobile_controls") === "stick";
     }
 
     function stick_sector(dx, dy)
@@ -2800,7 +2826,8 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             apply_mode();
             api.command("relayout");
         }
-        else if (key === "mobile_fight_btn" || key === "mobile_explore_btn")
+        else if (key === "mobile_fight_btn" || key === "mobile_explore_btn"
+                 || key === "ui_opacity")
             apply_prefs();
         else if (key === "mobile_zoom" || key === "depth")
             api.command("relayout");

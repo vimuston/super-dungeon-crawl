@@ -257,8 +257,9 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
     // pressing a key or waiting SEL_TIMEOUT drops the selection. The close /
     // menu slots, right clicks (describe) and keyboard activation act at once.
 
-    api.register_option({ key: "quickbar_confirm", label: "Hotbar: select first",
-                          default: true, tab: "Interface",
+    api.register_option({ key: "quickbar_confirm",
+                          label: "Quick-use bar: select first",
+                          default: true,
                           choices: [[false, "Off"], [true, "On"]],
                           hint: ["Click an item once to select it, again to use it",
                                  "Tap an item once to select it, again to use it"] });
@@ -1436,8 +1437,9 @@ function ($, comm, client, api, options, player, cr, enums, gui, util) {
     function crop()
     {
         var b = document.body.classList;
+        // with the d-pad (dpad.js) the bar sits above the thumb buttons
         var on = b.contains("sdc-mobile") && moved() && !b.contains("sdc-qb-mag")
-                 && !b.contains("sdc-qb-armed");
+                 && !b.contains("sdc-qb-armed") && !b.contains("sdc-m-dpad");
         var lo = on ? thumb_edge("sdc_m_fight", "right") : null;
         var hi = on ? thumb_edge("sdc_m_explore", "left") : null;
         CROP_IDS.forEach(function (id) {

@@ -1,0 +1,78 @@
+/* The always-on d-pad (dpad.js): nine keys styled like the toolbar's quick
+   buttons. dpad.js sets --k (key size), --g (gap), left / bottom;
+   body.sdc-m-dpad is on while the pad is in use. */
+#sdc_m_dpad { display: none; }
+body.sdc-mobile.sdc-m-dpad #sdc_m_dpad {
+    display: grid;
+    position: fixed;
+    z-index: 7;
+    grid-template-columns: repeat(3, var(--k, 44px));
+    grid-template-rows: repeat(3, var(--k, 44px));
+    gap: var(--g, 5px);
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    font-family: var(--stat-font, "DejaVu Sans Mono", monospace);
+}
+#sdc_m_dpad .sdc-dp-k {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    background: rgba(2, 10, 5, 0.6);
+    border: 1px solid var(--sdc-accent-dim);
+    border-radius: 6px;
+    box-shadow: 0 0 6px color-mix(in srgb, var(--sdc-accent) 12%, transparent);
+    color: var(--sdc-accent);
+    cursor: pointer;
+    transition: background 0.08s, box-shadow 0.08s, border-color 0.08s;
+}
+#sdc_m_dpad .sdc-dp-k svg {
+    width: calc(var(--k, 44px) * 0.42);
+    height: calc(var(--k, 44px) * 0.42);
+    overflow: visible;
+}
+#sdc_m_dpad .sdc-dp-k path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+#sdc_m_dpad .sdc-dp-k.on {
+    background: color-mix(in srgb, var(--sdc-accent) 22%, rgba(2, 10, 5, 0.6));
+    border-color: var(--sdc-accent);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--sdc-accent) 45%, transparent),
+                inset 0 0 8px color-mix(in srgb, var(--sdc-accent) 25%, transparent);
+    color: #ffe2a8;
+}
+#sdc_m_dpad .sdc-dp-c span {
+    font-size: max(8px, calc(var(--k, 44px) * 0.2));
+    letter-spacing: 0.06em;
+    opacity: 0.8;
+}
+#sdc_m_dpad .sdc-dp-ok,
+#sdc_m_dpad.sdc-dp-aim .sdc-dp-wait { display: none; }
+#sdc_m_dpad.sdc-dp-aim .sdc-dp-ok { display: inline; opacity: 1; }
+#sdc_m_dpad.sdc-dp-aim .sdc-dp-c { border-color: var(--sdc-accent); }
+
+/* out of the way where the thumb buttons go too */
+body.sdc-hud.sdc-mapview #sdc_m_dpad { display: none !important; }
+body.sdc-mm:has(#ui-stack > .ui-popup) #sdc_m_dpad { display: none !important; }
+
+/* the quick-use bar (and its minimised placeholder) sits above the pad and
+   the thumb buttons instead of between them */
+html body.sdc-mobile.sdc-m-dpad.sdc-hud[data-sdc-quickbar="bottom"] #action-panel,
+html body.sdc-mobile.sdc-m-dpad.sdc-hud[data-sdc-quickbar="bottom"] #action-panel-placeholder {
+    bottom: calc(var(--sdc-dpad-top, 0px) + 8px) !important;
+}
+html body.sdc-mobile.sdc-m-dpad.sdc-hud[data-sdc-quickbar="bottom"][data-sdc-qbcap="h"] #action-panel {
+    bottom: calc(var(--sdc-dpad-top, 0px) + 22px) !important;
+}
+/* nothing to step aside from: the bar no longer covers them */
+body.sdc-mobile.sdc-m-dpad.sdc-qb-mag .sdc-m-big,
+body.sdc-mobile.sdc-m-dpad.sdc-qb-armed .sdc-m-big {
+    opacity: 0.85;
+    pointer-events: auto;
+}
