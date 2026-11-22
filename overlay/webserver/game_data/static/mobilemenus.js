@@ -18,10 +18,11 @@
 //     (known spells only). Known / Learn tabs switch between the known list
 //     and the memorise library.
 //   - shops: one card per item (price, marked / shopping list chips). Tap
-//     = select it: Buy / Describe / Shopping list buttons. The footer is
-//     just the gold line; the purchase confirm gets Yes / No.
+//     = select it: Buy / Describe / Shopping list buttons. Buy keeps
+//     earlier marked items, so unanswered Buys add up to one purchase of
+//     the total. The footer is just the gold line; the confirm gets Yes / No.
 //   - shopping list ($): one card per entry (location, price). Tap =
-//     select it: Travel / Describe buttons.
+//     select it: Travel (walks into the shop on arrival) / Describe.
 //   - abilities (a): one card per ability (name, cost, failure); Pin = a
 //     use shortcut among the pinned macros, like spells. Use / Describe
 //     ability buttons switch the menu mode.
@@ -780,7 +781,10 @@ function ($, comm, api, player, descs) {
     // for marked / on shopping list / owned / unknown). Tapping a card
     // selects it and shows Buy / Describe / Shopping list under it; the
     // stock footer (exit, buy|examine, buy marked) is replaced by the gold
-    // line, and the purchase confirm gets Yes / No. Exit = the X.
+    // line, and the purchase confirm gets Yes / No. Exit = the X. Buy marks
+    // the item on top of any already marked and asks for the total, so
+    // tapping Buy on several items before Yes buys them all at once;
+    // marked items get Unmark.
     // Keys (ShopMenu::process_key): a-z mark for purchase (buy mode),
     // Enter buys the marked items, A-Z toggles the shopping list, ! cycles
     // buy / examine mode (a letter in examine mode describes).
@@ -809,7 +813,7 @@ function ($, comm, api, player, descs) {
         var st = shop_state.get(menu);
         if (!st)
         {
-            st = { sel: null, restore: false };
+            st = { sel: null, sel_name: null, restore: false };
             shop_state.set(menu, st);
             // a tap selects the card instead of the stock click (which
             // marks it for purchase); our buttons inside still work
@@ -821,6 +825,9 @@ function ($, comm, api, player, descs) {
                 ev.stopPropagation();
                 var k = li.getAttribute("data-sdc-key");
                 st.sel = st.sel === k ? null : k;
+                // the letters shift after a purchase: remember the item
+                var r = shop_rows(menu).filter(function (o) { return o.key === k; })[0];
+                st.sel_name = r ? r.name : null;
                 buzz();
                 dress_shop(menu);
             }, true);
@@ -843,16 +850,28 @@ function ($, comm, api, player, descs) {
         }
 
         var rows = shop_rows(menu);
+        if (st.sel && !rows.some(function (o) {
+                return o.key === st.sel && o.name === st.sel_name; }))
+            st.sel = null;
+        // the purchase question is up (yesno() ignores every key but y/n)
+        var asking = YN_FOOT_RE.test(foot.split(/\[[^\]]{1,8}\]/)[0]);
         function act(r, what)
         {
             if (what === "buy")
             {
+                // Buy adds to the marked items and asks for the total; a
+                // Buy on another item while asking (instead of Yes / No)
+                // answers No, marks that one too and asks again
+                if (asking) send_text("N");
                 if (examine) send_text("!");
-                rows.forEach(function (o) {
-                    if (o !== r && o.mark === "+") send_text(o.key);
-                });
                 if (r.mark !== "+") send_text(r.key);
                 send_code(13);
+            }
+            else if (what === "unmark")
+            {
+                if (asking) send_text("N");
+                if (examine) send_text("!");
+                send_text(r.key);
             }
             else if (what === "describe")
             {
@@ -897,6 +916,8 @@ function ($, comm, api, player, descs) {
             var acts = el("div", "sdc-mm-shopacts");
             if (can_buy)
                 acts.appendChild(btn("Buy", "sdc-mm-yes", act.bind(null, r, "buy")));
+            if (can_buy && r.mark === "+")
+                acts.appendChild(btn("Unmark", "", act.bind(null, r, "unmark")));
             acts.appendChild(btn("Describe", "", act.bind(null, r, "describe")));
             if (can_buy)
                 acts.appendChild(btn(r.mark === "$" ? "Off list" : "Add to list", "",
@@ -987,6 +1008,8 @@ function ($, comm, api, player, descs) {
         var mode = shoplist_mode(more);
         function act(key, want)
         {
+            // travel stops on the shop's square: mobile.js walks in
+            if (want === 0) api.emit("shoplist_travel");
             if (mode >= 0)
                 for (var n = (want - mode + 3) % 3; n > 0; n--) send_text("!");
             send_text(key);

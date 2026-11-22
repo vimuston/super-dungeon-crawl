@@ -3,7 +3,8 @@
 // scoped to body.sdc-mobile, so desktop is untouched.
 //
 //   - vitals: the HP/MP panel shrinks to a small pill (top-left). Tapping
-//     it enlarges the layout (name line + full stats card); a second tap
+//     it enlarges the layout (name line + full stats card, with doom and
+//     the damage rating from a quiet "@"); a second tap
 //     opens the character sheet (%) and shrinks it back to the pill.
 //   - macros (Tools > Macros): user-defined key sequences; each button
 //     shows its name or a game tile (picked from a built-in tile picker);
@@ -405,6 +406,8 @@ function ($, comm, api, renderer, enums, options, player, view_data,
                 toggle_vitals();
                 if (was_open && command_mode())
                     send_keys("%");
+                else if (!was_open)
+                    probe_char_status();
             });
 
         watch_messages();
@@ -1338,7 +1341,8 @@ function ($, comm, api, renderer, enums, options, player, view_data,
                     return;
                 }
                 Array.prototype.forEach.call(r.addedNodes, function (n) {
-                    if (n.nodeType === 1 && n.classList.contains("game_message"))
+                    if (n.nodeType === 1 && n.classList.contains("game_message")
+                        && !probing(n))
                     {
                         recent.push(n);
                         changed = true;
@@ -1546,6 +1550,12 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     var ORDERS_END_RE = /^Anything else - Cancel\.?$/;
     var ORDER_RE = /([a-z]) - (.+?)(?=\s+[a-z] - |$)/g;
     var GENDER_RE = /a\) (\w+), b\) (\w+),? or c\) (\w+)\?(?:\s*\(Currently (\w+)\.\))?/;
+    //   - a faded altar: "This altar belongs to (a) Trog or (b) Okawaru or
+    //     (c) Xom, but you can't tell which." + "Press the corresponding
+    //     letter to learn more about a god, or press enter to convert ..."
+    var ECU_RE = /This altar belongs to (.+?), but you can't tell which/;
+    var ECU_HELP_RE = /press enter to convert or escape to cancel/i;
+    var ECU_GOD_RE = /\(([a-z])\) (.+?)(?=,? or \(|,? \([a-z]\)|$)/g;
 
     function msg_text(n)
     {
@@ -1582,6 +1592,25 @@ function ($, comm, api, renderer, enums, options, player, view_data,
                             cls: m[i] === m[4] ? "sdc-m-choice-cur" : "" });
             });
             return { head: last, list: list, extra: [["Keep", "Esc"]] };
+        }
+
+        // faded altar (god-prayer.cc _prompt_ecu_worship): two lines in
+        // one message or two; a letter describes that god (a popup, then
+        // back to the prompt: keep the bubble), Enter converts, Esc cancels
+        var ecu = ECU_RE.exec(t), ecu_head = last;
+        if (!ecu && ECU_HELP_RE.test(t) && last.previousElementSibling)
+        {
+            ecu_head = last.previousElementSibling;
+            ecu = ECU_RE.exec(msg_text(ecu_head));
+        }
+        if (ecu && ECU_HELP_RE.test(t))
+        {
+            ECU_GOD_RE.lastIndex = 0;
+            while ((m = ECU_GOD_RE.exec(ecu[1])))
+                list.push({ key: m[1], text: m[2], keep: true });
+            return list.length ? { head: ecu_head, list: list,
+                                   extra: [["Pray", "Enter"], ["Cancel", "Esc"]] }
+                               : null;
         }
 
         if (ORDERS_END_RE.test(t))
@@ -1630,7 +1659,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         var box = document.createElement("div");
         box.className = "sdc-m-choices";
         ch.list.forEach(function (c) {
-            var b = key_button("", c.key, hide_now);
+            var b = key_button("", c.key, c.keep ? null : hide_now);
             b.addClass("sdc-m-choice " + (c.cls || ""));
             b.append($("<span class='sdc-m-choice-key'>").text(c.key));
             var g = GOLD_RE.exec(c.text);
@@ -2440,9 +2469,99 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         if (old) row.replaceChild(chip, old);
         else row.appendChild(chip);
     }
+    // Shopping list > Travel: travel stops on the shop's square, so walk in
+    // (">") once it is over. Waits until crawl asks for a command again with
+    // no popup open (the list closed, the travel ran); off a shop it gives
+    // up then (interrupted), unless nothing moved yet.
+    var shop_trip = null;   // {t, x, y} since the Travel tap
+    api.on("shoplist_travel", function () {
+        shop_trip = { t: Date.now(), x: player.pos && player.pos.x,
+                      y: player.pos && player.pos.y };
+    });
+    function shop_trip_poll()
+    {
+        if (!shop_trip) return;
+        if (Date.now() - shop_trip.t > 10 * 60 * 1000) { shop_trip = null; return; }
+        if (!command_mode() || $("#ui-stack").children(".ui-popup").length)
+            return;
+        var pos = player.pos;
+        if (!pos) return;
+        if (map_knowledge.get(pos.x, pos.y).f === SHOP)
+        {
+            shop_trip = null;
+            send_keys(">");
+            return;
+        }
+        var moved = pos.x !== shop_trip.x || pos.y !== shop_trip.y;
+        if (moved || Date.now() - shop_trip.t > 3000) shop_trip = null;
+    }
+
+    // The open stats card (tap the pill) also shows doom (even at 0%) and
+    // the damage rating, as "@" prints it: opening the card sends "@" and
+    // keeps its lines out of the message bubble.
+    var char_status = { at: 0, dmg: [], delay: "" };
+    var DMG_RE = /^Your damage rating with (.+?) is about (\S+)(?: \((.*)\))?\.?$/;
+    var DELAY_RE = /^Your attack delay is about ([\d.]+)/;
+    function probe_char_status()
+    {
+        if (!command_mode() || $("#ui-stack").children(".ui-popup").length)
+            return;
+        char_status.at = Date.now();
+        char_status.dmg = [];
+        char_status.delay = "";
+        send_keys("@");
+    }
+    function probing(node)
+    {
+        if (Date.now() - char_status.at > 1500) return false;
+        var t = msg_text(node), m;
+        if ((m = DMG_RE.exec(t)))
+            char_status.dmg.push({ weapon: m[1], rating: m[2], how: m[3] || "" });
+        else if ((m = DELAY_RE.exec(t)))
+            char_status.delay = m[1];
+        if (m) render_stats_extra();
+        return true;
+    }
+    function render_stats_extra()
+    {
+        var card = document.getElementById("sdc_stats");
+        if (!card) return;
+        var box = card.querySelector(".sdc-m-extra");
+        if (!box)
+        {
+            box = document.createElement("div");
+            box.className = "sdc-m-extra";
+            card.appendChild(box);
+        }
+        var doom = Number(player.doom) || 0;
+        var sig = doom + "|" + char_status.delay + "|"
+                  + JSON.stringify(char_status.dmg);
+        if (box.getAttribute("data-sig") === sig) return;
+        box.setAttribute("data-sig", sig);
+        box.innerHTML = "";
+        function row(k, v, sub, cls)
+        {
+            var r = $("<div class='sdc-m-xrow'>").appendTo(box);
+            $("<span class='sdc-m-xk'>").text(k).appendTo(r);
+            $("<b>").text(v).addClass(cls || "").appendTo(r);
+            if (sub) $("<span class='sdc-m-xw'>").text(sub).appendTo(r);
+            return r;
+        }
+        row("Doom", doom + "%", "", doom > 0 ? "sdc-m-bad" : "");
+        char_status.dmg.forEach(function (d) {
+            var r = row("Damage", d.rating, d.weapon.replace(/^your /, ""));
+            // "Base 7 x 117% (Str) x 223% (Skill)" on its own line
+            if (d.how) $("<div class='sdc-m-xhow'>").text(d.how).appendTo(r);
+        });
+        if (char_status.delay)
+            row("Delay", char_status.delay, "turns per attack");
+    }
+
     api.on("hud_update", function (player) {
         try { update_defenses(player); }
         catch (e) { console.error("sdc: mobile defenses", e); }
+        try { render_stats_extra(); }
+        catch (e) { console.error("sdc: mobile stats extra", e); }
         reset_spell_pins(player);
         // answered from the keyboard: the stats went up
         if (stat_lock && stat_sum() > stat_lock.sum)
@@ -2506,6 +2625,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     });
     api.on("frame", place_bubble);
     api.on("frame", aim_poll);
+    api.on("frame", shop_trip_poll);
     api.on("setting", function (key) {
         if (key === "mobile")
         {

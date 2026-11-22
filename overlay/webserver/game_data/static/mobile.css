@@ -337,6 +337,33 @@ html body.sdc-mobile.sdc-m-open #sdc_stats {
     pointer-events: auto;
     cursor: pointer;
 }
+/* doom and damage rating (mobile.js render_stats_extra): open card only */
+#sdc_stats .sdc-m-extra { display: none; }
+html body.sdc-mobile.sdc-m-open #sdc_stats .sdc-m-extra {
+    display: block;
+    margin-top: 4px;
+    padding-top: 3px;
+    border-top: 1px solid var(--sdc-accent-dim);
+    font: 11px/1.35 var(--stat-font);
+}
+#sdc_stats .sdc-m-xrow { display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; }
+#sdc_stats .sdc-m-xhow {
+    flex-basis: 100%;
+    padding-left: 58px;
+    font-size: 10px;
+    opacity: 0.6;
+}
+#sdc_stats .sdc-m-xk { width: 52px; flex: none; opacity: 0.7; }
+#sdc_stats .sdc-m-xrow b { font-weight: normal; color: var(--sdc-accent); }
+#sdc_stats .sdc-m-xrow b.sdc-m-bad { color: #ff5c5c; }
+#sdc_stats .sdc-m-xw {
+    flex: 1 1 0;
+    min-width: 0;
+    opacity: 0.7;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
 html body.sdc-mobile.sdc-m-open #sdc_stats::after {
     content: "Tap again: character sheet \203A";
     display: block;
