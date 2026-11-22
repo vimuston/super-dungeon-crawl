@@ -445,7 +445,10 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
 
     function status_text(pl)
     {
-        return (pl.status || []).map(function (st) {
+        // cooldown lights ("-Berserk") are not the status itself
+        return (pl.status || []).filter(function (st) {
+            return !/^\s*-/.test(String(st.light || "").replace(/<[^>]*>/g, ""));
+        }).map(function (st) {
             return (st.light || "") + " " + (st.text || "");
         }).join("|").replace(/<[^>]*>/g, "").toLowerCase();
     }
