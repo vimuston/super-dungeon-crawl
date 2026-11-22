@@ -636,6 +636,8 @@ function ($, comm, api, player, descs) {
                 ? btn("Mode: " + mode, "sdc-mm-tog", function () { send_text("!"); })
                 : btn(extra ? "Show failure" : "Show power",
                       "sdc-mm-tog", function () { send_text("!"); }));
+            if (lib) stop_learn_watch();
+            else learn_note_bar(title);
         }
         menu.querySelectorAll("li.selectable").forEach(function (li) {
             var item = $(li).data("item");
@@ -768,12 +770,67 @@ function ($, comm, api, player, descs) {
                         function () {
                 if (on) return;
                 send_code(27);
+                if (d[1]) watch_learn();
                 send_text(d[2]);
             });
             b.setAttribute("aria-pressed", on ? "true" : "false");
             tabs.appendChild(b);
         });
         return tabs;
+    }
+
+    // M opens no library when there is nothing in it to learn: crawl
+    // (spl-book.cc _get_spell_list) only prints why, e.g. "You already know
+    // all available spells." once every spell of the library is memorised.
+    // Then the Learn tab would just close the known list, so reopen it (I)
+    // with that reason under the tabs.
+    var LEARN_NONE_RE = new RegExp("library has no spells|need no library"
+        + "|already know all available spells|cannot (currently )?memorise any"
+        + "|can't memorise any new spells");
+    var learn_watch = null;   // {obs, timer} while waiting for M's answer
+    var learn_note = null;    // {text, at}: shown on the next known list
+
+    function stop_learn_watch()
+    {
+        if (!learn_watch) return;
+        learn_watch.obs.disconnect();
+        clearTimeout(learn_watch.timer);
+        learn_watch = null;
+    }
+
+    function watch_learn()
+    {
+        stop_learn_watch();
+        var pane = document.getElementById("messages");
+        if (!pane || !window.MutationObserver) return;
+        var seen = pane.querySelectorAll(".game_message").length;
+        var obs = new MutationObserver(function () {
+            var msgs = pane.querySelectorAll(".game_message");
+            for (var i = seen; i < msgs.length; i++)
+            {
+                var text = msgs[i].textContent.replace(/\s+/g, " ").trim();
+                if (!LEARN_NONE_RE.test(text)) continue;
+                stop_learn_watch();
+                learn_note = { text: text, at: Date.now() };
+                send_text("I");
+                return;
+            }
+            seen = msgs.length;
+        });
+        obs.observe(pane, { childList: true, subtree: true });
+        // the library popup (or any other answer) comes well before this
+        learn_watch = { obs: obs, timer: setTimeout(stop_learn_watch, 4000) };
+    }
+
+    // the reason under the tabs of the known list reopened by watch_learn
+    function learn_note_bar(title)
+    {
+        var n = learn_note;
+        learn_note = null;
+        if (!n || Date.now() - n.at > 4000) return;
+        var bar = el("div", "sdc-mm-keys sdc-mm-note", n.text);
+        bar.setAttribute("role", "status");
+        title.parentNode.insertBefore(bar, title.nextSibling);
     }
 
     // Shops (menu tag "shop", shopping.cc ShopMenu) --------------------------------

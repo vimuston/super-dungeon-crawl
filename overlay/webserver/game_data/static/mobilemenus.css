@@ -375,6 +375,18 @@ body.sdc-mm #ui-stack .sdc-mm-tab {
     font-size: 14px;
     letter-spacing: 0.04em;
 }
+/* why Learn showed no library (nothing left to memorise) */
+body.sdc-mm #ui-stack .sdc-mm-keys.sdc-mm-note {
+    display: block;
+    border-top: none;
+    margin: 0 0 6px;
+    padding: 8px 10px;
+    border-left: 3px solid var(--sdc-accent);
+    background: rgba(255, 255, 255, 0.06);
+    font-size: 14px;
+    line-height: 1.35;
+    white-space: normal;
+}
 body.sdc-mm #ui-stack .sdc-mm-cards .sdc-mm-pin {
     flex: 0 0 auto;
     min-width: 58px;
