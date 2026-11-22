@@ -342,8 +342,10 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player,
                 if (!t || t.bg === undefined || (lo(t.bg) & UNSEEN_BITS))
                     continue;           // remembered map stays still
                 var mat = mat_of[idx_of(t.bg)];
-                // Frozen Ramparts: the server overlays icy-wall tiles on the wall
-                if (t.ov && (mat === M.WALL || mat === M.CRYSTAL || !mat)
+                // Frozen Ramparts: the server overlays icy-wall tiles on the
+                // wall; a frozen torch wall frosts over instead of flickering
+                if (t.ov && (mat === M.WALL || mat === M.CRYSTAL
+                             || mat === M.TORCH || !mat)
                     && has_icy_overlay(t.ov))
                     mat = M.FROZEN;
                 var st = 0, par = 0, itm = 0, kind = 0;
