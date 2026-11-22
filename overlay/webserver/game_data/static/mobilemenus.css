@@ -88,6 +88,22 @@ body.sdc-mm #ui-stack .game-over {
 body.sdc-mm #ui-stack .describe-god .body,
 body.sdc-mm #ui-stack .describe-monster .body,
 body.sdc-mm #ui-stack .describe-feature-wide { flex-direction: column; }
+/* god panes: stock fixes them at 80ch, which runs off a phone screen, and
+   sets their height from that wide layout, which cuts the wrapped text
+   short. Fit the width and let the panes take the popup's height. */
+body.sdc-mm #ui-stack .describe-god > .body.paneset {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    width: 100%;
+    min-height: 0;
+}
+body.sdc-mm #ui-stack .describe-god > .body .pane {
+    width: auto;
+    min-width: 0;
+    height: auto !important;
+    min-height: 0;
+}
 /* clickified item actions ("(r)ead", "(d)rop") */
 body.sdc-mm #ui-stack .describe-item .actions,
 body.sdc-mm #ui-stack .actions {
