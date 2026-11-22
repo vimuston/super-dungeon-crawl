@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the @: dark outline, amber stroke, pale hot core (inside the 66dp safe zone) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="1.15"
+        android:scaleY="1.15">
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FF2A1406"
+            android:strokeWidth="10"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M61,46V58C61,62 63,64 66,64C71,64 75,60 75,54A21,21 0,1 0,64.5 72.2M61,54A7,7 0,1 1,47 54A7,7 0,1 1,61 54" />
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFC86A"
+            android:strokeWidth="6"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M61,46V58C61,62 63,64 66,64C71,64 75,60 75,54A21,21 0,1 0,64.5 72.2M61,54A7,7 0,1 1,47 54A7,7 0,1 1,61 54" />
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFF1CF"
+            android:strokeWidth="2.2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M61,46V58C61,62 63,64 66,64C71,64 75,60 75,54A21,21 0,1 0,64.5 72.2M61,54A7,7 0,1 1,47 54A7,7 0,1 1,61 54" />
+    </group>
+</vector>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="14 14 80 80">
+  <clipPath id="fav"><rect x="14" y="14" width="80" height="80" rx="18"/></clipPath>
+  <g clip-path="url(#fav)">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="70%"><stop offset="0" stop-color="#3a2312"/><stop offset=".55" stop-color="#170e08"/><stop offset="1" stop-color="#070403"/></radialGradient>
+    <radialGradient id="glow"><stop offset="0" stop-color="#ffb347" stop-opacity=".55"/><stop offset="1" stop-color="#ff7a1a" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="108" height="108" fill="url(#bg)"/>
+  <circle cx="54" cy="54" r="36" fill="url(#glow)"/>
+  <path d="M61,46 V58 C61,62 63,64 66,64 C71,64 75,60 75,54 A21,21 0 1 0 64.5,72.2 M61,54 A7,7 0 1 1 47,54 A7,7 0 1 1 61,54" transform="translate(54 54) scale(1.15) translate(-54 -54)" fill="none" stroke="#2a1406" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M61,46 V58 C61,62 63,64 66,64 C71,64 75,60 75,54 A21,21 0 1 0 64.5,72.2 M61,54 A7,7 0 1 1 47,54 A7,7 0 1 1 61,54" transform="translate(54 54) scale(1.15) translate(-54 -54)" fill="none" stroke="#ffc86a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M61,46 V58 C61,62 63,64 66,64 C71,64 75,60 75,54 A21,21 0 1 0 64.5,72.2 M61,54 A7,7 0 1 1 47,54 A7,7 0 1 1 61,54" transform="translate(54 54) scale(1.15) translate(-54 -54)" fill="none" stroke="#fff1cf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

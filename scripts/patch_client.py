@@ -43,6 +43,12 @@ patch(client_html, [
      '<link rel="stylesheet" type="text/css" href="{{ static_url("style.css") }}">\n'
      '    <link rel="stylesheet" type="text/css" href="{{ static_url("sdc_loader.css") }}">\n'
      '    <link rel="stylesheet" type="text/css" href="{{ static_url("sdc_lobby.css") }}">'),
+    # our Torchlight @ instead of the stock Stone Soup favicon (SVG, a PNG for
+    # browsers without SVG favicons, and a home-screen icon for iOS)
+    ('<link rel="icon" href="/static/stone_soup_icon-32x32.png" type="image/png">',
+     '<link rel="icon" href="{{ static_url("sdc_icon.svg") }}" type="image/svg+xml">\n'
+     '    <link rel="icon" href="{{ static_url("sdc_icon-32.png") }}" type="image/png" sizes="32x32">\n'
+     '    <link rel="apple-touch-icon" href="{{ static_url("sdc_icon-180.png") }}">'),
     # responsive lobby: lay out at the device's width (mobile.js still sets
     # its own viewport once a game is running)
     ('<meta name="viewport" content="width=860, initial-scale=1.0">',
