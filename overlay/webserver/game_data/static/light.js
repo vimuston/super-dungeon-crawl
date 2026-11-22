@@ -30,9 +30,10 @@
 //   sdc_light_debug.canvas()             the light canvas (append to see)
 define(["jquery", "./sdc_api", "./map_knowledge", "./dungeon_renderer",
         "./enums", "./player", "./view_data", "./tileinfo-dngn",
-        "./tileinfo-main", "./tileinfo-player", "./cell_renderer", "./fxkit"],
+        "./tileinfo-main", "./tileinfo-player", "./cell_renderer", "./fxkit",
+        "./tileinfo-wall"],
 function ($, api, map_knowledge, dungeon_renderer, enums, player, view_data,
-          dngn, main, tileinfo_player, cell_renderer, kit) {
+          dngn, main, tileinfo_player, cell_renderer, kit, wall) {
     "use strict";
 
     var LIGHT_PX = 8;           // light map pixels per dungeon cell
@@ -202,6 +203,17 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, view_data,
         // decorated by enums.prepare_*_flags
         if (typeof v === "number") return v;
         return v && v.length ? v[0] : 0;
+    }
+
+    // Frozen Ramparts: the server overlays icy-wall tiles on the walls it
+    // freezes; a torch on such a wall is snuffed for the spell's duration
+    function has_icy_overlay(ov)
+    {
+        var base = wall.DNGN_WALL_ICY_WALL_OVERLAY;
+        if (!ov || typeof base !== "number") return false;
+        for (var i = 0; i < ov.length; i++)
+            if (ov[i] >= base && ov[i] <= base + 3) return true;
+        return false;
     }
 
     function tile_class(v)
@@ -454,7 +466,9 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, view_data,
                 if (!t) continue;
                 if (lo(t.bg) & UNSEEN_BITS) continue;
                 var c;
-                if (t.bg && (c = tile_class(t.bg))) push(x, y, c, 1);
+                if (t.bg && (c = tile_class(t.bg))
+                    && !(c === CLASS_ID.torch && has_icy_overlay(t.ov)))
+                    push(x, y, c, 1);
                 if (t.fg)
                 {
                     if ((c = tile_class(t.fg)) && !tile_burst(t.fg))
