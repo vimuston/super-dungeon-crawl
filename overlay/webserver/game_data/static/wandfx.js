@@ -13,7 +13,9 @@
 //   sleep       "<mon> falls asleep!" / "looks drowsy..."
 //   mindburst   "<mon> mind(s) blasted" / "is blasted smooth" / "Your mind
 //               is blasted!" (Wand of Mindburst)
-//   lightning   "Lightning arcs from your <hand>!" (Lightning Rod, thunderbolt)
+//   lightning   "Lightning arcs from your <hand>!" (Chain Lightning, Lightning
+//               Rod): arcs from the player to the nearest monster, then
+//               hop to monsters within 3 tiles, generation by generation
 //   freeze      "You freeze <mon>!" (Freeze spell, spl-damage.cc; no damage
 //               number): the target ices over fast, Ozo's Armour style
 // Not in this crawl version (dropped): Fan of Gales, Lamp of Fire, Stone of
@@ -40,7 +42,6 @@ define(["./sdc_api", "./fxkit"], function (api, kit) {
     var C_PINK = "255,120,200", C_VIOLET = "176,128,255";
     var C_ICE = "170,225,255", C_BLUE = "70,150,255";
     var C_YEL = "255,235,130";
-    var C_WHITE = "235,245,255";
 
     // Helpers -----------------------------------------------------------------
 
@@ -362,62 +363,141 @@ define(["./sdc_api", "./fxkit"], function (api, kit) {
         });
     }
 
-    function bolt(x0, y0, x1, y1, color, w)
+    // Chain Lightning's arc order (spl-damage.cc): the closest monster first,
+    // then every unhit monster within ARC_DIST (Chebyshev) of each victim,
+    // one generation per step. Returns [[{from:{x,y}, to:m}, ...], ...].
+    var ARC_DIST = 3, MAX_ARCS = 12;
+    function chain_of(mons)
     {
-        // jagged polyline as a rotated chain of segments
-        var segs = 7, px = x0, py = y0;
-        var dx = x1 - x0, dy = y1 - y0, len = Math.sqrt(dx * dx + dy * dy);
-        var nx = -dy / (len || 1), ny = dx / (len || 1);
-        for (var i = 1; i <= segs; i++)
+        var p = kit.player_pos();
+        if (!p || !mons.length) return [];
+        function gd(a, b)
         {
-            var f = i / segs, j = i === segs ? 0 : kit.rnd(-1, 1) * len * 0.06;
-            var qx = x0 + dx * f + nx * j, qy = y0 + dy * f + ny * j;
-            var sl = Math.sqrt((qx - px) * (qx - px) + (qy - py) * (qy - py));
-            var ang = Math.atan2(qy - py, qx - px);
-            spawn("left:" + px + "px;top:" + (py - w / 2) + "px;width:" + sl
-                  + "px;height:" + w + "px;transform-origin:0 50%;"
-                  + "background:" + kit.rgba(color, 1) + ";box-shadow:0 0 10px "
-                  + kit.rgba(color, 0.9),
-                  [{ transform: "rotate(" + ang + "rad)", opacity: 1 },
-                   { transform: "rotate(" + ang + "rad)", opacity: 1, offset: 0.4 },
-                   { transform: "rotate(" + ang + "rad)", opacity: 0 }],
-                  { duration: 320, easing: "linear" });
-            px = qx; py = qy;
+            return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
         }
+        var seed = null, bd = 1e9;
+        mons.forEach(function (m) {
+            var d = gd(m, p);
+            if (d > 0 && d < bd) { bd = d; seed = m; }
+        });
+        if (!seed) return [];
+        var seen = [seed], gens = [[{ from: p, to: seed }]], n = 1;
+        var cur = [seed];
+        while (cur.length && n < MAX_ARCS)
+        {
+            var next = [], gen = [];
+            cur.forEach(function (src) {
+                mons.forEach(function (m) {
+                    if (n >= MAX_ARCS || seen.indexOf(m) >= 0
+                        || gd(m, p) === 0 || gd(m, src) > ARC_DIST) return;
+                    seen.push(m);
+                    next.push(m);
+                    gen.push({ from: src, to: m });
+                    n++;
+                });
+            });
+            if (gen.length) gens.push(gen);
+            cur = next;
+        }
+        return gens;
     }
 
-    function fx_lightning(targets)
+    // one jagged, flickering arc between two screen points (SVG polyline
+    // with a soft blue sheath, a white core and a couple of side forks)
+    function arc(x0, y0, x1, y1, delay)
     {
-        var r = kit.view_rect();
-        run_grade("wandfx_zap", 150, function (k) {
-            return { invert: 0.7 * (1 - k), tint: [0.8, 0.9, 1.4],
-                     tint_a: 0.6 * (1 - k) };
+        var dx = x1 - x0, dy = y1 - y0, len = Math.sqrt(dx * dx + dy * dy);
+        if (len < 1) return;
+        var nx = -dy / len, ny = dx / len, pad = 24;
+        var segs = Math.max(5, Math.round(len / 14)), pts = [], i;
+        for (i = 0; i <= segs; i++)
+        {
+            var f = i / segs, j = (i === 0 || i === segs) ? 0
+                    : kit.rnd(-1, 1) * Math.min(18, len * 0.12);
+            pts.push([x0 + dx * f + nx * j, y0 + dy * f + ny * j]);
+        }
+        var minx = Math.min(x0, x1) - pad, miny = Math.min(y0, y1) - pad;
+        function line(list)
+        {
+            return list.map(function (q) {
+                return (q[0] - minx).toFixed(1) + "," + (q[1] - miny).toFixed(1);
+            }).join(" ");
+        }
+        var forks = "";
+        for (i = 0; i < 2; i++)
+        {
+            var k = 1 + Math.floor(kit.rnd(0, segs - 1)), b = pts[k];
+            var side = kit.rnd(0, 1) < 0.5 ? -1 : 1, fl = kit.rnd(8, 18);
+            var ex = b[0] + dx / len * fl * 0.8 + nx * side * fl;
+            var ey = b[1] + dy / len * fl * 0.8 + ny * side * fl;
+            forks += '<polyline points="' + line([b, [(b[0] + ex) / 2 + kit.rnd(-3, 3),
+                     (b[1] + ey) / 2 + kit.rnd(-3, 3)], [ex, ey]])
+                     + '" fill="none" stroke="#cfe6ff" stroke-width="1.5"/>';
+        }
+        var w = Math.abs(dx) + 2 * pad, h = Math.abs(dy) + 2 * pad;
+        var el = spawn("left:" + minx + "px;top:" + miny + "px;width:" + w
+                       + "px;height:" + h + "px",
+            [[0, 0], [0.04, 1], [0.25, 0.25], [0.38, 1], [0.6, 0.15],
+             [0.72, 0.85], [0.9, 0], [1, 0]].map(function (f) {
+                return { offset: f[0], opacity: f[1], easing: "steps(1)" };
+            }),
+            { duration: 380, delay: delay, easing: "linear" });
+        if (!el) return;
+        el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w
+            + '" height="' + h + '" style="overflow:visible;filter:'
+            + 'drop-shadow(0 0 6px #6ab4ff)">'
+            + '<polyline points="' + line(pts) + '" fill="none" stroke="#5aa0ff" '
+            + 'stroke-width="7" stroke-opacity="0.45" stroke-linejoin="round"/>'
+            + '<polyline points="' + line(pts) + '" fill="none" stroke="#fff" '
+            + 'stroke-width="2.5" stroke-linejoin="round"/>' + forks + '</svg>';
+    }
+
+    function zap_flash(a, delay, big)
+    {
+        var s = Math.max(a.cw, a.ch) * (big ? 1.6 : 1.2);
+        spawn("left:" + (a.x - s / 2) + "px;top:" + (a.y - s / 2) + "px;width:"
+              + s + "px;height:" + s + "px;border-radius:50%;mix-blend-mode:screen;"
+              + "background:radial-gradient(circle,rgba(235,245,255,0.95),"
+              + "rgba(110,170,255,0.5) 40%,transparent 70%)",
+              [{ transform: "scale(0.3)", opacity: 0 },
+               { transform: "scale(1)", opacity: 1, offset: 0.15 },
+               { transform: "scale(1.2)", opacity: 0 }],
+              { duration: 320, delay: delay, easing: "ease-out" });
+    }
+
+    // Lightning arcs out of the player's hand to the nearest monster, then
+    // hops monster to monster the way Chain Lightning actually travels.
+    function fx_lightning()
+    {
+        run_grade("wandfx_zap", 160, function (k) {
+            return { tint: [0.85, 0.95, 1.3], tint_a: 0.35 * (1 - k) };
         });
+        var c = center();
+        var gens = chain_of(kit.monsters());
         if (kit.reduced())
         {
-            spawn("left:" + r.left + "px;top:" + r.top + "px;width:" + r.width
-                  + "px;height:" + r.height + "px;background:rgba(220,235,255,0.25)",
-                  [{ opacity: 0.6 }, { opacity: 0 }], { duration: 300 });
+            gens.forEach(function (g) {
+                g.forEach(function (h) {
+                    var a = tile_of(h.to);
+                    if (a) zap_flash(a, 0, false);
+                });
+            });
             return;
         }
-        // forked bolts from the top of the view to a few ground points
-        var c = center();
-        var n = 3;
-        for (var i = 0; i < n; i++)
-        {
-            var x = r.left + r.width * (0.15 + 0.7 * (i + kit.rnd(0, 1)) / n);
-            bolt(x, r.top, x + kit.rnd(-60, 60), r.top + r.height * kit.rnd(0.5, 1),
-                 C_WHITE, 3);
-        }
-        spawn("left:" + r.left + "px;top:" + r.top + "px;width:" + r.width
-              + "px;height:" + r.height + "px;background:rgba(200,220,255,0.35)",
-              [{ opacity: 0.9 }, { opacity: 0.15, offset: 0.4 }, { opacity: 0 }],
-              { duration: 500, easing: "linear" });
-        (targets || []).forEach(function (m) {
-            var a = tile_of(m);
-            if (a) bolt(a.x + kit.rnd(-20, 20), r.top, a.x, a.y, C_YEL, 4);
+        var STEP = 140;
+        zap_flash(c, 0, false);
+        gens.forEach(function (g, gi) {
+            g.forEach(function (h) {
+                var a0 = gi === 0 ? c : tile_of(h.from), a1 = tile_of(h.to);
+                if (!a0 || !a1) return;
+                arc(a0.x, a0.y, a1.x, a1.y, gi * STEP);
+                // second strand on the same hop: reads as crackling, not a line
+                arc(a0.x, a0.y, a1.x, a1.y, gi * STEP + 90);
+                zap_flash(a1, gi * STEP + 30, gi === 0);
+            });
         });
-        ring(c.x, c.y, C_YEL, c.cw * 0.4, c.cw * 2, 400, 2);
+        if (!gens.length)            // nothing in reach: a fizzle at the hand
+            ring(c.x, c.y, C_ICE, c.cw * 0.3, c.cw * 1.2, 300, 2);
     }
 
     // Dispatch ------------------------------------------------------------------
@@ -445,13 +525,7 @@ define(["./sdc_api", "./fxkit"], function (api, kit) {
         [/mind\w* (?:is|are) blasted|blasted smooth/i,
          function () { fx_mindburst(); }],
         [/lightning arcs from your/i,
-         function (t) {
-             var hit = [];
-             kit.monsters().forEach(function (m) {
-                 if (hit.length < 4 && m.x !== undefined) hit.push(m);
-             });
-             fx_lightning(hit.slice(0, 3));
-         }],
+         function () { fx_lightning(); }],
     ];
 
     var last_fire = {};
@@ -507,7 +581,7 @@ define(["./sdc_api", "./fxkit"], function (api, kit) {
             else if (kind === "paralyse") mark_at(fake, mark_freeze, "255,230,120");
             else if (kind === "petrify") mark_at(fake, mark_freeze, "180,180,170");
             else if (kind === "mindburst") fx_mindburst();
-            else if (kind === "lightning") fx_lightning(nearest ? [nearest] : []);
+            else if (kind === "lightning") fx_lightning();
         }
         catch (e) { /* fail soft */ }
     };

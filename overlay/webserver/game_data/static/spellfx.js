@@ -11,7 +11,8 @@
 //   lava    molten slam: dark crust chunks, orange drips
 //   cold    number snaps in, shivers, freezes, shatters; frost spokes
 //           (ice spikes for shards / thorns / icicles / hail)
-//   elec    jittering digits, forked lightning strike from above, sparks
+//   elec    jittering digits, short arcs crackling out of the target, sparks
+//           (sky-borne names like "lightning" / divine get a strike from above)
 //   poison  number sags and drips, green bubbles pop
 //   acid    number melts from the bottom, sizzle pops, puddle
 //   earth   slams in from above, rock chunks, dust ring, cracks
@@ -363,6 +364,39 @@ define([], function () {
                    rnd(-0.6, 0.4) * a.ch, rnd(0, 400), 520);
     };
 
+    var SKY = /^lightning$|divine|call down|thunderbolt|smit/;
+
+    // 3 short jagged discharges leaping out of the target in random directions
+    function crackle(a, P)
+    {
+        var u = a.cw, R = u * 0.95, n = 3;
+        for (var k = 0; k < n; k++)
+        {
+            var ang = (k / n + rnd(-0.12, 0.12)) * 6.283, L = R * rnd(0.6, 1);
+            var ex = Math.cos(ang) * L, ey = Math.sin(ang) * L;
+            var nx = -ey / L, ny = ex / L, pts = [], segs = 5;
+            for (var s = 0; s <= segs; s++)
+            {
+                var f = s / segs, j = s && s < segs ? rnd(-1, 1) * u * 0.12 : 0;
+                pts.push((R + ex * f + nx * j).toFixed(1) + ","
+                         + (R + ey * f + ny * j).toFixed(1));
+            }
+            var el = P.p(P.box(2 * R, 2 * R, 0, 0, ""),
+                [[0, 1], [0.35, 0.2], [0.55, 1], [0.85, 0], [1, 0]].map(function (f) {
+                    return { offset: f[0], opacity: f[1], easing: "steps(1)" };
+                }),
+                { duration: 260, delay: k * 50 + rnd(0, 40), easing: "linear" });
+            if (el)
+                el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="'
+                    + 2 * R + '" height="' + 2 * R + '" style="overflow:visible;'
+                    + 'filter:drop-shadow(0 0 4px #6ab4ff)"><polyline points="'
+                    + pts.join(" ") + '" fill="none" stroke="#5aa0ff" stroke-width="5" '
+                    + 'stroke-opacity="0.5" stroke-linejoin="round"/><polyline points="'
+                    + pts.join(" ") + '" fill="none" stroke="#fff" stroke-width="2" '
+                    + 'stroke-linejoin="round"/></svg>';
+        }
+    }
+
     FX.elec = function (S, P) {
         var a = S.a, u = a.cw, dur = 620;
         H_anim(S, P.path(16, function (t) {
@@ -380,10 +414,13 @@ define([], function () {
                              r: rnd(-10, 10) * (1 - t), o: Math.random() < 0.12 ? 0.4 : 1 };
                 }), { duration: dur, fill: "both", easing: "linear", delay: i * 12 });
         });
-        var bw = u * 1.3, bh = a.ch * 2.4;
-        for (var b = 0; b < 2; b++)
+        var bw = u * 1.3, bh = a.ch * 2.4, i;
+        // beams and chain arcs travel sideways: crackle around the target;
+        // only lightning that really comes down gets the strike from above
+        if (!SKY.test(S.name || "")) { crackle(a, P); bw = 0; }
+        for (var b = 0; bw && b < 2; b++)
         {
-            var pts = [], x = bw / 2 + rnd(-0.1, 0.1) * bw, segs = 7, i;
+            var pts = [], x = bw / 2 + rnd(-0.1, 0.1) * bw, segs = 7;
             for (i = 0; i <= segs; i++)
             {
                 pts.push((i === segs ? bw / 2 : x).toFixed(1) + ","
