@@ -127,7 +127,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     var TOOLS = [
         ["Abilities", "a"], ["Innate", "A"], ["Up <", "<"], ["Down >", ">"],
         ["Character", "%"], ["Shopping list", "$"], ["Pick up", "g"],
-        ["Rest", "5"],
+        ["Drop", "d"], ["Rest", "5"],
         ["Wait", "s"], ["Find", function () { toggle_find(true); }],
         ["Macros", function () { toggle_macros(true); }], ["Map", "X"],
         ["Travel", "G"], ["Look", "x"], ["In view", "Ctrl+X"],

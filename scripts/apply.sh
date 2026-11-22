@@ -9,6 +9,7 @@ SRC="$CRAWL/crawl-ref/source"
 
 git -C "$CRAWL" checkout -- \
   crawl-ref/source/webserver/game_data/static/game.js \
+  crawl-ref/source/webserver/game_data/static/menu.js \
   crawl-ref/source/webserver/game_data/templates/game.html \
   crawl-ref/source/webserver/templates/client.html \
   crawl-ref/source/webserver/templates/banner.html \
