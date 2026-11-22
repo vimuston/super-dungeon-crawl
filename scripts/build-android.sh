@@ -2,10 +2,11 @@
 # Build the Android app (android/) on a Debian/Ubuntu machine (or WSL).
 #
 #   init   one time: JDK 17, rsync, QEMU (apt), Android command-line tools,
-#          platform 34, build-tools and Gradle into ~/android-build (~1 GB;
+#          platform 36, build-tools and Gradle into ~/android-build (~1 GB;
 #          set DCSS_ANDROID_TOOLS to put them elsewhere)
-#   build  assemble the APK and copy it to dist/super-dungeon-crawl.apk (bundles the
-#          on-device crawl: run crossbuild-android.sh build first)
+#   build  assemble the APK and the Play Store bundle into dist/
+#          (super-dungeon-crawl.apk, super-dungeon-crawl.aab); bundles the
+#          on-device crawl: run crossbuild-android.sh build first
 #
 # Install on the phone: copy dist/super-dungeon-crawl.apk over and open it (allow
 # "install unknown apps" for the file manager), or `adb install -r` it.
@@ -14,13 +15,13 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 TOOLS="${DCSS_ANDROID_TOOLS:-$HOME/android-build}"
 SDK="$TOOLS/sdk"
-GRADLE_VER=8.7
+GRADLE_VER=8.13
 GRADLE="$TOOLS/gradle-$GRADLE_VER/bin/gradle"
 CMDLINE_ZIP=commandlinetools-linux-11076708_latest.zip
 # pinned downloads (Google's repository2-3.xml lists the SHA-1 d313adb7...;
 # Gradle publishes gradle-<ver>-bin.zip.sha256)
 CMDLINE_SHA256=2d2d50857e4eb553af5a6dc3ad507a17adf43d115264b1afc116f95c92e5e258
-GRADLE_SHA256=544c35d6bd849ae8a5ed0bcea39ba677dc40f49df7d1835561582da2009b961d
+GRADLE_SHA256=20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78
 
 export ANDROID_HOME="$SDK"
 export ANDROID_SDK_ROOT="$SDK"
@@ -50,7 +51,7 @@ init() {
     # `yes` dies of SIGPIPE when sdkmanager is done; pipefail would abort
     yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
     "$SDK/cmdline-tools/latest/bin/sdkmanager" \
-        "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+        "platform-tools" "platforms;android-36" "build-tools;36.0.0"
     if [ ! -x "$GRADLE" ]; then
         fetch "https://services.gradle.org/distributions/gradle-$GRADLE_VER-bin.zip" \
             "$TOOLS/gradle.zip" "$GRADLE_SHA256"
