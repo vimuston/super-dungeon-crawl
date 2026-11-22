@@ -5,7 +5,8 @@
 //             departure tile.
 //   teleport  the same, plus a full-view scan sweep, a flash and wider tears.
 //
-// Triggers: game messages ("You blink.", "Your surroundings suddenly seem
+// Triggers: game messages ("You blink.", "As you read the scroll of
+// blinking", "Your surroundings suddenly seem
 // different", ...), the "Tele" status light vanishing together with a position
 // jump, and a plain position jump (>= 4 cells in one frame, not part of a
 // walking/travel streak, same place/depth).
@@ -453,7 +454,12 @@ function ($, api, player, dungeon_renderer, enums, kit) {
             {
                 var h = hist[i];
                 if (t - h.t > 1500) break;
-                if (dist(h, cur) >= 2) { from = { x: h.x, y: h.y }; break; }
+                // a message-confirmed blink may be to an adjacent cell
+                if (dist(h, cur) >= (p.strong ? 1 : 2))
+                {
+                    from = { x: h.x, y: h.y };
+                    break;
+                }
             }
         }
         if (!p.strong && !from)
@@ -471,6 +477,9 @@ function ($, api, player, dungeon_renderer, enums, kit) {
     // game messages: [regex, kind]
     var MESSAGES = [
         [/^You blink\b/, "blink"],
+        // ?blinking is a controlled blink: crawl prints no "You blink.", only
+        // this line, so it is the one trigger for a 1-3 cell scroll blink
+        [/^As you read the scroll of blinking\b/, "blink"],
         [/^You (?:are|feel) (?:suddenly )?(?:yanked|pulled|wrenched|warped)\b/,
          "blink"],
         [/^You shift (?:in|through) space\b/, "blink"],
