@@ -76,11 +76,15 @@ build() {
     rsync -a "$out/jniLibs/" "$work/android/app/src/main/jniLibs/"
     rsync -a "$out/assets/" "$work/android/app/src/main/assets/"
     echo "sdk.dir=$SDK" > "$work/android/local.properties"
-    (cd "$work/android" && "$GRADLE" --no-daemon -q assembleRelease)
+    # Google Play rejects native code that isn't 16 KB page aligned
+    python3 "$HERE/scripts/check_page_align.py" "$out/jniLibs/arm64-v8a/"*.so
+    (cd "$work/android" && "$GRADLE" --no-daemon -q assembleRelease bundleRelease)
     mkdir -p "$HERE/dist"
     cp "$work/android/app/build/outputs/apk/release/app-release.apk" \
         "$HERE/dist/super-dungeon-crawl.apk"
-    echo "built $HERE/dist/super-dungeon-crawl.apk"
+    cp "$work/android/app/build/outputs/bundle/release/app-release.aab" \
+        "$HERE/dist/super-dungeon-crawl.aab"
+    echo "built $HERE/dist/super-dungeon-crawl.apk and .aab"
 }
 
 case "${1:-}" in
