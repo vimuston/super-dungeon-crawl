@@ -1737,16 +1737,23 @@ function ($, comm, api, renderer, enums, options, player, view_data,
     // description ("Confirm quaff: an orc"). Look mode (x) prints one too,
     // but with describe / travel: no buttons there. Enter selects and Esc
     // cancels in every targeter.
+    //
+    // The targeter being up is crawl's mouse mode (game.can_target(), also
+    // true in look mode); the hint line tells which. It can sit several
+    // lines back: moving the cursor (thumbstick steps) prints notes under
+    // it ("Digging in that direction won't affect any walls.", the cell's
+    // description). aim_poll() re-renders when the mode changes, since it
+    // can arrive after the prompt's messages.
     var TARGET_HINT_RE = /Press: \? - help/;
+    var LOOK_HINT_RE = /v - describe|\. - travel/;
     function targeting_pending()
     {
-        var n = recent.length;
-        for (var i = n - 1; i >= 0 && i >= n - 2; i--)
+        if (!targeting()) return false;
+        var ms = document.querySelectorAll("#messages .game_message");
+        for (var i = ms.length - 1; i >= Math.max(0, ms.length - 8); i--)
         {
-            var t = recent[i].textContent;
-            if (!TARGET_HINT_RE.test(t)) continue;
-            if (/v - describe|\. - travel/.test(t)) return false;
-            return i === n - 1 || /\S: \S/.test(recent[n - 1].textContent);
+            var t = ms[i].textContent;
+            if (TARGET_HINT_RE.test(t)) return !LOOK_HINT_RE.test(t);
         }
         return false;
     }
@@ -1808,7 +1815,10 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         {
             var aim = document.createElement("div");
             aim.className = "sdc-m-yn";
-            aim.appendChild(key_button("Confirm", "Enter", hide_now)[0]);
+            // Confirm leaves the bubble up: crawl may refuse the pick (a
+            // dig direction with no walls, no valid target there) and stay
+            // in the targeter. aim_poll() drops the buttons once it ends.
+            aim.appendChild(key_button("Confirm", "Enter")[0]);
             aim.appendChild(key_button("Cancel", "Esc", hide_now)[0]);
             bubble.appendChild(aim);
         }
@@ -2452,12 +2462,23 @@ function ($, comm, api, renderer, enums, options, player, view_data,
 
     // every frame: a blink prompt opened or closed? Once seen the tint stays
     // until the prompt ends (moving the cursor prints descriptions under it).
+    var was_targeting = false;
     function aim_poll()
     {
-        if (!active() || !targeting())
+        var on = active() && targeting();
+        if (!on)
             set_aim(false);
         else if (!aim.on && aim_prompt())
             set_aim(true);
+        // targeter opened or closed: add or drop the Confirm / Cancel
+        // buttons (Confirm keeps them up in case crawl refuses the pick)
+        if (on !== was_targeting)
+        {
+            was_targeting = on;
+            var bubble = document.getElementById("sdc_m_bubble");
+            if (on || (bubble && bubble.classList.contains("sdc-m-prompt")))
+                show_bubble();
+        }
     }
 
     function aim_tap(target, px, py)
