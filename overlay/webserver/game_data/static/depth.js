@@ -54,10 +54,9 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
 
     api.register_option({ key: "depth", label: "2.5D view", default: true,
                           choices: [[true, "On"], [false, "Off"]] });
-    api.register_option({ key: "depth_persp", label: "Perspective",
-                          default: 90, range: { min: 0, max: 100, step: 5 },
-                          hint: ["Shift + middle mouse drag up/down",
-                                 "Three-finger swipe up/down"] });
+    // perspective has no slider: Shift + middle mouse drag up/down, or a
+    // three-finger swipe up/down (mobile.js)
+    api.register_option({ key: "depth_persp", default: 90 });
     // rotation (-45..45 deg) and zoom (50..200 %) have no sliders: set by
     // middle mouse drag (below) or pinch / twist (mobile.js) only
     api.register_option({ key: "depth_rot", default: 0 });

@@ -59,7 +59,7 @@ define(["jquery", "./sdc_api"], function ($, api) {
         { cmd: "toggle:stats", key: "stats", icon: "stats", label: "STAT",
           hotkey: "S", tip: "Stats card" },
         { cmd: "toggle:filter", key: "filter", icon: "filter", label: "CRT",
-          hotkey: "C", tip: "CRT filter (curved / flat / off)" },
+          hotkey: "C", tip: "CRT filter on/off" },
         { cmd: "toggle:hud", key: "hud", icon: "hud", label: "HUD",
           hotkey: "H", tip: "HUD / classic layout" },
         { cmd: "panel", icon: "panel", label: "SET", hotkey: "O",

@@ -190,7 +190,7 @@ define(["jquery"], function ($) {
 
     // Commands registered by crt.js, runnable by UI modules (toolbar):
     //   "toggle:map" | "toggle:monsters" | "toggle:stats" | "toggle:hud"
-    //   "toggle:filter" (cycles curved/flat/off) | "panel" (settings panel)
+    //   "toggle:filter" (CRT on/off) | "panel" (settings panel)
     var commands = {};
     function register_command(name, fn)
     {
