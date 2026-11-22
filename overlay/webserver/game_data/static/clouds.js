@@ -25,13 +25,16 @@
 //   sdc_clouds_debug.kinds()               kind names
 //   sdc_clouds_debug.classify(idx)         kind of a cloud tile index
 define(["jquery", "./sdc_api", "./map_knowledge", "./dungeon_renderer",
-        "./enums", "./player", "./tileinfo-main"],
-function ($, api, map_knowledge, dungeon_renderer, enums, player, main) {
+        "./enums", "./player", "./tileinfo-main", "./cell_renderer"],
+function ($, api, map_knowledge, dungeon_renderer, enums, player, main,
+          cell_renderer) {
     "use strict";
 
     var MAX_CELLS = 160;        // cap on drawn cells per frame
     var TEX = 96;               // tile size of the noise texture (px)
     var FADE_IN = 0.30, FADE_OUT = 0.45;    // seconds
+    var HOLE = 0.8;             // how much cloud is cleared over a monster
+    var NATIVE_A = 0.5;         // alpha of the stock cloud tile under ours
     var UNSEEN_BITS = 0x00020000 | 0x00040000;  // MM_UNSEEN | UNSEEN
 
     // Kinds -------------------------------------------------------------------
@@ -177,6 +180,49 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, main) {
         return idx && idx < kind_of.length ? kind_of[idx] : 0;
     }
 
+    // The stock renderer draws a cloud tile twice on a monster's cell: under
+    // it and again over it (40% alpha). Under the light and this overlay
+    // that second pass buried the monster in flat green (issue #84). For
+    // cloud kinds this overlay animates, skip the pass over the sprite; the
+    // overlay keeps the cloud visible around it instead. The pass under it
+    // is drawn fainter too: lit by the cloud's own glow, the flat tile
+    // turned into a neon block that hid the terrain.
+    (function () {
+        var proto = cell_renderer.DungeonCellRenderer.prototype;
+        if (proto.draw_foreground.sdc_clouds) return;
+        var orig_fg = proto.draw_foreground, orig_main = proto.draw_main;
+        var orig_cell = proto.do_render_cell;
+        proto.do_render_cell = function () {
+            this.sdc_past_fg = false;
+            try { return orig_cell.apply(this, arguments); }
+            finally { this.sdc_past_fg = false; }
+        };
+        proto.draw_foreground = function () {
+            var r = orig_fg.apply(this, arguments);
+            this.sdc_past_fg = true;
+            return r;
+        };
+        proto.draw_main = function (idx) {
+            if (!kind_of_idx(idx))
+                return orig_main.apply(this, arguments);
+            if (this.sdc_past_fg)
+                return;
+            // the static tile only marks the cell; the overlay is the cloud
+            var c = this.ctx, a = c.globalAlpha;
+            c.globalAlpha = a * NATIVE_A;
+            try { return orig_main.apply(this, arguments); }
+            finally { c.globalAlpha = a; }
+        };
+        proto.draw_foreground.sdc_clouds = true;
+    })();
+
+    function kind_of_idx(idx)
+    {
+        build_tables();
+        idx = idx & 0xFFFF;
+        return idx && idx < kind_of.length ? kind_of[idx] : 0;
+    }
+
     // Textures ----------------------------------------------------------------
     function rng(seed)
     {
@@ -246,6 +292,7 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, main) {
 
     // State -------------------------------------------------------------------
     var canvas = null, ctx = null;
+    var hole_grad = null, hole_ctx = null;
     var entries = new Map();    // key -> {x, y, k, a, seen}
     var forced = [];            // debug: [{x, y, k}]
     var shown = false;
@@ -449,7 +496,7 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, main) {
         }
 
         var kinds = {};
-        var drawn = 0;
+        var drawn = 0, occupied = 0;
         for (var i = 0; i < live.length; i++)
         {
             var e = live[i];
@@ -518,7 +565,26 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, main) {
                 ctx.drawImage(d.tex, wx, wy, win, win, 0, 0, 1, 1);
             }
 
-            if (d.bloom)
+            // a monster or the player inside the cloud: clear a soft window
+            // over the sprite so it can still be told apart (issue #84); the
+            // cloud stays visible around it and on the tile edges
+            var mc = map_knowledge.get(e.x, e.y);
+            if ((mc && mc.mon) || (e.x === player.pos.x && e.y === player.pos.y))
+            {
+                if (!hole_grad || hole_ctx !== ctx)
+                {
+                    hole_grad = radial([0, 0, 0], HOLE);
+                    hole_ctx = ctx;
+                }
+                ctx.globalCompositeOperation = "destination-out";
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = hole_grad;
+                ctx.fillRect(0, 0, 1, 1);
+                ctx.globalCompositeOperation = "source-over";
+                occupied++;
+            }
+
+            if (d.bloom && !(mc && mc.mon))
             {
                 if (!d.bloom.grad || d.bloom.ctx !== ctx)
                 {
@@ -566,6 +632,7 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, main) {
         ctx.globalAlpha = 1;
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         stats.drawn = drawn;
+        stats.occupied = occupied;
         stats.kinds = kinds;
         stats.ms = performance.now() - t0;
     }

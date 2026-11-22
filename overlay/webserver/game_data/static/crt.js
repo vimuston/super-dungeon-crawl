@@ -1207,8 +1207,18 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "            + texture2D(u_light, uv + vec2(0.0, lo.y)).rgb",
         "            + texture2D(u_light, uv - vec2(0.0, lo.y)).rgb;",
         "    L = L + Lw * 0.22;",
+        // soft knee: one light passes almost unchanged, but a field of
+        // overlapping ones (a poison cloud over a fire dragon) stops
+        // stacking long before it blows the tiles out (issue #84)
+        "    float Lm = max(L.r, max(L.g, L.b));",
+        "    if (Lm > 0.45) L *= (0.45 + (Lm - 0.45) / (1.0 + (Lm - 0.45) * 2.2)) / Lm;",
         // lit surfaces brighten and take the light's tint; dark floor glows
-        "    col += col * L * 2.6 + L * 0.32;",
+        "    vec3 lit = col + col * L * 2.6 + L * 0.32;",
+        // over-bright pixels keep their hue instead of clipping per channel
+        // (a red sprite under green light went yellow, not brighter red)
+        "    float lm = max(lit.r, max(lit.g, lit.b));",
+        "    if (lm > 1.0) lit = mix(lit, lit / lm, 0.75);",
+        "    col = lit;",
         "  }",
         // --- end environmental lighting ---
         // unexplored edge darkness (after light, so lights do not lift it)
