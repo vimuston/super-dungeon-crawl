@@ -1,4 +1,4 @@
-/* Lobby (templates/client.html, banner.html, game_links.html; linked by
+/* Lobby (templates/client.html, banner.html, game_links.html, sdc_lobby.js; linked by
    patch_client.py). One responsive layout for phones and desktops: a top
    account bar, the title, a grid of game cards and the running-games list.
    client.html's viewport is width=device-width (patch_client.py), so this
@@ -62,6 +62,10 @@
 #lobby #login .extra_links { font-size: 0; line-height: 1.9; }
 #lobby #login .extra_links a { font-size: 14px; margin-right: 14px; }
 #lobby #login .extra_links a:last-child { margin-right: 0; }
+
+/* the Windows / Android apps have no accounts (sdc_lobby.js sets this) */
+body.sdc-local #lobby .login_placeholder,
+body.sdc-local #lobby_body { display: none; }
 
 /* Inputs, buttons, dialogs (shared with the account dialogs) -------------- */
 
@@ -238,6 +242,41 @@
     color: var(--sdc-muted);
 }
 #lobby .sdc-game-rc:hover { color: var(--sdc-accent); }
+
+/* Saved characters / new-game name form (sdc_lobby.js) ------------------- */
+
+.sdc-game-mode {
+    align-self: flex-start;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--sdc-accent);
+}
+
+.sdc-game-playing .sdc-game-tag { color: var(--sdc-accent); }
+
+.sdc-newchar { padding: 0 16px 14px; }
+.sdc-newchar[hidden] { display: none; }
+.sdc-newchar-row { display: flex; gap: 8px; }
+#lobby .sdc-newchar .text { flex: 1; min-width: 0; }
+.sdc-newchar-msg:empty { display: none; }
+.sdc-newchar-msg {
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #f0c080;
+}
+
+.sdc-lobby-error {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border: 1px solid #a55b00;
+    color: #f0c080;
+}
+
+.sdc-rc-links { margin-top: 12px; font-size: 13px; }
+#lobby .sdc-rc-links a { color: var(--sdc-muted); margin-right: 16px; }
+#lobby .sdc-rc-links a:hover { color: var(--sdc-accent); }
 
 /* Running games ---------------------------------------------------------- */
 

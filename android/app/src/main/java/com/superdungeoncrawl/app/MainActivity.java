@@ -2,7 +2,6 @@ package com.superdungeoncrawl.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
@@ -41,11 +40,9 @@ import java.nio.charset.StandardCharsets;
  * to a remote server.
  */
 public class MainActivity extends Activity {
-    private static final String SAVE = "saves/player.cs";
     private static final String PREF_SETTINGS = "settings";
     /** Save and stop crawl after this long in the background. */
     private static final long BACKGROUND_SAVE_MS = 60_000;
-    private static final int REQ_EXPORT = 1, REQ_IMPORT = 2;
     /**
      * mtime of the bundled game data. crawl's compiled level/database
      * caches (shipped in assets/crawl/cache) are only valid for source files
@@ -58,8 +55,7 @@ public class MainActivity extends Activity {
     private final Handler ui = new Handler(Looper.getMainLooper());
 
     private LocalServer local;
-    private boolean stopping;       // crawl stopped on purpose; don't restart
-    private Runnable afterStop;     // runs once crawl has exited
+    private boolean stopping;       // saved in the background: resume on return
     private final Runnable backgroundSave = this::saveInBackground;
 
     @Override
@@ -230,7 +226,7 @@ public class MainActivity extends Activity {
 
     private void startLocal() {
         if (local != null) {
-            playLocal();
+            showLobby();
             return;
         }
         web.loadData("<body style='background:#000;color:#3f3;font:16px monospace;"
@@ -243,11 +239,11 @@ public class MainActivity extends Activity {
                 LocalServer srv = new LocalServer(
                     path -> getAssets().open(path),
                     new File(libs, "libcrawlhost.so"), new File(libs, "libcrawl.so"),
-                    crawlDir(), reason -> ui.post(() -> crawlEnded(reason)));
+                    crawlDir(), null); // a game's end shows the lobby (the server sends it)
                 srv.start();
                 ui.post(() -> {
                     local = srv;
-                    playLocal();
+                    showLobby();
                 });
             } catch (IOException e) {
                 ui.post(() -> showError("Couldn't unpack the game: " + e.getMessage()));
@@ -255,37 +251,22 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    private void playLocal() {
+    /** The lobby: saved characters and new games. */
+    private void showLobby() {
+        load("#lobby");
+    }
+
+    /** The character that was saved in the background, or the lobby. */
+    private void resumeLocal() {
+        String last = local.lastPlayed();
+        load(last != null ? "#play-" + last : "#lobby");
+    }
+
+    private void load(String hash) {
         stopping = false;
         // the query makes it a new page load even if only the hash matched
         web.loadUrl("http://127.0.0.1:" + local.port() + "/?k=" + local.token()
-                    + "&t=" + System.currentTimeMillis() + "#play-local");
-    }
-
-    /** Stop crawl (it saves), then run next. */
-    private void stopLocal(Runnable next) {
-        if (local == null || !local.running()) {
-            next.run();
-            return;
-        }
-        stopping = true;
-        afterStop = next;
-        local.saveAndStop();
-    }
-
-    private void crawlEnded(String reason) {
-        Runnable next = afterStop;
-        afterStop = null;
-        if (next != null) {
-            next.run();
-        } else if (!stopping && "saved".equals(reason)) {
-            // the player chose Save and Quit: leave the app (restarting
-            // crawl would just load the save again, as -name skips the menu)
-            finish();
-        } else if (!stopping) {
-            // died, quit or crashed: back to crawl's start menu
-            ui.postDelayed(this::playLocal, 1500);
-        }
+                    + "&t=" + System.currentTimeMillis() + hash);
     }
 
     private void saveInBackground() {
@@ -375,79 +356,8 @@ public class MainActivity extends Activity {
         f.delete();
     }
 
-    // ---- save export / import ----
-
-    private void manageSaves() {
-        File save = new File(crawlDir(), SAVE);
-        new AlertDialog.Builder(this)
-            .setTitle("Saved game")
-            .setMessage(save.exists()
-                        ? "Export the current save (the game is saved first), "
-                          + "or import one (a player.cs from another Super "
-                          + "Dungeon Crawl install; it replaces the save on "
-                          + "the phone)."
-                        : "No save on the phone yet. Import one, e.g. a "
-                          + "player.cs from another Super Dungeon Crawl install.")
-            .setPositiveButton("Import", (d, w) -> {
-                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                i.addCategory(Intent.CATEGORY_OPENABLE);
-                i.setType("*/*");
-                startActivityForResult(i, REQ_IMPORT);
-            })
-            .setNeutralButton("Export", (d, w) -> stopLocal(() -> {
-                Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                i.addCategory(Intent.CATEGORY_OPENABLE);
-                i.setType("application/octet-stream");
-                i.putExtra(Intent.EXTRA_TITLE, "player.cs");
-                startActivityForResult(i, REQ_EXPORT);
-            }))
-            .setNegativeButton("Cancel", null)
-            .show();
-    }
-
-    @Override
-    @SuppressWarnings("deprecation")
-    protected void onActivityResult(int req, int result, Intent data) {
-        super.onActivityResult(req, result, data);
-        Uri uri = result == RESULT_OK && data != null ? data.getData() : null;
-        File save = new File(crawlDir(), SAVE);
-        if (req == REQ_EXPORT) {
-            if (uri != null) {
-                try (InputStream in = new FileInputStream(save);
-                     OutputStream out = getContentResolver().openOutputStream(uri)) {
-                    copy(in, out);
-                    toast("Save exported");
-                } catch (IOException e) {
-                    toast("Export failed: " + e.getMessage());
-                }
-            }
-            playLocal();
-        } else if (req == REQ_IMPORT && uri != null) {
-            stopLocal(() -> {
-                File tmp = new File(save.getPath() + ".import");
-                try (InputStream in = getContentResolver().openInputStream(uri);
-                     OutputStream out = new FileOutputStream(tmp)) {
-                    copy(in, out);
-                } catch (IOException e) {
-                    toast("Import failed: " + e.getMessage());
-                    playLocal();
-                    return;
-                }
-                if (save.exists())
-                    save.renameTo(new File(save.getPath() + ".bak"));
-                tmp.renameTo(save);
-                toast("Save imported");
-                playLocal();
-            });
-        }
-    }
-
     private SharedPreferences prefs() {
         return getSharedPreferences("sdc", MODE_PRIVATE);
-    }
-
-    private void toast(String text) {
-        Toast.makeText(this, text, Toast.LENGTH_LONG).show();
     }
 
     // ---- lifecycle ----
@@ -463,8 +373,8 @@ public class MainActivity extends Activity {
         super.onStart();
         ui.removeCallbacks(backgroundSave);
         // saved while in the background: pick the game up again
-        if (local != null && !local.running() && stopping && afterStop == null)
-            playLocal();
+        if (local != null && !local.running() && stopping)
+            resumeLocal();
     }
 
     @Override
@@ -514,11 +424,6 @@ public class MainActivity extends Activity {
         public void saveSettings(String json) {
             if (json != null && json.length() < 1 << 20)
                 prefs().edit().putString(PREF_SETTINGS, json).apply();
-        }
-
-        @JavascriptInterface
-        public void manageSaves() {
-            runOnUiThread(MainActivity.this::manageSaves);
         }
     }
 }
