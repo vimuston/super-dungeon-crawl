@@ -13,6 +13,13 @@ name: Release builds
 # updated by the next one without uninstalling it first):
 #   ANDROID_KEYSTORE_BASE64   base64 of a .jks keystore
 #   ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+#
+# Google Play (see docs/google-play.md): the android job also builds the
+# Play bundle (.aab, kept as the android-play workflow artifact). With the
+# secret PLAY_SERVICE_ACCOUNT_JSON set, a tag push uploads it to Play too:
+# track from the variable PLAY_TRACK (default internal), release status from
+# PLAY_RELEASE_STATUS (default draft: roll it out in the Play Console; use
+# completed once the app has been published).
 
 on:
   push:
@@ -98,6 +105,7 @@ jobs:
     timeout-minutes: 90
     env:
       SDC_CRAWL_REF: ${{ needs.prepare.outputs.crawl_ref }}
+      PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880  # v6.3.0
@@ -135,6 +143,21 @@ jobs:
           name: android
           path: dist/super-dungeon-crawl.apk
           if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: android-play
+          path: dist/super-dungeon-crawl.aab
+          if-no-files-found: error
+      - name: Upload to Google Play
+        if: startsWith(github.ref, 'refs/tags/') && env.PLAY_JSON != ''
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5  # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.superdungeoncrawl.app
+          releaseFiles: dist/super-dungeon-crawl.aab
+          releaseName: ${{ needs.prepare.outputs.version }}
+          track: ${{ vars.PLAY_TRACK || 'internal' }}
+          status: ${{ vars.PLAY_RELEASE_STATUS || 'draft' }}
 
   windows:
     needs: prepare
@@ -170,6 +193,7 @@ jobs:
           TAG: ${{ github.ref_name }}
           CRAWL_SHA: ${{ needs.prepare.outputs.crawl_ref }}
         run: |
+          rm -f out/*.aab   # the Play bundle goes to Play, not the release
           ls -l out
           gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" \
             --title "Super Dungeon Crawl $TAG" --generate-notes \

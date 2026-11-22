@@ -139,6 +139,7 @@ public class MainActivity extends Activity {
             }
         });
 
+        registerBack();
         startLocal();
         hideBars();
     }
@@ -171,9 +172,23 @@ public class MainActivity extends Activity {
 
     // Back = Esc / close the page's overlays. Outside the game (lobby) the
     // page has no handler and the app goes to the background instead.
+    // Android 13+ delivers Back through an OnBackInvokedCallback (from
+    // targetSdk 36 onBackPressed() is no longer called at all); older
+    // versions still call onBackPressed().
+    private void registerBack() {
+        if (Build.VERSION.SDK_INT >= 33)
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                this::handleBack);
+    }
+
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
+        handleBack();
+    }
+
+    private void handleBack() {
         web.evaluateJavascript(
             "window.sdcBack && document.body.classList.contains('sdc-mobile')"
             + " && document.getElementById('normal')"

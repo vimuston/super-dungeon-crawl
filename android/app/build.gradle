@@ -4,12 +4,12 @@ plugins {
 
 android {
     namespace 'com.superdungeoncrawl.app'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId 'com.superdungeoncrawl.app'
         minSdk 26
-        targetSdk 34
+        targetSdk 36
         // CI passes these (release.yml): a growing code, so every build
         // installs over the previous one; local builds keep the defaults
         versionCode((System.getenv('SDC_VERSION_CODE') ?: '3') as int)
