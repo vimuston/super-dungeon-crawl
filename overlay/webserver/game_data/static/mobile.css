@@ -190,8 +190,12 @@ body.sdc-mobile:has(#message_pane input) #sdc_m_bubble { display: none !importan
 
 /* ----------------------------------------- vitals pill + enlarged view */
 
-/* the merged stats unit pinned top-left, reduced to the HP/MP bars */
-html body.sdc-mobile #sdc_corner {
+/* the merged stats unit pinned top-left, reduced to the HP/MP bars; the
+   [data-sdc-hud-pos] variant outranks bars.css's top-* anchor (top/left:
+   10px), which would otherwise drop the safe-area inset and leave the bars
+   above the quick row on Android */
+html body.sdc-mobile #sdc_corner,
+html body.sdc-mobile[data-sdc-hud-pos] #sdc_corner {
     top: calc(6px + env(safe-area-inset-top));
     left: calc(6px + env(safe-area-inset-left));
     right: auto;
