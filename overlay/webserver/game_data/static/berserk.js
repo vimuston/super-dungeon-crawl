@@ -50,13 +50,9 @@ function ($, api, player, dungeon_renderer, enums, cell_renderer, view_data,
             if (w === "Berserk" || w === "Bers")
                 return true;
         }
-        try
-        {
-            if (pl && typeof pl.has_status === "function"
-                && pl.has_status("berserk"))
-                return true;
-        }
-        catch (e) { /* ignore */ }
+        // No player.has_status("berserk") fallback: it is a substring regex,
+        // so it also matches the "-Berserk" cooldown light shown after the
+        // rage ends and kept the effect on (issue #82).
         return false;
     }
 
