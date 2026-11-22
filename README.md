@@ -207,8 +207,9 @@ HP/MP panel). Tap the HP/MP pill (top-left) to enlarge it to the full
 stats card. Tools (top-right) has the menus, the on-screen keyboard and zoom
 (or pinch the dungeon). Tools > Macros defines your own key sequences, each
 with an optional emoji in place of its label; pin a macro to keep it on
-screen above Explore. Messages appear in a fading bubble; tap it for
-the log, and y/n questions get Yes / No buttons.
+screen above Explore. Dump # on the `%` sheet's top card writes the character
+dump (like `#`) and copies its text to the clipboard. Messages appear in a fading
+bubble; tap it for the log, and y/n questions get Yes / No buttons.
 
 Long-press your own character for the orb menu: a ring of orbs around you.
 Slide (or tap) onto Spells, Evoke or Abilities to fan out your spells,
@@ -436,6 +437,7 @@ overlay/                      copied over crawl-ref/source/
     crt.css                   phosphor theme, HUD panels (@imports the rest)
     light.js, alive.js, depth.js   lighting, living tiles, 2.5D data for the shader
     mobile.js/.css            mobile/touch layout
+    chardump.js/.css          character dump to the clipboard (mobile % sheet)
     (+ bars, stats, toolbar, quickbar, crt_splash and the *fx effect modules)
   webserver/static/
     sdc_title.png, sdc_loader.css   loading screen (title art + progress bar)

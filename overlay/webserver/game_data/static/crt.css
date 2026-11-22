@@ -27,6 +27,7 @@
 @import url("mobilemenus.css");
 @import url("orbmenu.css");
 @import url("offscreen.css");
+@import url("chardump.css");
 
 /* Super Dungeon Crawl — phosphor look + floating HUD. Classes are set on <body> by crt.js */
 

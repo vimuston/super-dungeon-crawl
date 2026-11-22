@@ -15,7 +15,7 @@ define(["jquery", "./player", "./util", "./enums", "./dungeon_renderer",
         "./statusfx", "./statusauras", "./summonfx", "./terrainfx", "./wandfx",
         "./beamfx", "./rangedfx", "./barfx", "./itemfx", "./godfx_support", "./godfx_dark",
         "./godfx_martial", "./godfx_odd",
-        "./alive", "./depth", "./fogedge", "./mobile", "./dpad", "./mobilemenus", "./orbmenu", "./explore", "./offscreen", "require"],
+        "./alive", "./depth", "./fogedge", "./mobile", "./dpad", "./mobilemenus", "./orbmenu", "./explore", "./offscreen", "./chardump", "require"],
 function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
     "use strict";
 

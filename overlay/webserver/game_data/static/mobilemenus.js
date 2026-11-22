@@ -1591,6 +1591,12 @@ function ($, comm, api, player, descs) {
         if (d.time) meta.push(d.time.v);
         who.appendChild(el("div", "sdc-mm-sub", meta.join(" · ")));
         id.appendChild(who);
+        // character dump to the clipboard (chardump.js)
+        var dump = btn("Dump #", "sdc-mm-dump", function () {
+            api.command("char_dump");
+        });
+        dump.title = "Copy the character dump";
+        id.appendChild(dump);
 
         // vitals
         var vit = card("sdc-mm-vit");
