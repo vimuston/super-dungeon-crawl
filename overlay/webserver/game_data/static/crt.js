@@ -606,7 +606,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "  return vec2(sin(T * 8.0 + wp.y * 10.0 + h * 6.0) * 0.012, (n - 0.5) * 0.05 * up);",
         "}",
         "vec2 alive(vec2 uv) {",
-        "  vec2 g = vec2(uv.x, 1.0 - uv.y) * u_alive_cells;",   // cells, y down
+        "  vec2 g = u2c(uv, u_alive_cells);",   // cells, y down
         "  vec2 ci = floor(g);",
         "  vec2 f = g - ci;",                                  // in-cell 0..1
         "  vec2 tc = (ci + 0.5) / u_alive_cells;",
@@ -874,6 +874,13 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "uniform float u_pxs;",   // integer device px per CSS px (mask/scanline pitch)
         "uniform vec2 u_res;",      // output size in device px
         "uniform vec2 u_texel;",    // 1 / source size
+        // dungeon canvas size over the area its cells cover (>= 1): the
+        // canvas is floor(cols * cell * dpr) wide but cells are drawn
+        // floor(cell * dpr) apart, so at a fractional devicePixelRatio the
+        // cells end a few px short of the canvas edge. Every uv <-> cell
+        // conversion goes through this (u2c / c2u / cuv), or the 2.5D walls
+        // drift off the drawn tiles and pull in the sprite below them
+        "uniform vec2 u_gfrac;",
         "uniform float u_curve;",
         "uniform FHP float u_time;",
         "uniform float u_danger;",
@@ -955,6 +962,11 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),",
         "             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);",
         "}",
+        // canvas uv (y up) -> cells (y down) for a grid of n cells, and back
+        "vec2 u2c(vec2 uv, vec2 n) { return vec2(uv.x, 1.0 - uv.y) * n * u_gfrac; }",
+        "vec2 c2u(vec2 g, vec2 n) { vec2 q = g / (n * u_gfrac); return vec2(q.x, 1.0 - q.y); }",
+        // canvas uv -> uv in a texture that covers exactly the cells
+        "vec2 cuv(vec2 uv) { return vec2(uv.x * u_gfrac.x, 1.0 - (1.0 - uv.y) * u_gfrac.y); }",
     ].concat(ALIVE_GLSL, [
         // depth: cell flags at cell coords c (y down); 0 outside the view
         "vec4 dcell(vec2 c) {",
@@ -965,19 +977,19 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         // below it (depth.js build_mask), at ground coords g (y down)
         "float dmask(vec2 g) {",
         "  if (u_depth_mask_on < 0.5) return 0.0;",
-        "  return texture2D(u_depth_mask, vec2(g.x / u_depth_cells.x, 1.0 - g.y / u_depth_cells.y)).a;",
+        "  return texture2D(u_depth_mask, c2u(g, u_depth_cells)).a;",
         "}",
         // 1 when g is on a wall cell that a sprite spilled onto
         "float dspill(vec2 g) {",
         "  if (u_depth_mask_on < 0.5) return 0.0;",
-        "  return texture2D(u_depth_clean, vec2(g.x / u_depth_cells.x, 1.0 - g.y / u_depth_cells.y)).a > 0.01 ? 1.0 : 0.0;",
+        "  return texture2D(u_depth_clean, c2u(g, u_depth_cells)).a > 0.01 ? 1.0 : 0.0;",
         "}",
         // a raised wall sample at g, kept two texels inside its cell on each
         // side that borders a non-wall cell: the face extrudes the wall's
         // edge row, and filtering right at the edge would pull in the sprite
         // next to it (a stretched head up the face of the wall behind you)
         "vec2 dinside(vec2 g) {",
-        "  vec2 c = floor(g), e = 2.0 * u_texel * u_depth_cells;",
+        "  vec2 c = floor(g), e = 2.0 * u_texel * u_depth_cells * u_gfrac;",
         "  if (dcell(c + vec2(0.0, 1.0)).r < 0.75) g.y = min(g.y, c.y + 1.0 - e.y);",
         "  if (dcell(c - vec2(0.0, 1.0)).r < 0.75) g.y = max(g.y, c.y + e.y);",
         "  if (dcell(c + vec2(1.0, 0.0)).r < 0.75) g.x = min(g.x, c.x + 1.0 - e.x);",
@@ -1008,7 +1020,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "             mix(fhash(i + vec2(0.0, 1.0)), fhash(i + vec2(1.0, 1.0)), f.x), f.y);",
         "}",
         "float fogedge(FHP vec2 uv) {",
-        "  FHP vec2 c = vec2(uv.x, 1.0 - uv.y) * u_fog_cells;",
+        "  FHP vec2 c = u2c(uv, u_fog_cells);",
         "  FHP vec2 w = c + u_fog_view;",
         "  FHP float t = u_fog_t;",
         "  float more = max(u_fog_amt - 1.0, 0.0);",
@@ -1076,10 +1088,10 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         // sync with PERSP in depth.js)
         "    uv = 0.5 + (uv - 0.5) / (1.0 + 0.7 * kp * (0.5 - uv.y));",
         // yaw: the ground is rotated about the view centre (cell coords, y down)
-        "    vec2 S = vec2(uv.x, 1.0 - uv.y) * u_depth_cells;",
+        "    vec2 S = u2c(uv, u_depth_cells);",
         "    float ph = u_depth_rot * u_depth_amt;",
         "    vec2 cs = vec2(cos(ph), sin(ph));",
-        "    vec2 Cc = u_depth_cells * 0.5;",
+        "    vec2 Cc = u_depth_cells * u_gfrac * 0.5;",
         "    vec2 G = Cc + drot(S - Cc, cs);",
         "    float H = u_depth_h * u_depth_amt;",
         "    vec2 hv = drot(vec2(0.0, H), cs);",   // screen-up, in ground coords
@@ -1153,7 +1165,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "        shade = 1.0 - (sh + ao * 0.38) * (0.6 + 0.8 * u_depth_p) * u_depth_amt;",
         "      }",
         "    }",
-        "    uv = vec2(gs.x / u_depth_cells.x, 1.0 - gs.y / u_depth_cells.y);",
+        "    uv = c2u(gs, u_depth_cells);",
         "    vec2 gu = G / u_depth_cells;",
         "    d_mul = (gu.x < 0.0 || gu.x > 1.0 || gu.y < 0.0 || gu.y > 1.0) ? 0.0 : shade;",
         "  }",
@@ -1162,7 +1174,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         // and licks stay on their tiles when the view is rotated / zoomed.
         "  if (u_alive_amt > 0.0) {",
         "    vec2 ad = alive(uv);",
-        "    uv += vec2(ad.x, -ad.y) / u_alive_cells;",
+        "    uv += vec2(ad.x, -ad.y) / (u_alive_cells * u_gfrac);",
         "  }",
         // chromatic aberration grows towards the edges
         "  vec2 d = (uv - 0.5) * u_texel * (2.2 * u_crt + 1.5 * u_fx.x + 10.0 * u_gtint.w);",
@@ -1201,8 +1213,8 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         // keeps the stock tiles (a cold, dimmed grade there hid the layout
         // on a zoomed-out phone, issue #81) ---
         "  if (u_los_amt > 0.0) {",
-        "    float los = texture2D(u_los, uv).r;",
-        "    vec2 q = vec2(uv.x, 1.0 - uv.y);",               // y down like u_player
+        "    float los = texture2D(u_los, cuv(uv)).r;",
+        "    vec2 q = vec2(uv.x, 1.0 - uv.y) * u_gfrac;",     // y down like u_player
         "    vec2 dp = (q - u_player) * vec2(u_aspect, 1.0);",
         "    float flick = 0.95 + 0.035 * sin(u_time * 7.3) + 0.02 * sin(u_time * 12.7 + 1.3);",
         "    float lantern = exp(-dot(dp, dp) * 5.0) * flick;",
@@ -1219,13 +1231,14 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         // --- environmental lighting (owned by light.js; edit freely) ---
         // light map: rgb = light colour, a = intensity, already blurred
         "  if (u_light_on > 0.5) {",
-        "    vec3 L = texture2D(u_light, uv).rgb;",
+        "    vec2 lu = cuv(uv);",
+        "    vec3 L = texture2D(u_light, lu).rgb;",
         // soft wide halo from a few wider taps so light spills further
         "    vec2 lo = u_texel * 24.0;",
-        "    vec3 Lw = texture2D(u_light, uv + vec2(lo.x, 0.0)).rgb",
-        "            + texture2D(u_light, uv - vec2(lo.x, 0.0)).rgb",
-        "            + texture2D(u_light, uv + vec2(0.0, lo.y)).rgb",
-        "            + texture2D(u_light, uv - vec2(0.0, lo.y)).rgb;",
+        "    vec3 Lw = texture2D(u_light, lu + vec2(lo.x, 0.0)).rgb",
+        "            + texture2D(u_light, lu - vec2(lo.x, 0.0)).rgb",
+        "            + texture2D(u_light, lu + vec2(0.0, lo.y)).rgb",
+        "            + texture2D(u_light, lu - vec2(0.0, lo.y)).rgb;",
         "    L = L + Lw * 0.22;",
         // soft knee: one light passes almost unchanged, but a field of
         // overlapping ones (a poison cloud over a fire dragon) stops
@@ -1362,7 +1375,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         gl.enableVertexAttribArray(loc);
         gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
 
-        ["u_tex", "u_pxs", "u_res", "u_texel", "u_curve", "u_time", "u_danger", "u_bleed", "u_crt",
+        ["u_tex", "u_pxs", "u_res", "u_texel", "u_gfrac", "u_curve", "u_time", "u_danger", "u_bleed", "u_crt",
          "u_light", "u_light_on", "u_los", "u_los_amt", "u_player", "u_aspect",
          "u_alive", "u_alive_amt", "u_fx", "u_fxp", "u_shake",
          "u_g1", "u_gtint", "u_gvig", "u_ghue",
@@ -1525,6 +1538,8 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         gl.uniform1f(uni.u_pxs, Math.max(1, Math.round(dpr)));
         gl.uniform2f(uni.u_res, w, h);
         gl.uniform2f(uni.u_texel, 1 / dungeon.width, 1 / dungeon.height);
+        var gf = api.grid_frac(dungeon_renderer);
+        gl.uniform2f(uni.u_gfrac, gf[0], gf[1]);
         gl.uniform1f(uni.u_curve, curve());
         gl.uniform1f(uni.u_time, (t % 3600000) / 1000);   // wraps hourly
         gl.uniform1f(uni.u_danger,

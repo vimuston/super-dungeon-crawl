@@ -385,8 +385,10 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
         u = 0.5 + (u - 0.5) / d;
         v = 0.5 + (v - 0.5) / d;
         var ph = rot() * amt, c = Math.cos(ph), s = Math.sin(ph);
-        var dx = u * cols - cols / 2, dy = v * rows - rows / 2;
-        var gx = cols / 2 + c * dx - s * dy, gy = rows / 2 + s * dx + c * dy;
+        var gf = api.grid_frac(dungeon_renderer);
+        var GW = cols * gf[0], GH = rows * gf[1];   // canvas size in cells
+        var dx = u * GW - GW / 2, dy = v * GH - GH / 2;
+        var gx = GW / 2 + c * dx - s * dy, gy = GH / 2 + s * dx + c * dy;
         var h = height() * amt;
         var hx = -s * h, hy = c * h;
         if (wall_at(Math.floor(gx + hx), Math.floor(gy + hy)))
@@ -406,7 +408,7 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
             gx -= s * h * LIQUID_FRAC / 2;
             gy += c * h * LIQUID_FRAC / 2;
         }
-        return [gx / cols, gy / rows];
+        return [gx / GW, gy / GH];
     }
 
     // Inverse of unmap for a flat floor point: the screen uv (y down) where
@@ -418,9 +420,11 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, dngn, main,
         if (!amt || !cols || !rows) return [u, v, 1, 1];
         var z = 1 + (zoom() - 1) * amt;
         var ph = rot() * amt, c = Math.cos(ph), s = Math.sin(ph);
-        var ex = u * cols - cols / 2, ey = v * rows - rows / 2;
+        var gf = api.grid_frac(dungeon_renderer);
+        var GW = cols * gf[0], GH = rows * gf[1];
+        var ex = u * GW - GW / 2, ey = v * GH - GH / 2;
         var dx = c * ex + s * ey, dy = -s * ex + c * ey;
-        var u1 = (dx + cols / 2) / cols, v1 = (dy + rows / 2) / rows;
+        var u1 = (dx + GW / 2) / GW, v1 = (dy + GH / 2) / GH;
         var k = 1 - PERSP * persp() * amt * (v1 - 0.5);
         var u2 = 0.5 + (u1 - 0.5) / k, v2 = 0.5 + (v1 - 0.5) / k;
         return [0.5 + (u2 - 0.5) * z, 0.5 + (v2 - 0.5) * z, z / k, z / (k * k)];
