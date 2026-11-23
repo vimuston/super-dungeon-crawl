@@ -447,7 +447,7 @@ body.sdc-mobile #sdc_m_quick {
 }
 body.sdc-mobile.sdc-mapview #sdc_m_quick,
 body.sdc-mobile.sdc-m-open #sdc_m_quick,
-body.sdc-mobile:has(#ui-stack > .ui-popup) #sdc_m_quick { display: none; }
+body.sdc-mobile:has(#ui-stack > .ui-popup:not(.hidden)) #sdc_m_quick { display: none; }
 body.sdc-mobile #sdc_m_quick .sdc-m-quick {
     display: flex;
     flex-direction: column;

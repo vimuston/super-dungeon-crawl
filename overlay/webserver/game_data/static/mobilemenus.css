@@ -580,10 +580,12 @@ body.sdc-mm .input_dialog_box input { width: 100%; }
 }
 .sdc-mm-sk .sdc-mm-tg:not(:empty) { font-size: 12px !important; }
 
-/* the mobile HUD buttons would sit on top of the popup's close button */
-body.sdc-mm:has(#ui-stack > .ui-popup) #sdc_m_toolbtn,
-body.sdc-mm:has(#ui-stack > .ui-popup) .sdc-m-big,
-body.sdc-mm:has(#ui-stack > .ui-popup) #sdc_m_pin { display: none !important; }
+/* the mobile HUD buttons would sit on top of the popup's close button.
+   Not for a popup crawl has cut off (.hidden): a targeter run from it
+   (quaff / evoke from the inventory) needs the buttons and the d-pad */
+body.sdc-mm:has(#ui-stack > .ui-popup:not(.hidden)) #sdc_m_toolbtn,
+body.sdc-mm:has(#ui-stack > .ui-popup:not(.hidden)) .sdc-m-big,
+body.sdc-mm:has(#ui-stack > .ui-popup:not(.hidden)) #sdc_m_pin { display: none !important; }
 
 /* stock "#ui-stack button" styling would win over .sdc-m-btn */
 body.sdc-mm #ui-stack .sdc-m-btn,

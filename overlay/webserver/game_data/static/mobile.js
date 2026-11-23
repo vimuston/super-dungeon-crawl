@@ -1818,6 +1818,9 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         var aiming = !choices && !more_pending() && targeting_pending();
         var pinned = !!choices || aiming || prompt_pending();
         recent.forEach(function (n) {
+            // aiming: crawl's key hint line is no use on touch (the buttons
+            // and the d-pad do it) and only covers more of the map
+            if (aiming && TARGET_HINT_RE.test(n.textContent)) return;
             var line = n.cloneNode(true);
             line.removeAttribute("id");
             $(line).find(".prefix_glyph, #text_cursor, input").remove();
@@ -2444,6 +2447,56 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         var g = window.game;
         return !!g && typeof g.can_target === "function" && g.can_target();
     }
+
+    // Targeting from a popup (quaff / evoke / read from the inventory or an
+    // item's description): crawl keeps the popup on #ui-stack, only hidden
+    // (ui_cutoff marks it .hidden), while the targeter runs. Stock ui.js
+    // still has its "click outside the popup closes it" listeners on the
+    // document, so every tap in the game (Confirm, the d-pad, a monster)
+    // sent Esc and cancelled the action, and the popup's focus trap
+    // swallows clicks outside it. Let those document listeners through
+    // only while the top popup is actually shown. Installed at load, before
+    // the first in-game popup registers them; harmless on desktop, where
+    // a map click while aiming had the same problem.
+    (function guard_hidden_popup_clicks()
+    {
+        var GUARDED = { popup_clickoutside_handler: true,   // ui.js
+                        popup_touchend_handler: true,
+                        checkPointerDown: true,             // focus-trap.js
+                        checkClick: true,
+                        checkFocusIn: true };
+        var wrapped = typeof WeakMap === "function" ? new WeakMap() : null;
+        if (!wrapped || document.addEventListener.sdc_popup_guard) return;
+        function top_hidden()
+        {
+            var stack = document.getElementById("ui-stack");
+            var top = stack && stack.lastElementChild;
+            return !!top && top.classList.contains("hidden");
+        }
+        var add = document.addEventListener;
+        var remove = document.removeEventListener;
+        document.addEventListener = function (type, fn, opts) {
+            if (typeof fn === "function" && GUARDED[fn.name])
+            {
+                var w = wrapped.get(fn);
+                if (!w)
+                {
+                    w = function () {
+                        if (!top_hidden()) return fn.apply(this, arguments);
+                    };
+                    wrapped.set(fn, w);
+                }
+                fn = w;
+            }
+            return add.call(this, type, fn, opts);
+        };
+        document.addEventListener.sdc_popup_guard = true;
+        document.removeEventListener = function (type, fn, opts) {
+            if (typeof fn === "function" && wrapped.has(fn))
+                fn = wrapped.get(fn);
+            return remove.call(this, type, fn, opts);
+        };
+    })();
 
     // the prompt is the last message, or followed by its "Press: ..." help
     function aim_prompt()
