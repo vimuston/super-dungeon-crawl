@@ -59,7 +59,7 @@ body.sdc-mobile.sdc-m-dpad #sdc_m_dpad {
 
 /* out of the way where the thumb buttons go too */
 body.sdc-hud.sdc-mapview #sdc_m_dpad { display: none !important; }
-body.sdc-mm:has(#ui-stack > .ui-popup) #sdc_m_dpad { display: none !important; }
+body.sdc-mm:has(#ui-stack > .ui-popup:not(.hidden)) #sdc_m_dpad { display: none !important; }
 
 /* the quick-use bar (and its minimised placeholder) sits above the pad and
    the thumb buttons instead of between them */
