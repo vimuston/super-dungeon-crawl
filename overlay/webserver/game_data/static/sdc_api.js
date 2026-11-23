@@ -265,6 +265,24 @@ define(["jquery"], function ($) {
         return depth_unmap ? depth_unmap(u, v) : [u, v];
     }
 
+    // The dungeon canvas is floor(cols * cell * dpr) device px wide, but its
+    // cells are drawn floor(cell * dpr) apart, so at a fractional
+    // devicePixelRatio (2.625, 2.8125... on many phones) the last cell ends
+    // short of the canvas edge. [w, h] = canvas size / area the cells cover
+    // (>= 1). Anything that turns a canvas uv into a cell (u * cols) must
+    // multiply by this, or it drifts off the drawn tiles toward the
+    // bottom-right (the 2.5D walls then lifted the head of whoever stood
+    // below them). dr = the dungeon renderer.
+    function grid_frac(dr)
+    {
+        var el = dr && dr.element;
+        if (!el || !dr.cols || !dr.rows || !dr.scaled_size) return [1, 1];
+        var sc = dr.scaled_size();
+        var w = dr.cols * sc.width, h = dr.rows * sc.height;
+        if (!(w > 0 && h > 0 && el.width >= w && el.height >= h)) return [1, 1];
+        return [el.width / w, el.height / h];
+    }
+
     // forward: texture uv of a flat floor point -> [screen u, v, cell width
     // scale, cell height scale] in the 2.5D view; identity when it is off
     function depth_map_uv(u, v)
@@ -413,6 +431,7 @@ define(["jquery"], function ($) {
         get_fog_source: get_fog_source,
         depth_unmap: depth_unmap_uv,
         depth_map: depth_map_uv,
+        grid_frac: grid_frac,
         set_fx: set_fx,
         grade: grade,
         get_grade: get_grade,
