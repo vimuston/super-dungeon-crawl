@@ -199,7 +199,8 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         ["Effects", ["#CRT", "filter", "curve_amount", "bleed_amount",
                      "scan_sweep", "#2.5D", "depth", "depth_rot_lock",
                      "depth_height", "#Visual effects", "alive", "combat_text",
-                     "ranged_feel", "splash", "fogedge_amount"]],
+                     "ranged_feel", "splash", "light_amount",
+                     "fogedge_amount"]],
         ["Interface", ["turn_counter", "offscreen_arrows", "#Mobile",
                        "mobile", "mobile_menus", "msg_fade"]],
         ["Other", []]
@@ -896,7 +897,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "uniform float u_bleed;",     // chroma bleed strength 0..1
         "uniform float u_crt;",       // CRT look (mask, scanlines, bloom, tube) 0/1
         "uniform sampler2D u_light;", // environmental light map (light.js)
-        "uniform float u_light_on;",
+        "uniform float u_light_on;",  // light strength, 0 = off
         "uniform sampler2D u_los;",   // line-of-sight mask (light.js)
         "uniform float u_los_amt;",   // 0 = off
         "uniform vec2 u_player;",     // player centre, uv (y down)
@@ -1230,7 +1231,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "  }",
         // --- environmental lighting (owned by light.js; edit freely) ---
         // light map: rgb = light colour, a = intensity, already blurred
-        "  if (u_light_on > 0.5) {",
+        "  if (u_light_on > 0.0) {",
         "    vec2 lu = cuv(uv);",
         "    vec3 L = texture2D(u_light, lu).rgb;",
         // soft wide halo from a few wider taps so light spills further
@@ -1239,7 +1240,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         "            + texture2D(u_light, lu - vec2(lo.x, 0.0)).rgb",
         "            + texture2D(u_light, lu + vec2(0.0, lo.y)).rgb",
         "            + texture2D(u_light, lu - vec2(0.0, lo.y)).rgb;",
-        "    L = L + Lw * 0.22;",
+        "    L = (L + Lw * 0.22) * u_light_on;",  // strength setting (issue #116)
         // soft knee: one light passes almost unchanged, but a field of
         // overlapping ones (a poison cloud over a fire dragon) stops
         // stacking long before it blows the tiles out (issue #84)
@@ -1471,7 +1472,9 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
         // environmental light map on texture unit 1
         var light_canvas = null;
         var light_fn = api.get_light_source();
-        if (light_fn && settings.lighting !== false)
+        var light_amt = Number(settings.light_amount) / 100;
+        if (!isFinite(light_amt)) light_amt = 1;
+        if (light_fn && light_amt > 0)
         {
             try { light_canvas = light_fn(); }
             catch (e) { console.error("sdc: light source failed", e); }
@@ -1488,7 +1491,7 @@ function ($, player, util, enums, dungeon_renderer, api, bars, stats_card) {
             catch (e) { light_canvas = null; }
         }
         gl.uniform1i(uni.u_light, 1);
-        gl.uniform1f(uni.u_light_on, light_canvas ? 1 : 0);
+        gl.uniform1f(uni.u_light_on, light_canvas ? light_amt : 0);
 
         // line-of-sight mask on texture unit 2
         var los = null;

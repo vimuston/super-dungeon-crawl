@@ -25,7 +25,10 @@ body.sdc-mobile #message_pane { display: none; }
 body.sdc-mobile #tooltip,
 body.sdc-mobile #chat { display: none !important; }
 body.sdc-mobile:not(.sdc-m-map) #right_column { display: none; }
-body.sdc-mobile #right_column { top: 52px; }
+/* below the quick row (html: outranks crt.css's top: 10px, which loads
+   later); the quick row sits under the safe-area inset (the Android
+   app reports one even in immersive mode, issue #116) */
+html body.sdc-mobile #right_column { top: calc(52px + env(safe-area-inset-top)); }
 /* the desktop action bar (toolbar.js) lives in #right_column, so the
    minimap / monster view above would show it: never on mobile */
 .sdc-mobile #sdc_toolbar { display: none !important; }
@@ -218,6 +221,7 @@ html body.sdc-mobile #sdc_vitals {
 }
 html body.sdc-mobile #sdc_vitals .sdc-name { display: none; }
 html body.sdc-mobile #sdc_vitals .sdc-bar { gap: 4px; font-size: 10px; }
+html body.sdc-mobile #sdc_vitals .sdc-bars { column-gap: 4px; }
 html body.sdc-mobile #sdc_vitals .sdc-lbl { font-size: 10px; }
 html body.sdc-mobile #sdc_vitals .sdc-val { font-size: 10px; }
 html body.sdc-mobile #sdc_vitals .sdc-real { display: none; }

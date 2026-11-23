@@ -146,8 +146,32 @@ define(["jquery", "./sdc_api"], function ($, api) {
             + '</div>';
     }
 
+    // Width of the widest cell glyph in em in the bar font, as this device
+    // renders it, for the cell font size in bars.css. Android has no
+    // DejaVu Sans Mono and its fallback draws the blocks wider than the
+    // 0.6em a monospace face gives, which pushed the HP cells over the
+    // numbers (issue #116).
+    var measured = false;
+    function measure_cells()
+    {
+        if (measured) return;
+        measured = true;
+        try
+        {
+            var ctx = document.createElement("canvas").getContext("2d");
+            ctx.font = 'bold 100px "DejaVu Sans Mono", Menlo, Consolas, monospace';
+            var w = Math.max(ctx.measureText(FULL).width,
+                             ctx.measureText(SHADE).width) / 100;
+            if (isFinite(w) && w > 0.3 && w < 2)
+                document.documentElement.style.setProperty(
+                    "--sdc-cell-em", Math.max(0.6, w).toFixed(3));
+        }
+        catch (e) { /* keep the 0.6em default */ }
+    }
+
     function build()
     {
+        measure_cells();
         state = {};
         Object.keys(ghost_timer).forEach(function (k) {
             clearTimeout(ghost_timer[k]);

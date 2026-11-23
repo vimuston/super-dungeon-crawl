@@ -118,6 +118,21 @@ html body.sdc-hud[data-sdc-hud-pos="top-left"][data-sdc-quickbar="top"] #action-
 
 #sdc_vitals .sdc-bars { display: flex; flex-direction: column; gap: 3px; }
 #sdc_vitals .sdc-nomp .sdc-mp { display: none; }
+/* HP and MP share one set of columns, so "234/234" next to "33/33" leaves
+   both tracks the same length (issue #116); the flex rows stay as the
+   fallback */
+@supports (grid-template-columns: subgrid) {
+    #sdc_vitals .sdc-bars {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        column-gap: 6px;
+    }
+    #sdc_vitals .sdc-bar {
+        display: grid;
+        grid-column: 1 / -1;
+        grid-template-columns: subgrid;
+    }
+}
 
 #sdc_vitals .sdc-bar {
     position: relative;
@@ -162,9 +177,13 @@ body.sdc-hp-danger #sdc_vitals .sdc-hp .sdc-cur { color: var(--sdc-hp); }
     text-align: center;
     overflow: visible;
     font-size: 16px;
-    /* one cell is a tenth of the track (a block glyph is ~0.6em wide), up
-       to Afterglow's 22px; past that the cells spread with small gaps */
-    font-size: min(calc(10cqw / 0.6), 22px);
+    /* one cell is a tenth of the track, up to Afterglow's 22px; past that
+       the cells spread with small gaps. --sdc-cell-em is the block glyph's
+       width in em as this device draws it (bars.js measures it: ~0.6 in a
+       real monospace face, wider in the fallback Android picks), so the
+       ten cells never outgrow the track */
+    font-size: min(calc(10cqw / var(--sdc-cell-em, 0.6)), 22px);
+    min-width: 0;
     line-height: 1.3;
     color: var(--c);
     /* the bloom: a tight core glow plus two wider soft halos */

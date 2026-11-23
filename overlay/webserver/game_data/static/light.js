@@ -636,6 +636,21 @@ function ($, api, map_knowledge, dungeon_renderer, enums, player, view_data,
 
     api.set_light_source(light_source);
 
+    // Strength of the environmental light (issue #116): 0 = off, 100 = the
+    // stock look, above that brighter. crt.js scales the light map by it.
+    // The old hidden on/off flag "lighting: false" becomes strength 0.
+    if (api.settings.lighting === false && api.settings.light_amount === undefined)
+    {
+        api.settings.light_amount = 0;
+        delete api.settings.lighting;
+        api.save();
+    }
+    api.register_option({ key: "light_amount", label: "Environment light",
+                          default: 100,
+                          range: { min: 0, max: 200, step: 10 },
+                          hint: ["Glow of torches, lava, fire and spells; 0 = off",
+                                 "Glow of torches, lava, fire and spells; 0 = off"] });
+
     // Line of sight mask -----------------------------------------------------
     // White where the cell is currently in view, blurred so the edge of
     // sight is soft. The shader lights the inside like a lantern; the
