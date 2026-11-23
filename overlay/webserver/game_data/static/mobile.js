@@ -147,7 +147,7 @@ function ($, comm, api, renderer, enums, options, player, view_data,
         ["Drop", "d"], ["Rest", "5"],
         ["Wait", "s"], ["Find", function () { toggle_find(true); }],
         ["Macros", function () { toggle_macros(true); }], ["Map", "X"],
-        ["Travel", "G"], ["Look", "x"], ["In view", "Ctrl+X"],
+        ["Travel", "G"], ["In view", "Ctrl+X"],
         ["God", "^"], ["Known items", "\\"], ["Lookup", "?/"],
         ["Enter", "Enter"], ["Esc", "Esc"], ["History", "Ctrl+P"],
     ];
@@ -1121,11 +1121,11 @@ function ($, comm, api, renderer, enums, options, player, view_data,
             document.body.classList.add("sdc-m-map");
             close_all();
         });
-        action("Controls", function () {
-            close_all();
-            api.command("panel:controls");
-        });
         action("Settings", function () { close_all(); api.command("panel"); });
+        // Ctrl+S saves and exits at once (crawl's binding); Ctrl+Q abandons
+        // the character only once "quit" is typed into its prompt
+        action("Save", function () { close_all(); send_keys("Ctrl+S"); });
+        action("Quit", function () { close_all(); send_keys("Ctrl+Q"); });
     }
 
     // Find panel ---------------------------------------------------------------
