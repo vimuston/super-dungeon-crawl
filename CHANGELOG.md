@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.7.1 (2026-11-24)
+
+A phone-focused fix-up: aiming from the item menus works again, the torch and
+lava glow can be toned down, and saving no longer needs the keyboard.
+
+### Added
+- An Environment light slider in Settings > Effects (0-200 %, 0 turns it off)
+  that tones down or boosts the glow from torches, lava, fire and spells.
+  ([#116](https://github.com/vimuston/super-dungeon-crawl/issues/116))
+- Save and Quit in the tools menu, so you can save and exit without opening
+  the keyboard. Controls (still in Settings) and Look leave the menu.
+  ([#114](https://github.com/vimuston/super-dungeon-crawl/issues/114))
+
+### Fixed
+- Quaffing, evoking or reading something that needs a target from the Items
+  list or an item's description no longer hides the on-screen controls, and
+  tapping a monster or Confirm no longer cancels it (Phantom Mirror, wand of
+  digging, scroll of immolation and more). ([#115](https://github.com/vimuston/super-dungeon-crawl/issues/115))
+- In 2.5D view, walls stay lined up with the tiles on phones with unusual
+  screen scaling, instead of smearing the sprites below them.
+- The HP and MP bars are the same length again, and the phone minimap sits
+  below the top buttons instead of behind them. ([#116](https://github.com/vimuston/super-dungeon-crawl/issues/116))
+
 ## v1.7.0 (2026-11-22)
 
 A big update for phone players: an always-on d-pad for careful step-by-step
